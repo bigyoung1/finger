@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>指尖博弈 - 多英雄对战</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 20px; color: #333; }
+        h1, h2 { text-align: center; color: #1890ff; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+        .setup-panel { display: flex; justify-content: space-around; align-items: center; background: #e6f7ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #91d5ff; }
+        select, button { padding: 8px 16px; font-size: 14px; border-radius: 4px; border: 1px solid #d9d9d9; cursor: pointer; }
+        button { background: #1890ff; color: white; border: none; font-weight: bold; }
+        button:hover { background: #40a9ff; }
+        button:disabled { background: #bfbfbf; cursor: not-allowed; }
+
+        .battle-arena { display: flex; justify-content: space-between; margin-top: 20px; display: none; }
+        .player-card { width: 48%; border: 2px solid #f0f0f0; border-radius: 8px; padding: 15px; background: #fafafa; position: relative; }
+        .player-card.active { border-color: #52c41a; background: #f6ffed; box-shadow: 0 0 8px rgba(82,196,26,0.3); }
+        .player-card.active::before { content: "👉 当前回合"; position: absolute; top: -12px; right: 10px; background: #52c41a; color: white; padding: 2px 8px; font-size: 12px; border-radius: 4px; }
+        .player-name { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+        .player-camp { display: inline-block; padding: 2px 6px; font-size: 12px; border-radius: 4px; color: white; margin-bottom: 10px; }
+        .camp-HERO { background: #1890ff; }
+        .camp-REBEL { background: #f5222d; }
+        .hp-bar { font-size: 18px; font-weight: bold; color: #ff4d4f; margin-bottom: 15px; }
+
+        .hands-container { display: flex; justify-content: space-around; margin-bottom: 15px; }
+        .hand-box {
+            background: white; border: 2px solid #d9d9d9; border-radius: 6px;
+            padding: 10px; text-align: center; width: 40%; transition: all 0.15s ease;
+        }
+        .hand-box.clickable-mine { cursor: pointer; border-color: #1890ff; }
+        .hand-box.clickable-mine:hover { background: #e6f7ff; transform: scale(1.04); }
+        .hand-box.selected-mine {
+            cursor: pointer; border-color: #52c41a; background: #f6ffed;
+            box-shadow: 0 0 0 3px rgba(82,196,26,0.35); transform: scale(1.06);
+        }
+        .hand-box.clickable-enemy { cursor: pointer; border-color: #f5222d; }
+        .hand-box.clickable-enemy:hover { background: #fff1f0; transform: scale(1.04); }
+        .hand-box.locked {
+            opacity: 0.35; cursor: not-allowed;
+            border-color: #bfbfbf !important; background: #f5f5f5 !important;
+        }
+
+        .hand-value { font-size: 32px; font-weight: bold; color: #262626; margin: 5px 0; }
+        .hand-box.death-clock { background: #fff1f0; border-color: #ffa39e !important; }
+        .death-turns { font-size: 12px; color: #f5222d; }
+
+        .hint-bar {
+            display: none; text-align: center; margin-top: 16px; padding: 10px 16px;
+            border-radius: 6px; font-size: 15px; font-weight: bold;
+            background: #fffbe6; border: 1px solid #ffe58f; color: #874d00;
+        }
+
+        .log-panel { margin-top: 20px; background: #001529; color: #a6adb4; padding: 15px; border-radius: 6px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 13px; }
+        .log-line { margin-bottom: 4px; line-height: 1.4; }
+        .log-important { color: #fadb14; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>指尖博弈 1v1 多英雄对战</h1>
+
+    <div class="setup-panel" id="setupPanel">
+        <div>
+            <label><b>阵营 A (HERO)：</b></label>
+            <select id="heroSelect"></select>
+        </div>
+        <button id="startBtn">⚔️ 激活角色·开始游戏</button>
+        <div>
+            <label><b>阵营 B (REBEL)：</b></label>
+            <select id="rebelSelect"></select>
+        </div>
+    </div>
+
+    <h2 id="turnIndicator" style="display:none;">第 1 轮对决</h2>
+
+    <div class="battle-arena" id="battleArena">
+        <div class="player-card" id="card0">
+            <div class="player-name" id="name0">-</div>
+            <div class="player-camp camp-HERO" id="camp0">HERO</div>
+            <div class="hp-bar">HP: <span id="hp0">350</span></div>
+            <div class="hands-container">
+                <div class="hand-box" id="h0_0_box" onclick="onHandClick(0,0)">
+                    <div>左手 (0)</div>
+                    <div class="hand-value" id="h0_0">1</div>
+                    <div class="death-turns" id="dt0_0"></div>
+                </div>
+                <div class="hand-box" id="h0_1_box" onclick="onHandClick(0,1)">
+                    <div>右手 (1)</div>
+                    <div class="hand-value" id="h0_1">1</div>
+                    <div class="death-turns" id="dt0_1"></div>
+                </div>
+            </div>
+            <div>持有Buff: <span id="buffs0" style="color:#8c8c8c">无</span></div>
+            <div>护盾: <span id="shields0" style="color:#52c41a">无</span></div>
+            <div id="custom0" style="margin-top:6px;padding:6px 10px;background:#fff7e6;border:1px solid #ffd591;border-radius:4px;color:#874d00;font-size:13px;display:none;"></div>
+            <div id="actions0" style="margin-top:4px;"></div>
+        </div>
+
+        <div class="player-card" id="card1">
+            <div class="player-name" id="name1">-</div>
+            <div class="player-camp camp-REBEL" id="camp1">REBEL</div>
+            <div class="hp-bar">HP: <span id="hp1">350</span></div>
+            <div class="hands-container">
+                <div class="hand-box" id="h1_0_box" onclick="onHandClick(1,0)">
+                    <div>左手 (0)</div>
+                    <div class="hand-value" id="h1_0">1</div>
+                    <div class="death-turns" id="dt1_0"></div>
+                </div>
+                <div class="hand-box" id="h1_1_box" onclick="onHandClick(1,1)">
+                    <div>右手 (1)</div>
+                    <div class="hand-value" id="h1_1">1</div>
+                    <div class="death-turns" id="dt1_1"></div>
+                </div>
+            </div>
+            <div>持有Buff: <span id="buffs1" style="color:#8c8c8c">无</span></div>
+            <div>护盾: <span id="shields1" style="color:#52c41a">无</span></div>
+            <div id="custom1" style="margin-top:6px;padding:6px 10px;background:#fff7e6;border:1px solid #ffd591;border-radius:4px;color:#874d00;font-size:13px;display:none;"></div>
+            <div id="actions1" style="margin-top:4px;"></div>
+        </div>
+    </div>
+
+    <div class="hint-bar" id="hintBar">👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击</div>
+
+    <!-- 蛋糕弹窗 -->
+    <div id="cakeDialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);z-index:999;align-items:center;justify-content:center;">
+        <div style="background:white;padding:24px 32px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.2);min-width:340px;">
+            <h3 style="margin:0 0 16px;color:#eb2f96;">🍓 释放草莓蛋糕</h3>
+            <div style="margin-bottom:14px;">
+                <div style="margin-bottom:6px;">释放组数（每组 = 3蛋糕 → 10法伤+10补给）：</div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <button onclick="changeCakeGroups(-1)" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:4px 12px;">－</button>
+                    <span id="cakeGroupCount" style="font-size:22px;font-weight:bold;color:#eb2f96;min-width:30px;text-align:center;">1</span>
+                    <button onclick="changeCakeGroups(1)" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:4px 12px;">＋</button>
+                    <span id="cakeCostHint" style="margin-left:10px;color:#8c8c8c;font-size:13px;"></span>
+                </div>
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="margin-bottom:6px;">选择目标（点击直接释放）：</div>
+                <div id="cakeTargetList" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+            </div>
+            <div style="text-align:right;">
+                <button onclick="closeCakeDialog()" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:6px 18px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 大乔抢夺弹窗会被 JS 动态插入到大乔卡片下方 -->
+
+    <div style="margin-top:16px;padding:12px 16px;background:#f6ffed;border:2px solid #52c41a;border-radius:8px;">
+        <h4 style="margin:0 0 10px;color:#389e0d;">🤖 AI自动对战（实验性）</h4>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button onclick="startAIBattle()" style="background:#52c41a;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-weight:bold;">⚔️ 开始AI自动对战</button>
+            <button onclick="stopAIBattle()" style="background:#ff4d4f;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">⏹ 停止AI对战</button>
+            <button onclick="downloadAIBattleLog()" style="background:#1890ff;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">📥 下载AI对战日志</button>
+        </div>
+        <div id="aiBattleStatus" style="margin-top:8px;font-size:13px;color:#389e0d;"></div>
+    </div>
+
+    <h3 style="display:flex;align-items:center;justify-content:space-between;">
+        <span>📋 战斗实时事件簿：</span>
+        <button id="endGameBtn" style="background:#fa541c;color:white;border:none;padding:6px 14px;border-radius:4px;font-size:13px;cursor:pointer;">📥 结束本局并下载日志</button>
+    </h3>
+    <div class="log-panel" id="logPanel">
+        <div class="log-line">等待游戏开始...</div>
+    </div>
+</div>
+
+<script src="main.js"></script>
+<script>
+// ============================================================
+//  两步点击 - 状态机
+// ============================================================
+var _step = 0;
+var _myHandIdx = -1;
+
+function onHandClick(playerIdx, handIdx) {
+    if (typeof Main === "undefined" || !Main.turnManager || Main.turnManager.gameOver) return;
+    if (Main.turnManager.players.length < 2) return;
+
+    var actorIdx  = Main.turnManager.currentPlayerIdx;
+    var targetIdx = actorIdx === 0 ? 1 : 0;
+    var actor     = Main.turnManager.players[actorIdx];
+    var target    = Main.turnManager.players[targetIdx];
+
+    if (_step === 0) {
+        if (playerIdx !== actorIdx) {
+            flashHint("⚠️ 请先点击【自己】的手！");
+            return;
+        }
+        // 调用 isValidTouch 检查（如果 Player 有这方法）
+        if (actor.isValidTouch && !actor.isValidTouch(handIdx, target, 0)) {
+            // 试探看右手能不能动，否则提示
+            flashHint("🔒 本回合只能动 0 手（或能凑成大招的手）");
+            return;
+        }
+        _myHandIdx = handIdx;
+        _step = 1;
+        refreshHandStyles();
+        setHint("✅ 已选" + (handIdx === 0 ? "左手" : "右手") + "，请点击【敌方】一只手发动攻击");
+    } else {
+        if (playerIdx !== targetIdx) {
+            // 点的自己另一只手 → 重选
+            if (actor.isValidTouch && !actor.isValidTouch(handIdx, target, 0)) {
+                flashHint("🔒 那只手不可动");
+                return;
+            }
+            _myHandIdx = handIdx;
+            refreshHandStyles();
+            setHint("✅ 已选" + (handIdx === 0 ? "左手" : "右手") + "，请点击【敌方】一只手发动攻击");
+            return;
+        }
+        var myHand = _myHandIdx;
+        _step = 0;
+        _myHandIdx = -1;
+
+        var result = Main.engine.handleTouch(actor, myHand, target, handIdx);
+        if (typeof result === 'string' && result.indexOf("错误") === 0) {
+            alert(result);
+            refreshHandStyles();
+            return;
+        }
+
+        Main.turnManager.checkGameOver();
+        if (!Main.turnManager.gameOver) {
+            Main.turnManager.nextTurn();
+        }
+        Main.render();
+        refreshHandStyles();
+        updateHintForCurrentPlayer();
+    }
+}
+
+function refreshHandStyles() {
+    if (typeof Main === "undefined" || !Main.turnManager || Main.turnManager.players.length < 2) return;
+
+    var actorIdx  = Main.turnManager.currentPlayerIdx;
+    var targetIdx = actorIdx === 0 ? 1 : 0;
+    var gameOver  = Main.turnManager.gameOver;
+    var actor     = Main.turnManager.players[actorIdx];
+    var target    = Main.turnManager.players[targetIdx];
+
+    for (var pi = 0; pi < 2; pi++) {
+        for (var hi = 0; hi < 2; hi++) {
+            var box = document.getElementById("h" + pi + "_" + hi + "_box");
+            if (!box) continue;
+            var isDead = box.classList.contains("death-clock");
+            var base = "hand-box" + (isDead ? " death-clock" : "");
+
+            if (gameOver) { box.className = base; continue; }
+
+            if (_step === 0) {
+                if (pi === actorIdx) {
+                    // 用 isValidTouch 检测能否动
+                    var canTouch = !actor.isValidTouch || actor.isValidTouch(hi, target, 0) || actor.isValidTouch(hi, target, 1);
+                    box.className = base + (canTouch ? " clickable-mine" : " locked");
+                } else {
+                    box.className = base;
+                }
+            } else {
+                if (pi === actorIdx && hi === _myHandIdx) {
+                    box.className = base + " selected-mine";
+                } else if (pi === actorIdx) {
+                    var canTouch = !actor.isValidTouch || actor.isValidTouch(hi, target, 0) || actor.isValidTouch(hi, target, 1);
+                    box.className = base + (canTouch ? "" : " locked");
+                } else if (pi === targetIdx) {
+                    box.className = base + " clickable-enemy";
+                } else {
+                    box.className = base;
+                }
+            }
+        }
+    }
+}
+
+function updateHintForCurrentPlayer() {
+    if (typeof Main === "undefined" || !Main.turnManager || Main.turnManager.gameOver) return;
+    setHint("👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击");
+}
+
+function setHint(msg) {
+    var bar = document.getElementById("hintBar");
+    if (!bar) return;
+    bar.style.display = "block";
+    bar.textContent = msg;
+    bar.style.background = "#fffbe6";
+    bar.style.borderColor = "#ffe58f";
+    bar.style.color = "#874d00";
+}
+
+function flashHint(msg) {
+    var bar = document.getElementById("hintBar");
+    if (!bar) return;
+    bar.style.display = "block";
+    bar.textContent = msg;
+    bar.style.background = "#fff1f0";
+    bar.style.borderColor = "#ffa39e";
+    bar.style.color = "#cf1322";
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() {
+        if (typeof Main === "undefined") return;
+        var origRender = Main.render.bind(Main);
+        Main.render = function() {
+            origRender();
+            refreshHandStyles();
+        };
+        var origSetup = Main.setupAndStart.bind(Main);
+        Main.setupAndStart = function() {
+            origSetup();
+            updateHintForCurrentPlayer();
+            refreshHandStyles();
+        };
+    }, 0);
+});
+
+// ============================================================
+//  蛋糕弹窗
+// ============================================================
+var _cakeActorIdx = -1;
+var _cakeGroups = 1;
+
+function openCakeDialog(actorIdx) {
+    _cakeActorIdx = actorIdx;
+    _cakeGroups = 1;
+    document.getElementById("cakeGroupCount").textContent = "1";
+    var actor = Main.turnManager.players[actorIdx];
+    var maxGroups = Math.floor(actor.cakes / 3);
+    updateCakeHint(maxGroups);
+    var list = document.getElementById("cakeTargetList");
+    list.innerHTML = "";
+    for (var i = 0; i < Main.turnManager.players.length; i++) {
+        if (i === actorIdx) continue;
+        var p = Main.turnManager.players[i];
+        if (p.hp <= 0) continue;
+        var btn = document.createElement("button");
+        btn.style.cssText = "background:#fff1f0;color:#cf1322;border:2px solid #ffa39e;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;";
+        btn.textContent = "🎯 " + p.name + " (HP:" + p.hp + ")";
+        btn.setAttribute("data-target-idx", i);
+        btn.onclick = function() {
+            var tIdx = parseInt(this.getAttribute("data-target-idx"));
+            castCake(tIdx);
+        };
+        list.appendChild(btn);
+    }
+    document.getElementById("cakeDialog").style.display = "flex";
+}
+
+function closeCakeDialog() {
+    document.getElementById("cakeDialog").style.display = "none";
+    _cakeActorIdx = -1;
+}
+
+function changeCakeGroups(delta) {
+    var actor = Main.turnManager.players[_cakeActorIdx];
+    var maxG = Math.floor(actor.cakes / 3);
+    _cakeGroups = Math.max(1, Math.min(maxG, _cakeGroups + delta));
+    document.getElementById("cakeGroupCount").textContent = _cakeGroups;
+    updateCakeHint(maxG);
+}
+
+function updateCakeHint(maxG) {
+    var cost = _cakeGroups * 3;
+    var dmg = _cakeGroups * 10;
+    document.getElementById("cakeCostHint").textContent =
+        "消耗 " + cost + " 蛋糕 → " + dmg + " 法伤 + " + dmg + " 补给（最多可释放 " + maxG + " 组）";
+}
+
+function castCake(targetIdx) {
+    var result = Main.invokeAction(_cakeActorIdx, "useCake", { targetIdx: targetIdx, groupCount: _cakeGroups });
+    if (typeof result === 'string' && result.indexOf("错误") === 0) {
+        alert(result);
+        return;
+    }
+    closeCakeDialog();
+}
+
+// ============================================================
+//  大乔抢夺弹窗（嵌入到大乔卡片下方）
+// ============================================================
+var _stealTimer = null;
+var _pendingStealQueue = [];
+
+function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
+    _pendingStealQueue.push({ daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
+    var d = document.getElementById('stealDialog');
+    if (!d || !d.style.display || d.style.display === 'none') _showNextSteal();
+}
+
+function _showNextSteal() {
+    if (_pendingStealQueue.length === 0) return;
+    var task = _pendingStealQueue.shift();
+    var players = Main.turnManager.players;
+    var daQiao = players[task.daQiaoIdx];
+    var healer = players[task.healerIdx];
+    var steal = Math.floor(task.netHeal * 0.5) + (daQiao.isGodForm ? 10 : 0);
+
+    // 找到大乔卡片
+    var card = document.getElementById('card' + task.daQiaoIdx);
+    if (!card) return;
+
+    // 创建/复用 stealDialog 并嵌入到大乔卡片内
+    var d = document.getElementById('stealDialog');
+    if (!d) {
+        d = document.createElement('div');
+        d.id = 'stealDialog';
+    }
+    d.style.cssText = 'margin-top:8px;padding:12px 14px;background:#fff0f6;border:2px solid #eb2f96;border-radius:8px;animation:none;';
+    d.innerHTML =
+        '<div style="font-weight:bold;color:#eb2f96;margin-bottom:6px;font-size:14px;">🎯 抢夺机会！</div>' +
+        '<div style="font-size:13px;color:#333;margin-bottom:8px;">' +
+            '抢夺 <b>' + healer.name + '</b> 的回血<br>' +
+            '净回血 <b>' + task.netHeal + '</b> → 可抢 <b>' + steal + '</b> 血' +
+            (daQiao.isGodForm ? ' (+10神大乔)' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<button id="stealBtn" style="background:#eb2f96;color:white;border:none;padding:6px 16px;border-radius:5px;cursor:pointer;font-weight:bold;">抢！</button>' +
+            '<button onclick="closeStealDialog()" style="background:#f5f5f5;color:#666;border:1px solid #d9d9d9;padding:6px 14px;border-radius:5px;">不抢</button>' +
+            '<span id="stealCountdown" style="color:#ff4d4f;font-weight:bold;margin-left:auto;">5</span><span style="color:#ff4d4f">s</span>' +
+        '</div>';
+
+    card.appendChild(d);
+    d.style.display = 'block';
+
+    document.getElementById('stealBtn').onclick = function() {
+        clearInterval(_stealTimer);
+        Main.invokeAction(task.daQiaoIdx, "doSteal", { healerIdx: task.healerIdx, netHeal: task.netHeal });
+        closeStealDialog();
+    };
+
+    var countdown = 5;
+    document.getElementById('stealCountdown').textContent = countdown;
+    _stealTimer = setInterval(function() {
+        countdown--;
+        var elem = document.getElementById('stealCountdown');
+        if (elem) elem.textContent = countdown;
+        if (countdown <= 0) {
+            clearInterval(_stealTimer);
+            closeStealDialog();
+        }
+    }, 1000);
+}
+
+function closeStealDialog() {
+    clearInterval(_stealTimer);
+    var d = document.getElementById('stealDialog');
+    if (d && d.parentNode) d.parentNode.removeChild(d);
+    if (_pendingStealQueue.length > 0) setTimeout(_showNextSteal, 500);
+}
+
+// ============================================================
+//  AI对战 wrapper
+// ============================================================
+function startAIBattle() {
+    if (typeof Main !== "undefined" && typeof Main.startAIBattle !== "undefined") {
+        Main.startAIBattle();
+        document.getElementById('aiBattleStatus').textContent = '🤖 AI对战进行中...';
+    } else {
+        alert('AI对战模块未加载，请刷新页面重试');
+    }
+}
+
+function stopAIBattle() {
+    if (typeof Main !== "undefined" && typeof Main.stopAIBattle !== "undefined") {
+        Main.stopAIBattle();
+        document.getElementById('aiBattleStatus').textContent = '⏹ AI对战已停止';
+    }
+}
+
+function downloadAIBattleLog() {
+    if (typeof Main !== "undefined" && typeof Main.downloadAIBattleLog !== "undefined") {
+        Main.downloadAIBattleLog();
+    } else {
+        alert('AI对战日志为空，请先进行AI对战');
+    }
+}
+</script>
+</body>
+</html>

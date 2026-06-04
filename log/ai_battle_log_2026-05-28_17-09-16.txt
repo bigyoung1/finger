@@ -1,0 +1,275 @@
+═══════════════════════════════════════════════════
+          指尖博弈 AI对战日志
+═══════════════════════════════════════════════════
+
+───────────────────────────────────────────────
+第 1 场
+对阵: 藏师 VS 孙悟空
+结果: HERO获胜
+回合数: 180
+
+【游戏日志】
+==== Battle Start ====
+P1: 藏师 (HP: 330, Camp: HERO)
+P2: 孙悟空 (HP: 130, Camp: REBEL)
+
+> 藏师 used[2] on 孙悟空[1] -> 2
+> 孙悟空 used[2] on 藏师[1] -> 2
+> 藏师 used[2] on 孙悟空[1] -> 2
+> 孙悟空 used[4] on 藏师[2] -> 4
+> 藏师 used[6] on 孙悟空[4] -> 6
+> 孙悟空 used[3] on 藏师[2] -> 3
+> 藏师 used[9] on 孙悟空[3] -> 9
+> 孙悟空 used[5] on 藏师[2] -> 5
+> 藏师 used[4] on 孙悟空[5] -> 4
+> 孙悟空 used[6] on 藏师[2] -> 6
+> 藏师 used[9] on 孙悟空[5] -> 9
+> 孙悟空 used[5] on 藏师[9] -> 5
+> 藏师 used[4] on 孙悟空[5] -> 4
+> 孙悟空 used[9] on 藏师[4] -> 9
+> 藏师 used[9] on 孙悟空[5] -> 9
+> 孙悟空 used[4] on 藏师[9] -> 4
+> 藏师 used[8] on 孙悟空[9] -> 8
+> 孙悟空 used[6] on 藏师[2] -> 6
+> 藏师 used[4] on 孙悟空[6] -> 4
+> 孙悟空 used[3] on 藏师[4] -> 3
+> 藏师 used[5] on 孙悟空[3] -> 5
+> 孙悟空 used[7] on 藏师[4] -> 7
+> 藏师 used[0] on 孙悟空[6] -> 0
+> 孙悟空 used[2] on 藏师[5] -> 2
+> 藏师 used[6] on 孙悟空[6] -> 6
+> 孙悟空 used[2] on 藏师[6] -> 2
+> 藏师 used[7] on 孙悟空[2] -> 7
+> 孙悟空 used[8] on 藏师[6] -> 8
+> 藏师 used[5] on 孙悟空[8] -> 5
+> 孙悟空 used[3] on 藏师[5] -> 3
+> 藏师 used[7] on 孙悟空[2] -> 7
+> 孙悟空 used[8] on 藏师[6] -> 8
+> 藏师 used[4] on 孙悟空[8] -> 4
+> 孙悟空 used[2] on 藏师[4] -> 2
+> 藏师 used[0] on 孙悟空[3] -> 0
+> 孙悟空 used[6] on 藏师[4] -> 6
+> 藏师 used[6] on 孙悟空[6] -> 6
+> 孙悟空 used[7] on 藏师[4] -> 7
+> 藏师 used[0] on 孙悟空[6] -> 0
+> 孙悟空 used[2] on 藏师[6] -> 2
+> 藏师 used[7] on 孙悟空[7] -> 7
+> 孙悟空 used[9] on 藏师[7] -> 9
+> 藏师 used[4] on 孙悟空[7] -> 4
+> 孙悟空 used[1] on 藏师[4] -> 1
+> 藏师 used[5] on 孙悟空[9] -> 5
+> 孙悟空 used[3] on 藏师[4] -> 3
+> 藏师 used[5] on 孙悟空[1] -> 5
+> 孙悟空 used[8] on 藏师[5] -> 8
+> 藏师 used[6] on 孙悟空[1] -> 6
+> 孙悟空 used[7] on 藏师[6] -> 7
+> 藏师 used[2] on 孙悟空[7] -> 2
+> 孙悟空 used[4] on 藏师[6] -> 4
+> 藏师 used[3] on 孙悟空[7] -> 3
+> 孙悟空 used[6] on 藏师[2] -> 6
+> 藏师 used[9] on 孙悟空[7] -> 9
+> 孙悟空 used[6] on 藏师[9] -> 6
+> 藏师 used[9] on 孙悟空[6] -> 9
+> 孙悟空 used[5] on 藏师[9] -> 5
+> 藏师 used[4] on 孙悟空[5] -> 4
+> 孙悟空 used[9] on 藏师[4] -> 9
+> 藏师 used[3] on 孙悟空[9] -> 3
+> 孙悟空 used[2] on 藏师[3] -> 2
+> 藏师 used[5] on 孙悟空[2] -> 5
+> 孙悟空 used[1] on 藏师[5] -> 1
+> 藏师 used[6] on 孙悟空[1] -> 6
+> 孙悟空 used[7] on 藏师[6] -> 7
+> 藏师 used[6] on 孙悟空[7] -> 6
+> 孙悟空 used[3] on 藏师[6] -> 3
+> 藏师 used[8] on 孙悟空[2] -> 8
+> 孙悟空 used[9] on 藏师[6] -> 9
+> 藏师 used[7] on 孙悟空[9] -> 7
+> 孙悟空 used[9] on 藏师[7] -> 9
+> 藏师 used[6] on 孙悟空[9] -> 6
+> 孙悟空 used[5] on 藏师[6] -> 5
+> 藏师 used[5] on 孙悟空[9] -> 5
+> 孙悟空 used[5] on 藏师[6] -> 5
+> 藏师 used[0] on 孙悟空[5] -> 0
+> 孙悟空 used[1] on 藏师[6] -> 1
+> 藏师 used[5] on 孙悟空[5] -> 5
+> 孙悟空 used[6] on 藏师[5] -> 6
+> 藏师 used[0] on 孙悟空[5] -> 0
+> 孙悟空 used[1] on 藏师[6] -> 1
+> 藏师 used[7] on 孙悟空[1] -> 7
+> 孙悟空 used[8] on 藏师[7] -> 8
+> 藏师 used[6] on 孙悟空[6] -> 6
+> 孙悟空 used[3] on 藏师[7] -> 3
+> 藏师 used[4] on 孙悟空[8] -> 4
+> 孙悟空 used[0] on 藏师[7] -> 0
+> 藏师 used[2] on 孙悟空[8] -> 2
+> 孙悟空 used[0] on 藏师[2] -> 0
+> 孙悟空 used[2] on 藏师[2] -> 2
+> 孙悟空 used[2] on 藏师[2] -> 2
+> 藏师 used[9] on 孙悟空[2] -> 9
+> 孙悟空 used[1] on 藏师[9] -> 1
+> 藏师 used[1] on 孙悟空[2] -> 1
+> 孙悟空 used[3] on 藏师[2] -> 3
+> 藏师 used[4] on 孙悟空[2] -> 4
+> 孙悟空 used[3] on 藏师[1] -> 3
+> 藏师 used[4] on 孙悟空[3] -> 4
+> 孙悟空 used[7] on 藏师[4] -> 7
+> 藏师 used[1] on 孙悟空[7] -> 1
+> 孙悟空 used[1] on 藏师[4] -> 1
+> 藏师 used[4] on 孙悟空[3] -> 4
+> 孙悟空 used[5] on 藏师[4] -> 5
+> 藏师 used[9] on 孙悟空[5] -> 9
+> 孙悟空 used[4] on 藏师[9] -> 4
+> 藏师 used[3] on 孙悟空[4] -> 3
+> 孙悟空 used[7] on 藏师[3] -> 7
+> 藏师 used[6] on 孙悟空[3] -> 6
+> 孙悟空 used[7] on 藏师[4] -> 7
+> 藏师 used[1] on 孙悟空[7] -> 1
+> 孙悟空 used[8] on 藏师[1] -> 8
+> 藏师 used[4] on 孙悟空[8] -> 4
+> 孙悟空 used[8] on 藏师[1] -> 8
+> 孙悟空 used[2] on 藏师[4] -> 2
+> 孙悟空 used[2] on 藏师[4] -> 2
+> 藏师 used[3] on 孙悟空[2] -> 3
+> 孙悟空 used[5] on 藏师[3] -> 5
+> 藏师 used[6] on 孙悟空[2] -> 6
+> 孙悟空 used[5] on 藏师[3] -> 5
+> 藏师 used[8] on 孙悟空[5] -> 8
+> 孙悟空 used[3] on 藏师[8] -> 3
+> 藏师 used[9] on 孙悟空[3] -> 9
+> 孙悟空 used[3] on 藏师[8] -> 3
+> 藏师 used[1] on 孙悟空[3] -> 1
+> 孙悟空 used[4] on 藏师[1] -> 4
+> 藏师 used[4] on 孙悟空[3] -> 4
+> 孙悟空 used[8] on 藏师[4] -> 8
+> 藏师 used[7] on 孙悟空[3] -> 7
+> 孙悟空 used[0] on 藏师[7] -> 0
+> 藏师 used[7] on 孙悟空[8] -> 7
+> 孙悟空 used[5] on 藏师[7] -> 5
+> 藏师 used[2] on 孙悟空[5] -> 2
+> 孙悟空 used[2] on 藏师[2] -> 2
+> 藏师 used[2] on 孙悟空[5] -> 2
+> 孙悟空 used[4] on 藏师[2] -> 4
+> 藏师 used[6] on 孙悟空[4] -> 6
+> 孙悟空 used[7] on 藏师[2] -> 7
+> 藏师 used[9] on 孙悟空[7] -> 9
+> 孙悟空 used[0] on 藏师[6] -> 0
+> 藏师 used[6] on 孙悟空[7] -> 6
+> 孙悟空 used[6] on 藏师[6] -> 6
+> 藏师 used[3] on 孙悟空[7] -> 3
+> 孙悟空 used[3] on 藏师[6] -> 3
+> 藏师 used[2] on 孙悟空[6] -> 2
+> 孙悟空 used[8] on 藏师[2] -> 8
+> 藏师 used[1] on 孙悟空[8] -> 1
+> 孙悟空 used[9] on 藏师[1] -> 9
+> 藏师 used[4] on 孙悟空[3] -> 4
+> 孙悟空 used[3] on 藏师[4] -> 3
+> 藏师 used[5] on 孙悟空[3] -> 5
+> 孙悟空 used[8] on 藏师[5] -> 8
+> 藏师 used[8] on 孙悟空[3] -> 8
+> 孙悟空 used[7] on 藏师[4] -> 7
+> 藏师 used[5] on 孙悟空[7] -> 5
+> 孙悟空 used[1] on 藏师[4] -> 1
+> 藏师 used[6] on 孙悟空[1] -> 6
+> 孙悟空 used[7] on 藏师[6] -> 7
+> 藏师 used[4] on 孙悟空[8] -> 4
+> 孙悟空 used[1] on 藏师[4] -> 1
+> 藏师 used[2] on 孙悟空[8] -> 2
+> 孙悟空 used[0] on 藏师[2] -> 0
+> 藏师 used[5] on 孙悟空[1] -> 5
+> 孙悟空 used[2] on 藏师[2] -> 2
+> 藏师 used[4] on 孙悟空[2] -> 4
+> 孙悟空 used[6] on 藏师[5] -> 6
+> 藏师 used[0] on 孙悟空[6] -> 0
+> 孙悟空 used[1] on 藏师[5] -> 1
+> 藏师 used[7] on 孙悟空[2] -> 7
+> 孙悟空 used[9] on 藏师[7] -> 9
+> 藏师 used[1] on 孙悟空[1] -> 1
+> 孙悟空 used[6] on 藏师[7] -> 6
+> 藏师 used[7] on 孙悟空[6] -> 7
+> 孙悟空 used[8] on 藏师[7] -> 8
+> 藏师 used[5] on 孙悟空[8] -> 5
+> 孙悟空 used[3] on 藏师[5] -> 3
+> 藏师 used[0] on 孙悟空[3] -> 0
+> 孙悟空 used[8] on 藏师[5] -> 8
+> 藏师 used[1] on 孙悟空[6] -> 1
+> 孙悟空 used[9] on 藏师[1] -> 9
+
+==== Battle End ====
+Total turns: 180
+Winner: 藏师 (HP remaining: 1214)
+Loser: 孙悟空 (HP remaining: -26)
+
+【复盘】
+胜者分析: 藏师
+  - HP leads by 1240, resource advantage obvious
+  - Overall decisions reasonable, pace control good
+败者分析: 孙悟空
+  - Killed by 藏师
+  - Suggestion: Optimize Zero usage strategy, avoid countdown crisis
+  - Suggestion: Trigger more heal/shield combos, maintain resource advantage
+关键节点:
+  ◆ Game end: Winner: 藏师 (HP remaining: 1214)
+
+───────────────────────────────────────────────
+第 2 场
+对阵: 张飞 VS 藏师
+结果: HERO获胜
+回合数: 33
+
+【游戏日志】
+==== Battle Start ====
+P1: 张飞 (HP: 280, Camp: HERO)
+P2: 藏师 (HP: 330, Camp: REBEL)
+
+> 张飞 used[2] on 藏师[1] -> 2
+> 藏师 used[3] on 张飞[2] -> 3
+> 张飞 used[2] on 藏师[1] -> 2
+> 藏师 used[5] on 张飞[2] -> 5
+> 张飞 used[3] on 藏师[1] -> 3
+> 藏师 used[7] on 张飞[2] -> 7
+> 张飞 used[3] on 藏师[1] -> 3
+> 藏师 used[0] on 张飞[3] -> 0
+> 张飞 used[4] on 藏师[1] -> 4
+> 藏师 used[4] on 张飞[3] -> 4
+> 张飞 used[8] on 藏师[4] -> 8
+> 藏师 used[3] on 张飞[3] -> 3
+> 张飞 used[2] on 藏师[4] -> 2
+> 藏师 used[5] on 张飞[2] -> 5
+> 张飞 used[7] on 藏师[5] -> 7
+> 藏师 used[2] on 张飞[7] -> 2
+> 张飞 used[7] on 藏师[4] -> 7
+> 藏师 used[1] on 张飞[7] -> 1
+> 张飞 used[8] on 藏师[1] -> 8
+> 藏师 used[9] on 张飞[7] -> 9
+> 张飞 used[8] on 藏师[1] -> 8
+> 张飞 used[7] on 藏师[9] -> 7
+> 张飞 used[7] on 藏师[9] -> 7
+> 藏师 used[6] on 张飞[7] -> 6
+> 张飞 used[8] on 藏师[1] -> 8
+> 藏师 used[3] on 张飞[7] -> 3
+> 张飞 used[0] on 藏师[3] -> 0
+> 藏师 used[9] on 张飞[8] -> 9
+> 张飞 used[9] on 藏师[9] -> 9
+> 藏师 used[2] on 张飞[9] -> 2
+> 张飞 used[8] on 藏师[9] -> 8
+> 张飞 used[0] on 藏师[2] -> 0
+> 张飞 used[0] on 藏师[2] -> 0
+
+==== Battle End ====
+Total turns: 33
+Winner: 张飞 (HP remaining: 388)
+Loser: 藏师 (HP remaining: -29)
+
+【复盘】
+胜者分析: 张飞
+  - HP leads by 417, resource advantage obvious
+  - Overall decisions reasonable, pace control good
+败者分析: 藏师
+  - Killed by 张飞
+  - Suggestion: Optimize Zero usage strategy, avoid countdown crisis
+  - Suggestion: Trigger more heal/shield combos, maintain resource advantage
+关键节点:
+  ◆ Game end: Winner: 张飞 (HP remaining: 388)
+
+═══════════════════════════════════════════════════
+总计: 2 场对战
