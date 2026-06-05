@@ -23,28 +23,28 @@ class CharacterRegistry {
         if (inited) return;
         inited = true;
 
-        register("xiaoqiao",  "🌸 小乔 (半肉 180HP)", 180,
+        register("xiaoqiao",  "🌸 小乔 (半肉 360HP)", 360,
             (id, camp) -> new XiaoQiao(id, "小乔", camp));
 
-        register("zangshi",   "🛡️ 藏师 (坦克 330HP)", 330,
+        register("zangshi",   "🛡️ 藏师 (坦克 660HP)", 660,
             (id, camp) -> new ZangShi(id, "藏师", camp));
 
-        register("fashi",     "⚡ 法师 (攻击 80HP)", 80,
+        register("fashi",     "⚡ 法师 (攻击 160HP)", 160,
             (id, camp) -> new FaShi(id, "法师", camp));
 
-        register("sunwukong", "🐒 孙悟空 (半肉 130HP)", 130,
+        register("sunwukong", "🐒 孙悟空 (半肉 260HP)", 260,
             (id, camp) -> new SunWuKong(id, "孙悟空", camp));
 
-        register("daqiao",    "🌸 大乔 (半肉 60HP)", 60,
+        register("daqiao",    "🌸 大乔 (半肉 120HP)", 120,
             (id, camp) -> new DaQiao(id, "大乔", camp));
 
-        register("renzhe",    "🥷 忍者 (半肉 150HP)", 150,
+        register("renzhe",    "🥷 忍者 (半肉 300HP)", 300,
             (id, camp) -> new RenZhe(id, "忍者", camp));
 
-        register("zhangfei",  "🐗 张飞 (坦克 280HP)", 280,
+        register("zhangfei",  "🐗 张飞 (坦克 560HP)", 560,
             (id, camp) -> new ZhangFei(id, "张飞", camp));
 
-        register("yinyangshi", "☯️ 阴阳师 (半肉 120HP)", 120,
+        register("yinyangshi", "☯️ 阴阳师 (半肉 240HP)", 240,
             (id, camp) -> new YinYangShi(id, "阴阳师", camp));
 
         register("yangdali",  "💪 杨大力 (沙包 1000HP)", 1000,

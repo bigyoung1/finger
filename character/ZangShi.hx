@@ -22,7 +22,7 @@ class ZangShi extends Player {
     public var cakeEventsThisRound:Int = 0; // 当前大回合已记录的事件数（上限8）
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 330, camp);
+        super(id, name, 660, camp);
     }
 
     // ── (1) 物伤减半 ──
@@ -66,7 +66,8 @@ class ZangShi extends Player {
 
     // ── (3) 回复×2.5 ──
     override public function calculateFinalHeal(baseAmount:Int, type:HealType):Int {
-        var boosted = Std.int(baseAmount * 2.5);
+        var base    = super.calculateFinalHeal(baseAmount, type); // 含坦克加成
+        var boosted = Math.ceil(base * 2.5);
         trace('🛡️ 藏师回复加成：${baseAmount} → ${boosted}');
         return boosted;
     }

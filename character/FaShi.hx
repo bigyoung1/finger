@@ -22,7 +22,7 @@ class FaShi extends Player {
     private var _inZeroCombo:Bool = false;
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 80, camp);
+        super(id, name, 160, camp);
     }
 
     // ── (1) 触发0组合时物伤翻倍 ──

@@ -17,7 +17,7 @@ import model.ShieldType;
 class XiaoQiao extends Player {
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 180, camp);
+        super(id, name, 360, camp);
         this.initTurns = 3; // (3) 0可停留3回合
     }
 
@@ -33,8 +33,9 @@ class XiaoQiao extends Player {
 
     // ── (1) 回血倍率 ──
     override public function calculateFinalHeal(baseAmount:Int, type:HealType):Int {
-        var boosted = Std.int(baseAmount * 1.5);
-        trace('🌸 小乔回血加成：${baseAmount} → ${boosted}');
+        var base    = super.calculateFinalHeal(baseAmount, type); // 含坦克加成（×1.5 if tankFormationBonus）
+        var boosted = Math.ceil(base * 1.5);
+        trace('🌸 小乔回血加成：${base} → ${boosted}');
         return boosted;
     }
 

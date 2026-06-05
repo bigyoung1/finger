@@ -11,9 +11,36 @@ const PORT = process.env.PORT || 3000;
 
 // ── HTTP 服务器（同时托管静态游戏文件）──
 const server = http.createServer((req, res) => {
+    const url = req.url.split('?')[0]; // 去掉查询参数
+
+    // /api/music — 返回 music1 文件夹里的 mp3 列表
+    if (url === '/api/music') {
+        const musicDir = path.join(__dirname, 'music1');
+        fs.readdir(musicDir, (err, files) => {
+            if (err) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify([]));
+                return;
+            }
+            const mp3s = files.filter(f => f.toLowerCase().endsWith('.mp3'));
+            res.writeHead(200, {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            });
+            res.end(JSON.stringify(mp3s));
+        });
+        return;
+    }
+
     // 把 URL 映射到本地文件
-    let filePath = '.' + req.url;
+    let filePath = '.' + decodeURIComponent(url);
     if (filePath === './') filePath = './index2.html';
+    // 安全检查：防止路径穿越
+    const safePath = path.resolve(__dirname, filePath.slice(2));
+    if (!safePath.startsWith(path.resolve(__dirname))) {
+        res.writeHead(403); res.end('Forbidden'); return;
+    }
+    filePath = safePath;
 
     const ext = path.extname(filePath);
     const mime = {
@@ -22,13 +49,16 @@ const server = http.createServer((req, res) => {
         '.css':  'text/css',
         '.json': 'application/json',
         '.png':  'image/png',
+        '.mp3':  'audio/mpeg',
+        '.ogg':  'audio/ogg',
+        '.wav':  'audio/wav',
     };
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
             res.writeHead(404); res.end('Not found'); return;
         }
-        res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
+        res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
         res.end(data);
     });
 });
@@ -36,11 +66,10 @@ const server = http.createServer((req, res) => {
 // ── WebSocket 服务器 ──
 const wss = new WebSocket.Server({ server });
 
-// rooms: { roomCode: { p0: ws, p1: ws, seatNames: ['', ''] } }
 const rooms = {};
 
 function genCode() {
-    return Math.random().toString(36).slice(2, 7).toUpperCase(); // 5位大写码
+    return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
 function send(ws, obj) {
@@ -51,15 +80,13 @@ function send(ws, obj) {
 
 wss.on('connection', (ws) => {
     ws.roomCode = null;
-    ws.seat     = null; // 0 或 1
+    ws.seat     = null;
 
     ws.on('message', (raw) => {
         let msg;
         try { msg = JSON.parse(raw); } catch { return; }
 
         switch (msg.type) {
-
-            // ── 创建房间 ──
             case 'create': {
                 const code = genCode();
                 rooms[code] = { p0: ws, p1: null, seatNames: [msg.name || '玩家1', ''] };
@@ -69,59 +96,41 @@ wss.on('connection', (ws) => {
                 console.log(`[房间] 创建 ${code}，玩家0: ${msg.name}`);
                 break;
             }
-
-            // ── 加入房间 ──
             case 'join': {
                 const room = rooms[msg.code];
-                if (!room) {
-                    send(ws, { type: 'error', msg: '房间不存在' }); break;
-                }
-                if (room.p1) {
-                    send(ws, { type: 'error', msg: '房间已满' }); break;
-                }
+                if (!room) { send(ws, { type: 'error', msg: '房间不存在' }); break; }
+                if (room.p1) { send(ws, { type: 'error', msg: '房间已满' }); break; }
                 room.p1 = ws;
                 room.seatNames[1] = msg.name || '玩家2';
                 ws.roomCode = msg.code;
                 ws.seat     = 1;
-                send(ws,     { type: 'joined', code: msg.code, seat: 1, opponentName: room.seatNames[0] });
+                send(ws,      { type: 'joined', code: msg.code, seat: 1, opponentName: room.seatNames[0] });
                 send(room.p0, { type: 'opponentJoined', opponentName: room.seatNames[1] });
-                console.log(`[房间] ${msg.code} 玩家1加入: ${msg.name}，双方就绪`);
+                console.log(`[房间] ${msg.code} 双方就绪`);
                 break;
             }
-
-            // ── 选角色确认（双方都选好后开始游戏）──
             case 'charSelected': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
-                const other = ws.seat === 0 ? room.p1 : room.p0;
-                send(other, { type: 'charSelected', seat: ws.seat, chars: msg.chars });
+                send(ws.seat === 0 ? room.p1 : room.p0, { type: 'charSelected', seat: ws.seat, chars: msg.chars });
                 break;
             }
-
-            // ── 游戏操作（核心：把操作原样转发给对手）──
             case 'action': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
-                const other = ws.seat === 0 ? room.p1 : room.p0;
-                send(other, { type: 'action', seat: ws.seat, payload: msg.payload });
+                send(ws.seat === 0 ? room.p1 : room.p0, { type: 'action', seat: ws.seat, payload: msg.payload });
                 break;
             }
-
-            // ── 聊天/表情 ──
             case 'chat': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
-                const other = ws.seat === 0 ? room.p1 : room.p0;
-                send(other, { type: 'chat', seat: ws.seat, text: msg.text });
+                send(ws.seat === 0 ? room.p1 : room.p0, { type: 'chat', seat: ws.seat, text: msg.text });
                 break;
             }
-
-            // ── 重新开始 ──
             case 'rematch': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
-                const other = ws.seat === 0 ? room.p1 : room.p0;
-                send(other, { type: 'rematch' });
+                send(ws.seat === 0 ? room.p1 : room.p0, { type: 'rematch' });
                 break;
             }
         }
@@ -130,11 +139,11 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         const code = ws.roomCode;
         if (!code || !rooms[code]) return;
-        const room = rooms[code];
+        const room  = rooms[code];
         const other = ws.seat === 0 ? room.p1 : room.p0;
         send(other, { type: 'opponentLeft' });
         delete rooms[code];
-        console.log(`[房间] ${code} 已关闭（玩家离线）`);
+        console.log(`[房间] ${code} 已关闭`);
     });
 });
 

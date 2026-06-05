@@ -27,7 +27,7 @@ class DaQiao extends Player {
     private var _stealCooldown:Map<String, Bool> = new Map<String, Bool>();
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 60, camp);
+        super(id, name, 120, camp);
     }
 
     /**

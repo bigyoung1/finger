@@ -35,7 +35,7 @@ class RenZhe extends Player {
     private var _lastOutputPhys:Int = 0;
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 150, camp);
+        super(id, name, 300, camp);
     }
 
     // 捕获自己输出物伤的最终值（含双4等加成，未进target减伤）

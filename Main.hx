@@ -1,4 +1,3 @@
-
 package;
 
 import model.Player;
@@ -14,6 +13,14 @@ class Main {
 
     // 完整日志缓冲（用于下载）
     public static var logBuffer:Array<String> = [];
+
+    /**
+     * 供 JS 侧设置抗伤位解析器（GameEngine 在 IIFE 内，外部无法直接访问静态变量）
+     * JS 调用：Main.setTankResolver(fn) / Main.setTankResolver(null)
+     */
+    @:keep public static function setTankResolver(fn:Dynamic):Void {
+        GameEngine.tankResolver = fn;
+    }
 
     public static function main() {
         // 【关键】把 TurnManager 注入到 GameEngine，让 [9,9] 等技能能扫描全场玩家

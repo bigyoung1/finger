@@ -12,6 +12,7 @@ class Player {
     public var initTurns:Int = 2; 
     public var forcedZeroHand:Int = -1;
     public var pendingHealing:Int = 0;
+    public var tankFormationBonus:Bool = false; // 坦脆流：该角色是坦克，享受永久加成
 
     public var shieldList:Array<ShieldInstance> = new Array<ShieldInstance>();
     public var buffList:Array<Buff> = new Array<Buff>();
@@ -39,6 +40,8 @@ class Player {
      * 回血倍率（子类重写：比如小乔回血*1.5）
      */
     public function calculateFinalHeal(baseAmount:Int, type:HealType):Int {
+        // 坦脆流坦克：回复×1.5（子类重写时调 super 即可自动叠乘）
+        if (tankFormationBonus) return Math.ceil(baseAmount * 1.5);
         return baseAmount;
     }
 

@@ -30,7 +30,7 @@ class ZhangFei extends Player {
     private var _inModalEffect:Bool = false;
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 280, camp);
+        super(id, name, 560, camp);
     }
 
     inline function isFrenzied():Bool return frenzyTurns > 0;

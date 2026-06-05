@@ -48,7 +48,7 @@ class YinYangShi extends Player {
     private var _inYangDmgConvert:Bool = false;
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 120, camp);
+        super(id, name, 240, camp);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -231,15 +231,17 @@ class YinYangShi extends Player {
                 trace('☯️ 阴模态：回复将转为物伤，回复置1（基础值 ${baseAmount} 将×3.5打伤）');
                 return 1; // 必须返回1而非0，否则 onAfterHeal 不会被调用
             case "yang":
-                var boosted = Std.int(baseAmount * 3.5);
-                trace('☯️ 阳模态回复 ×3.5：${baseAmount} → ${boosted}');
+                var base    = super.calculateFinalHeal(baseAmount, type); // 含坦克加成
+                var boosted = Math.ceil(base * 3.5);
+                trace('☯️ 阳模态回复 ×3.5：${base} → ${boosted}');
                 return boosted;
             case "ren":
-                var boosted = Std.int(baseAmount * 1.5);
-                trace('☯️ 人模态回复 ×1.5：${baseAmount} → ${boosted}');
-                return boosted;
+                var base2    = super.calculateFinalHeal(baseAmount, type);
+                var boosted2 = Math.ceil(base2 * 1.5);
+                trace('☯️ 人模态回复 ×1.5：${base2} → ${boosted2}');
+                return boosted2;
             case _:
-                return baseAmount;
+                return super.calculateFinalHeal(baseAmount, type);
         }
     }
 

@@ -201,8 +201,37 @@ class GameEngine {
      * @param isFromSkill 是否来自技能内部
      */
     public function applyShield(actor:Player, type:ShieldType, amount:Int, duration:Int, isFromSkill:Bool = false) {
-        actor.addShield(type, amount, duration);
+        var finalType     = type;
+        var finalAmount   = amount;
+        var finalDuration = duration;
+
+        // ── 坦脆流坦克护盾加成（叠在 actor.addShield/角色override 之前） ──
+        if (actor.tankFormationBonus) {
+            if (finalType == BOTH_PHYSICAL_MAGIC) {
+                // 已是物法盾 → 厚度×1.5
+                finalAmount = Math.ceil(finalAmount * 1.5);
+            } else {
+                // 物理/法术盾 → 升级为物法盾，持续+1
+                finalType     = BOTH_PHYSICAL_MAGIC;
+                finalDuration = finalDuration + 1;
+            }
+        }
+
+        actor.addShield(finalType, finalAmount, finalDuration);
         notifyShieldEvent(actor, isFromSkill);
+    }
+
+    /**
+     * 游戏开始时调用：给坦脆流的坦克施加永久坦克加成 buff
+     * JS 层在 startGame2 后调用
+     */
+    @:keep public function applyTankFormationBuff(playerIdx:Int):Void {
+        if (turnManager == null) return;
+        if (playerIdx < 0 || playerIdx >= turnManager.players.length) return;
+        var p = turnManager.players[playerIdx];
+        if (p == null) return;
+        p.tankFormationBonus = true;
+        trace('🏰 [坦脆流] ${p.name} 获得坦克加强：回复×1.5，护盾升级为物法盾/厚度+50%');
     }
 
     /**

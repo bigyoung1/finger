@@ -29,7 +29,7 @@ class SunWuKong extends Player {
     private var _inExtraEffect:Bool = false;
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 130, camp);
+        super(id, name, 260, camp);
         this.initTurns = 2;
     }
 
@@ -105,10 +105,11 @@ class SunWuKong extends Player {
     // ─────────────────────────────────────────────────────────────
     override public function calculateFinalHeal(baseAmount:Int, type:HealType):Int {
         if (_inExtraEffect) return baseAmount;
+        var base  = super.calculateFinalHeal(baseAmount, type); // 含坦克加成
         var bonus = this.y;
-        var total = baseAmount + bonus;
+        var total = base + bonus;
         if (bonus > 0) {
-            trace('🐒 [悟空被动] 回血合并：${baseAmount} + y(${bonus}) = ${total}（单段广播）');
+            trace('🐒 [悟空被动] 回血合并：${base} + y(${bonus}) = ${total}（单段广播）');
         }
         return total;
     }

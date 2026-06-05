@@ -1,3 +1,32 @@
+
+// 角色图片映射（文件名和角色ID对应）
+var _AVATAR_MAP = {
+    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师',
+    '孙悟空': '孙悟空', '忍者': 'Sni忍者', '张飞': '张飞', '阴阳师': '阴阳师'
+};
+var _avatarsInited = false;
+
+function _initAvatars() {
+    if (_avatarsInited || !Main.turnManager) return;
+    _avatarsInited = true;
+    var players = Main.turnManager.players;
+    for (var i = 0; i < players.length; i++) {
+        var imgEl = document.getElementById('avatar_' + i);
+        if (!imgEl) continue;
+        var fname = _AVATAR_MAP[players[i].name];
+        var ph = document.getElementById('avatar_ph_' + i);
+        if (fname) {
+            imgEl.src = 'image/' + encodeURIComponent(fname) + '.png';
+            imgEl.alt = players[i].name;
+            imgEl.onload = function(el, p) { return function() {
+                el.style.display = 'block';
+                if (p) p.style.display = 'none';
+            }; }(imgEl, ph);
+            imgEl.onerror = function() {}; // 图片不存在时保留placeholder
+        }
+    }
+}
+
 // ── rAF 批量渲染：同一帧内多次调用只执行一次，避免重复DOM操作 ──
 var _renderPending = false;
 var _stylesPending = false;
@@ -98,6 +127,10 @@ function _doRender2() {
         }
     }
 
+    _initAvatars();
+    // 坦克攻击目标按钮（坦脆vs坦脆时显示）
+    if (typeof updateTankTargetButtons === "function") updateTankTargetButtons();
+
     // 终局提示
     if (gameOver) {
         var winMsg = Main.turnManager.winningCamp
@@ -171,12 +204,30 @@ function _doRefreshHandStyles2() {
 }
 
 // ── 提示栏 ──
+function _setCardHint(msg, isError) {
+    // 清所有卡片的提示
+    for (var i = 0; i < 4; i++) {
+        var h = document.getElementById('hint2v_' + i);
+        if (h) h.style.display = 'none';
+    }
+    if (!msg || !Main.turnManager) return;
+    var idx = Main.turnManager.currentPlayerIdx;
+    var h = document.getElementById('hint2v_' + idx);
+    if (!h) return;
+    h.textContent = msg;
+    h.style.display = 'block';
+    h.style.background = isError ? '#fff1f0' : '#fffbe6';
+    h.style.borderColor = isError ? '#ffa39e' : '#ffe58f';
+    h.style.color       = isError ? '#cf1322' : '#874d00';
+}
+
 function setHint2(msg) {
     var bar = document.getElementById('hintBar2');
     bar.textContent = msg;
     bar.style.background = '#fffbe6';
     bar.style.borderColor = '#ffe58f';
     bar.style.color = '#874d00';
+    _setCardHint(msg, false);
 }
 function flashHint2(msg) {
     var bar = document.getElementById('hintBar2');
@@ -184,4 +235,5 @@ function flashHint2(msg) {
     bar.style.background = '#fff1f0';
     bar.style.borderColor = '#ffa39e';
     bar.style.color = '#cf1322';
+    _setCardHint(msg, true);
 }

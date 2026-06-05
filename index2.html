@@ -21,9 +21,9 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 #startBtn2:hover{background:#40a9ff}
 
 /* ── 战场 ── */
-#battleArena2{display:none;max-width:1100px;margin:0 auto}
-.arena-layout{display:grid;grid-template-columns:1fr 140px 1fr;gap:10px;align-items:start}
-.team-col{display:flex;flex-direction:column;gap:8px}
+#battleArena2{display:none;width:96vw;max-width:1600px;margin:0 auto}
+.arena-layout{display:grid;grid-template-columns:1fr 110px 1fr;gap:8px;align-items:start}
+.team-col{display:flex;flex-direction:column;gap:6px}
 .team-header{text-align:center;font-weight:bold;font-size:13px;padding:5px;border-radius:4px;margin-bottom:2px}
 .team-header.hero{color:#1890ff;background:#e6f7ff}
 .team-header.rebel{color:#f5222d;background:#fff1f0}
@@ -99,9 +99,341 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 #roomCodeArea{display:none;margin-top:10px;font-size:20px;font-weight:bold;color:#52c41a;letter-spacing:4px}
 #onlineJoinArea{margin-top:10px}
 #onlineStartArea{display:none;margin-top:10px}
+
+/* ── 右上角音乐播放器 ── */
+#musicPlayer {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid #e8e8e8;
+    border-radius: 24px;
+    padding: 6px 14px 6px 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    backdrop-filter: blur(6px);
+    transition: all 0.2s;
+    font-size: 13px;
+}
+#musicPlayer:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+#musicPlayBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    line-height: 1;
+    transition: transform 0.15s;
+}
+#musicPlayBtn:hover { transform: scale(1.15); }
+#musicTitle {
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #555;
+    font-size: 12px;
+}
+#musicVolume {
+    width: 60px;
+    accent-color: #1890ff;
+    cursor: pointer;
+}
+#musicNext {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    padding: 0;
+    color: #888;
+    transition: color 0.15s;
+}
+#musicNext:hover { color: #1890ff; }
+
+/* ── 坦脆流 UI ── */
+.formation-btn { padding:5px 16px;font-size:13px;border:1.5px solid #aaa;border-radius:6px;cursor:pointer;background:white;color:#555;margin-right:6px;transition:all .15s; }
+.formation-btn.active { border-color:#1890ff;background:#e6f4ff;color:#1890ff;font-weight:bold; }
+.tank-who { display:flex;gap:8px;margin-top:8px;align-items:center;font-size:13px;color:#555; }
+.tank-who label { cursor:pointer;display:flex;align-items:center;gap:4px; }
+.tank-who input[type=radio] { accent-color:#1890ff; }
+.tank-fixed  { background:#fff7e6!important;border-color:#fa8c16!important;color:#d46b08!important; }
+.carry-fixed { background:#f9f0ff!important;border-color:#9254de!important;color:#722ed1!important; }
+.tank-target-btn { padding:3px 10px;font-size:12px;border:1.5px solid #d9d9d9;border-radius:4px;cursor:pointer;background:white;color:#555;margin-right:4px; }
+.tank-target-btn.active { border-color:#1890ff;background:#1890ff;color:white;font-weight:bold; }
+
+
+/* ══ 卡片新布局：等比放大 1.5 倍与黄金舒适圈排版 ══ */
+/* ══ 卡片新布局：高度进一步拉高，留足生存空间 ══ */
+.player-card2 {
+    border: 2px solid #e0e0e0; 
+    border-radius: 12px;
+    background: #fafafa; 
+    position: relative;
+    font-size: 13px; 
+    overflow: visible;          /* 💡 允许所有子弹窗和高亮标签溢出显示，绝不切断 */
+    padding: 0 !important;
+    height: 310px;              /* 💡 关键：从 260px 进一步拉高至 310px，张飞技能再多也撑得住 */
+    box-sizing: border-box;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+
+.card-inner {
+    display: flex; 
+    flex-direction: row;
+    height: 100%; 
+    overflow: visible;          /* 💡 内部包裹层也允许可见，不挡大乔弹窗 */
+    border-radius: 10px;
+}
+
+/* ── 左侧图片区保持拉长 ── */
+.char-avatar-wrap {
+    width: 160px;               
+    flex-shrink: 0; 
+    height: 100%;
+    background: #eaeaea;    
+    display: flex; 
+    align-items: center;        
+    justify-content: center;    
+    overflow: hidden;
+    border-right: 1px solid #e2e2e2;
+}
+
+.char-avatar {
+    width: 100%; 
+    height: 100%;
+    object-fit: cover;          
+    object-position: center;    
+    /* 💡 核心修正：使用 !important 强行覆盖掉 HTML 行内硬编码的 display:none */
+    display: block !important; 
+    position: relative;
+    z-index: 2; /* 💡 保证图片层级在占位符之上 */
+}
+
+.char-avatar-placeholder {
+    font-size: 42px; 
+    color: #bbb;
+    /* 💡 核心修正：让占位符绝对居中悬浮在底层 */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1; /* 💡 层级在图片下方，一旦图片加载出来，就会完美挡住它 */
+}
+
+/* 💡 附加防御：如果图片因为路径问题碎了，让占位符能漏出来兜底 */
+.char-avatar[src=""], .char-avatar:not([src]) {
+    opacity: 0 !important;
+}
+/* ── 右侧内容区定位基础 ── */
+.card-body {
+    flex: 1; 
+    padding: 14px 16px;
+    display: flex; 
+    flex-direction: column; 
+    min-width: 0; 
+    height: 100%;
+    box-sizing: border-box;
+    position: relative;         /* 💡 确保红圈提示语和交互按钮基于此进行绝对定位 */
+}
+
+/* 强行利用 CSS order 将所有文本和状态信息打包归属【右上半区】 */
+.card-top, .hp-bar2, .card-info, .custom-display2, .custom-actions2, [id^="tankTargetArea"], .per-card-hint {
+    order: 1;
+}
+
+.card-top { 
+    display: flex; 
+    align-items: center; 
+    margin-bottom: 4px;
+}
+
+.player-name2 { 
+    font-size: 18px;            /* 角色名等比放大 1.5 倍 */
+    font-weight: bold; 
+    color: #1a1a1a; 
+}
+
+.hp-bar2 { 
+    font-size: 16px;            /* 血量条等比放大 1.5 倍 */
+    font-weight: bold; 
+    color: #ff4d4f; 
+    margin-bottom: 6px;
+}
+
+.card-info { 
+    font-size: 13px;            /* 状态字体放大，清晰易读 */
+    color: #525252; 
+    line-height: 1.5;
+    margin-bottom: 2px;
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+}
+
+.card-info span { 
+    color: #237804; 
+    font-weight: bold;
+}
+
+/* ── 双手行 ── */
+.hands-row { 
+    order: 2;
+    margin-top: auto;           /* 牢牢沉在最底部 */
+    display: flex; 
+    gap: 12px; 
+    width: 100%; 
+}
+
+/* 手牌正方形框：大小锁定，不盲目跟随大卡片无限放大 */
+.hand-box2 {
+    width: 76px !important;     /* 锁定尺寸，精致小巧 */
+    height: 76px !important; 
+    flex: 0 0 76px !important;  /* 固死宽高，防止被其他组件挤压 */
+    aspect-ratio: 1 / 1 !important; 
+    background: #ffffff; 
+    border: 2px solid #d9d9d9;
+    border-radius: 8px; 
+    text-align: center;
+    transition: all .12s; 
+    cursor: default;
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center;    /* 内部数字完美上下左右居中 */
+    box-sizing: border-box;
+    padding: 2px 0 !important;
+}
+
+/* 核心要求：数字狂暴放大，顶天立地 */
+.hand-box2 .hand-val { 
+    font-size: 42px !important; /* 极大字号！粗体黑字顶着框显示 */
+    font-weight: 900; 
+    color: #111111; 
+    line-height: 1;           
+}
+
+.hand-label { 
+    font-size: 11px; 
+    color: #8c8c8c; 
+    font-weight: bold;
+}
+
+/* 抗伤/坦克/脆皮按钮绝对定位 */
+.tank-btn { 
+    position: absolute; 
+    top: 12px; 
+    right: 12px; 
+    z-index: 20;
+    font-size: 12px; 
+    padding: 4px 12px; 
+    border-radius: 14px;
+}
+
+/* 👉 行动中 标签重构：从边缘移入卡片内部，彻底解决遮挡与切断问题 */
+.player-card2.active::before {
+    content: "👉 行动中";
+    position: absolute; 
+    top: 12px; 
+    right: 88px;                /* 精准避开右侧的“抗伤”按钮，并排完美展现 */
+    background: #52c41a; 
+    color: white; 
+    padding: 4px 12px; 
+    font-size: 12px; 
+    font-weight: bold;
+    border-radius: 14px;
+    z-index: 20;
+    box-shadow: 0 2px 6px rgba(82,196,26,0.3);
+}
+
+/* 行动状态高亮 */
+.player-card2.active { 
+    border-color: #52c41a; 
+    box-shadow: 0 4px 14px rgba(82,196,26,.25); 
+}
+.player-card2.active .card-inner { 
+    background: #f6ffed; 
+}
+.player-card2.dead { 
+    opacity: .45; 
+}
+
+/* 其他动态辅助组件适配 */
+/* ── 技能文字描述区优化 ── */
+.custom-display2 { 
+    font-size: 12px; 
+    color: #d46b08; 
+    order: 1; 
+    margin-bottom: 4px;
+    width: 100%;
+    word-break: break-all;     /* 避免超长文本把排版顶崩 */
+}
+.custom-actions2 { display: flex; flex-wrap: wrap; gap: 4px; order: 1; }
+/* 如果当前角色既有行动提示又有操作按钮，让操作按钮稍微往上错开一点，防止叠在一起 */
+.custom-actions2:not(:empty) ~ .per-card-hint {
+    bottom: 54px;              /* 当有大乔按钮出现时，提示语自动往上浮动，完美共存 */
+}
+.custom-actions2 {
+    position: absolute;
+    bottom: 14px;              /* 同样塞入红圈高度 */
+    left: 190px;               /* 避开双手 */
+    right: 16px;
+    
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 4px; 
+    order: unset !important;
+    margin-top: 0 !important;
+    z-index: 11;               /* 层级调高，确保能点得到大乔的各种选项 */
+}
+/* 1. 隐藏中间多余的黄色横条，同时保留节点让 JS 能够正常运行不报错 */
+#hintBar2 {
+    display: none !important;
+}
+
+/* 2. 让右侧内容区作为定位基准 */
+.card-body {
+    position: relative; /* 确保子元素可以基于它进行绝对定位 */
+}
+
+/* 3. 狂暴爆改：把提示语变成绝对定位，精准平移到双手右侧的红圈空白区 */
+.per-card-hint {
+    position: absolute;
+    bottom: 14px;              /* 与两只手框平行沉底 */
+    left: 190px;               /* 完美避开左边 165px 宽的双手框，打入右侧红圈 */
+    right: 16px;               /* 撑满右边 */
+    
+    font-size: 12px; 
+    color: #874d00; 
+    background: #fffbe6; 
+    border: 1px solid #ffe58f; 
+    border-radius: 6px; 
+    padding: 6px 10px; 
+    text-align: left;
+    line-height: 1.4;
+    box-sizing: border-box;
+    order: unset !important;
+    margin-top: 0 !important;
+    z-index: 10;
+}
+
+
 </style>
 </head>
 <body>
+<!-- 右上角音乐播放器 -->
+<div id="musicPlayer">
+    <button id="musicPlayBtn" title="播放/暂停">🎵</button>
+    <span id="musicTitle">点击播放音乐</span>
+    <input id="musicVolume" type="range" min="0" max="1" step="0.05" value="0.5" title="音量">
+    <button id="musicNext" title="下一首">⏭</button>
+</div>
+<audio id="bgmAudio" preload="none"></audio>
+
+
 <h1>☯ 指尖博弈 2v2 对战</h1>
 
 <!-- ══ 设置面板 ══ -->
@@ -131,11 +463,31 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
     <div class="setup-teams">
         <div class="setup-team">
             <b style="color:#1890ff">🔵 HERO 队（1号、3号）</b>
+            <div style="margin:8px 0 4px">
+                <span style="font-size:13px;color:#555;margin-right:6px">阵容：</span>
+                <button class="formation-btn active" id="heroFormDualHalf" onclick="setFormation('hero','dual_half')">👥 双半肉</button>
+                <button class="formation-btn" id="heroFormTankCarry" onclick="setFormation('hero','tank_carry')">🏰 坦脆流</button>
+            </div>
+            <div id="heroTankWho" style="display:none" class="tank-who">
+                <span>坦克：</span>
+                <label><input type="radio" name="heroTank" value="0" checked onchange="setSetupTank('hero',0)"> 1号位</label>
+                <label><input type="radio" name="heroTank" value="2" onchange="setSetupTank('hero',2)"> 3号位</label>
+            </div>
             <label>1号位</label><select id="heroSelect1"></select>
             <label>3号位</label><select id="heroSelect3"></select>
         </div>
         <div class="setup-team rebel">
             <b style="color:#f5222d">🔴 REBEL 队（2号、4号）</b>
+            <div style="margin:8px 0 4px">
+                <span style="font-size:13px;color:#555;margin-right:6px">阵容：</span>
+                <button class="formation-btn active" id="rebelFormDualHalf" onclick="setFormation('rebel','dual_half')">👥 双半肉</button>
+                <button class="formation-btn" id="rebelFormTankCarry" onclick="setFormation('rebel','tank_carry')">🏰 坦脆流</button>
+            </div>
+            <div id="rebelTankWho" style="display:none" class="tank-who">
+                <span>坦克：</span>
+                <label><input type="radio" name="rebelTank" value="1" checked onchange="setSetupTank('rebel',1)"> 2号位</label>
+                <label><input type="radio" name="rebelTank" value="3" onchange="setSetupTank('rebel',3)"> 4号位</label>
+            </div>
             <label>2号位</label><select id="rebelSelect2"></select>
             <label>4号位</label><select id="rebelSelect4"></select>
         </div>
@@ -149,52 +501,75 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
         <!-- 左队 HERO -->
         <div class="team-col">
             <div class="team-header hero">🔵 HERO 队</div>
-            <!-- 玩家 0 -->
-            <div class="player-card2" id="card2v_0">
-                <button class="tank-btn" id="tankBtn0" onclick="toggleTank(0)">🛡 抗伤</button>
-                <div class="card-top">
-                    <div class="player-name2" id="name2v_0">-</div>
-                    <div class="camp-badge camp-HERO">HERO</div>
+
+
+            
+        <div class="player-card2" id="card2v_0">
+            <button class="tank-btn" id="tankBtn0" onclick="toggleTank(0)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_0" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_0">👤</div>
                 </div>
-                <div class="hp-bar2">HP: <span id="hp2v_0">-</span></div>
-                <div class="hands-row">
-                    <div class="hand-box2" id="h2v_0_0_box" onclick="onHandClick2(0,0)">
-                        <div>左手</div><div class="hand-val" id="h2v_0_0">1</div>
-                        <div class="death-turns2" id="dt2v_0_0"></div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_0">-</div>
                     </div>
-                    <div class="hand-box2" id="h2v_0_1_box" onclick="onHandClick2(0,1)">
-                        <div>右手</div><div class="hand-val" id="h2v_0_1">1</div>
-                        <div class="death-turns2" id="dt2v_0_1"></div>
+                    <div class="hp-bar2">HP: <span id="hp2v_0">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_0_0_box" onclick="onHandClick2(0,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_0_0">1</div>
+                            <div class="death-turns2" id="dt2v_0_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_0_1_box" onclick="onHandClick2(0,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_0_1">1</div>
+                            <div class="death-turns2" id="dt2v_0_1"></div>
+                        </div>
                     </div>
+                    <div class="card-info">Buff: <span id="buffs2v_0">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_0">无</span></div>
+                    <div class="custom-display2" id="custom2v_0"></div>
+                    <div class="custom-actions2" id="actions2v_0"></div>
+                    <div id="tankTargetArea0" style="margin-top:2px"></div>
+                    <div class="per-card-hint" id="hint2v_0"></div>
                 </div>
-                <div class="card-info">Buff: <span id="buffs2v_0">无</span></div>
-                <div class="card-info">护盾: <span id="shields2v_0">无</span></div>
-                <div class="custom-display2" id="custom2v_0"></div>
-                <div class="custom-actions2" id="actions2v_0"></div>
             </div>
-            <!-- 玩家 2 -->
-            <div class="player-card2" id="card2v_2">
-                <button class="tank-btn" id="tankBtn2" onclick="toggleTank(2)">🛡 抗伤</button>
-                <div class="card-top">
-                    <div class="player-name2" id="name2v_2">-</div>
-                    <div class="camp-badge camp-HERO">HERO</div>
+        </div>
+        <div class="player-card2" id="card2v_2">
+            <button class="tank-btn" id="tankBtn2" onclick="toggleTank(2)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_2" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_2">👤</div>
                 </div>
-                <div class="hp-bar2">HP: <span id="hp2v_2">-</span></div>
-                <div class="hands-row">
-                    <div class="hand-box2" id="h2v_2_0_box" onclick="onHandClick2(2,0)">
-                        <div>左手</div><div class="hand-val" id="h2v_2_0">1</div>
-                        <div class="death-turns2" id="dt2v_2_0"></div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_2">-</div>
                     </div>
-                    <div class="hand-box2" id="h2v_2_1_box" onclick="onHandClick2(2,1)">
-                        <div>右手</div><div class="hand-val" id="h2v_2_1">1</div>
-                        <div class="death-turns2" id="dt2v_2_1"></div>
+                    <div class="hp-bar2">HP: <span id="hp2v_2">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_2_0_box" onclick="onHandClick2(2,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_2_0">1</div>
+                            <div class="death-turns2" id="dt2v_2_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_2_1_box" onclick="onHandClick2(2,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_2_1">1</div>
+                            <div class="death-turns2" id="dt2v_2_1"></div>
+                        </div>
                     </div>
+                    <div class="card-info">Buff: <span id="buffs2v_2">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_2">无</span></div>
+                    <div class="custom-display2" id="custom2v_2"></div>
+                    <div class="custom-actions2" id="actions2v_2"></div>
+                    <div id="tankTargetArea2" style="margin-top:2px"></div>
+                    <div class="per-card-hint" id="hint2v_2"></div>
                 </div>
-                <div class="card-info">Buff: <span id="buffs2v_2">无</span></div>
-                <div class="card-info">护盾: <span id="shields2v_2">无</span></div>
-                <div class="custom-display2" id="custom2v_2"></div>
-                <div class="custom-actions2" id="actions2v_2"></div>
             </div>
+        </div>
         </div>
 
         <!-- 中间列 -->
@@ -206,58 +581,77 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
         <!-- 右队 REBEL -->
         <div class="team-col">
             <div class="team-header rebel">🔴 REBEL 队</div>
-            <!-- 玩家 1 -->
-            <div class="player-card2" id="card2v_1">
-                <button class="tank-btn" id="tankBtn1" onclick="toggleTank(1)">🛡 抗伤</button>
-                <div class="card-top">
-                    <div class="player-name2" id="name2v_1">-</div>
-                    <div class="camp-badge camp-REBEL">REBEL</div>
+        <div class="player-card2" id="card2v_1">
+            <button class="tank-btn" id="tankBtn1" onclick="toggleTank(1)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_1" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_1">👤</div>
                 </div>
-                <div class="hp-bar2">HP: <span id="hp2v_1">-</span></div>
-                <div class="hands-row">
-                    <div class="hand-box2" id="h2v_1_0_box" onclick="onHandClick2(1,0)">
-                        <div>左手</div><div class="hand-val" id="h2v_1_0">1</div>
-                        <div class="death-turns2" id="dt2v_1_0"></div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_1">-</div>
                     </div>
-                    <div class="hand-box2" id="h2v_1_1_box" onclick="onHandClick2(1,1)">
-                        <div>右手</div><div class="hand-val" id="h2v_1_1">1</div>
-                        <div class="death-turns2" id="dt2v_1_1"></div>
+                    <div class="hp-bar2">HP: <span id="hp2v_1">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_1_0_box" onclick="onHandClick2(1,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_1_0">1</div>
+                            <div class="death-turns2" id="dt2v_1_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_1_1_box" onclick="onHandClick2(1,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_1_1">1</div>
+                            <div class="death-turns2" id="dt2v_1_1"></div>
+                        </div>
                     </div>
+                    <div class="card-info">Buff: <span id="buffs2v_1">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_1">无</span></div>
+                    <div class="custom-display2" id="custom2v_1"></div>
+                    <div class="custom-actions2" id="actions2v_1"></div>
+                    <div id="tankTargetArea1" style="margin-top:2px"></div>
+                    <div class="per-card-hint" id="hint2v_1"></div>
                 </div>
-                <div class="card-info">Buff: <span id="buffs2v_1">无</span></div>
-                <div class="card-info">护盾: <span id="shields2v_1">无</span></div>
-                <div class="custom-display2" id="custom2v_1"></div>
-                <div class="custom-actions2" id="actions2v_1"></div>
-            </div>
-            <!-- 玩家 3 -->
-            <div class="player-card2" id="card2v_3">
-                <button class="tank-btn" id="tankBtn3" onclick="toggleTank(3)">🛡 抗伤</button>
-                <div class="card-top">
-                    <div class="player-name2" id="name2v_3">-</div>
-                    <div class="camp-badge camp-REBEL">REBEL</div>
-                </div>
-                <div class="hp-bar2">HP: <span id="hp2v_3">-</span></div>
-                <div class="hands-row">
-                    <div class="hand-box2" id="h2v_3_0_box" onclick="onHandClick2(3,0)">
-                        <div>左手</div><div class="hand-val" id="h2v_3_0">1</div>
-                        <div class="death-turns2" id="dt2v_3_0"></div>
-                    </div>
-                    <div class="hand-box2" id="h2v_3_1_box" onclick="onHandClick2(3,1)">
-                        <div>右手</div><div class="hand-val" id="h2v_3_1">1</div>
-                        <div class="death-turns2" id="dt2v_3_1"></div>
-                    </div>
-                </div>
-                <div class="card-info">Buff: <span id="buffs2v_3">无</span></div>
-                <div class="card-info">护盾: <span id="shields2v_3">无</span></div>
-                <div class="custom-display2" id="custom2v_3"></div>
-                <div class="custom-actions2" id="actions2v_3"></div>
             </div>
         </div>
+        <div class="player-card2" id="card2v_3">
+            <button class="tank-btn" id="tankBtn3" onclick="toggleTank(3)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_3" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_3">👤</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_3">-</div>
+                    </div>
+                    <div class="hp-bar2">HP: <span id="hp2v_3">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_3_0_box" onclick="onHandClick2(3,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_3_0">1</div>
+                            <div class="death-turns2" id="dt2v_3_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_3_1_box" onclick="onHandClick2(3,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_3_1">1</div>
+                            <div class="death-turns2" id="dt2v_3_1"></div>
+                        </div>
+                    </div>
+                    <div class="card-info">Buff: <span id="buffs2v_3">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_3">无</span></div>
+                    <div class="custom-display2" id="custom2v_3"></div>
+                    <div class="custom-actions2" id="actions2v_3"></div>
+                    <div id="tankTargetArea3" style="margin-top:2px"></div>
+                    <div class="per-card-hint" id="hint2v_3"></div>
+                </div>
+            </div>
+        </div>
+        </div>
     </div>
-</div>
 
-<!-- 结束&下载 + 日志 -->
-<div style="max-width:1100px;margin:10px auto 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <!-- 底部按钮行 -->
+
     <button onclick="restartGame2()" style="background:#722ed1;color:white;border:none;padding:6px 16px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px">🔄 重新选择角色</button>
     <button onclick="endGame2()" style="background:#fa541c;color:white;border:none;padding:6px 16px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px">📥 结束并下载日志</button>
 </div>
@@ -530,6 +924,125 @@ var _origOnOpponentJoined = NET.onOpponentJoined;
 NET.onOpponentJoined = function(opponentName) {
     _origOnOpponentJoined(opponentName);
     ONLINE.active = true; // 双方就绪，联机生效
+};
+</script>
+
+<script>
+// ── BGM 播放器 ──
+(function() {
+    var audio     = document.getElementById('bgmAudio');
+    var playBtn   = document.getElementById('musicPlayBtn');
+    var titleEl   = document.getElementById('musicTitle');
+    var volSlider = document.getElementById('musicVolume');
+    var nextBtn   = document.getElementById('musicNext');
+
+    var playlist  = [];   // mp3文件名数组
+    var curIdx    = 0;
+    var isPlaying = false;
+
+    // 从服务器拉取歌单
+    fetch('/api/music')
+        .then(function(r) { return r.json(); })
+        .then(function(files) {
+            if (!files || files.length === 0) {
+                titleEl.textContent = '暂无音乐';
+                return;
+            }
+            // 随机打乱顺序
+            playlist = files.sort(function() { return Math.random() - 0.5; });
+            audio.volume = parseFloat(volSlider.value);
+            titleEl.textContent = cleanName(playlist[0]);
+        })
+        .catch(function() { titleEl.textContent = '暂无音乐'; });
+
+    function cleanName(filename) {
+        // 去掉文件扩展名和常见前缀，显示更友好
+        return filename.replace(/\.mp3$/i, '').replace(/^\d+-\d+-\d+\s*/, '').trim() || filename;
+    }
+
+    function loadAndPlay(idx) {
+        if (!playlist.length) return;
+        curIdx = (idx + playlist.length) % playlist.length;
+        var src = '/music1/' + encodeURIComponent(playlist[curIdx]);
+        audio.src = src;
+        titleEl.textContent = cleanName(playlist[curIdx]);
+        audio.play().then(function() {
+            isPlaying = true;
+            playBtn.textContent = '⏸';
+        }).catch(function(e) {
+            console.warn('播放失败:', e);
+        });
+    }
+
+    // 播放结束自动下一首
+    audio.addEventListener('ended', function() {
+        loadAndPlay(curIdx + 1);
+    });
+
+    // 播放/暂停
+    playBtn.addEventListener('click', function() {
+        if (!playlist.length) return;
+        if (isPlaying) {
+            audio.pause();
+            isPlaying = false;
+            playBtn.textContent = '🎵';
+        } else {
+            if (!audio.src || audio.src === window.location.href) {
+                loadAndPlay(curIdx);
+            } else {
+                audio.play().then(function() {
+                    isPlaying = true;
+                    playBtn.textContent = '⏸';
+                });
+            }
+        }
+    });
+
+    // 下一首
+    nextBtn.addEventListener('click', function() {
+        loadAndPlay(curIdx + 1);
+    });
+
+    // 音量
+    volSlider.addEventListener('input', function() {
+        audio.volume = parseFloat(this.value);
+    });
+})();
+</script>
+
+<script>
+// ── 选角色界面：阵容设置 ──
+// 临时存储：等游戏开始时读取并传给 G.formation / G.tankIdx
+var _setupFormation = { hero: 'dual_half', rebel: 'dual_half' };
+var _setupTankIdx   = { hero: 0, rebel: 1 };
+
+function setFormation(camp, type) {
+    _setupFormation[camp] = type;
+    var prefix = camp === 'hero' ? 'hero' : 'rebel';
+    document.getElementById(prefix + 'FormDualHalf').className = 'formation-btn' + (type==='dual_half' ? ' active' : '');
+    document.getElementById(prefix + 'FormTankCarry').className = 'formation-btn' + (type==='tank_carry' ? ' active' : '');
+    document.getElementById(prefix + 'TankWho').style.display = type==='tank_carry' ? 'flex' : 'none';
+}
+
+function setSetupTank(camp, idx) {
+    _setupTankIdx[camp] = idx;
+}
+
+// 覆盖 startGame2，游戏开始时把阵容设置写入 G，并给坦克施加加成
+var _origStartGame2_formation = startGame2;
+startGame2 = function() {
+    _origStartGame2_formation();
+    // 写入阵容
+    G.formation = { hero: _setupFormation.hero, rebel: _setupFormation.rebel };
+    G.tankIdx   = { hero: _setupTankIdx.hero,   rebel: _setupTankIdx.rebel   };
+    G.tankTarget = { hero: 'carry', rebel: 'carry' };
+    // 给坦脆流的坦克施加永久加成
+    ['hero', 'rebel'].forEach(function(camp) {
+        if (G.formation[camp] === 'tank_carry') {
+            Main.engine.applyTankFormationBuff(G.tankIdx[camp]);
+        }
+    });
+    updateTankButtons();
 };
 </script>
 </body>
