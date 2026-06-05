@@ -314,19 +314,43 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 // main.js 加载完毕，立刻覆盖 haxe.Log.trace 指向2v2日志框
 // （main.js 的 Main.main() 会在 DOMContentLoaded 时再次设置，所以我们也在 DOMContentLoaded 后再覆盖一次）
 (function() {
+    // 日志缓冲：批量写入 DOM，避免每条 trace 都触发重绘
+    var _logQueue = [];
+    var _logFlushPending = false;
+    var MAX_LOG_LINES = 80;
+
+    function _flushLog() {
+        _logFlushPending = false;
+        if (_logQueue.length === 0) return;
+        var lp = document.getElementById('logPanel2');
+        if (!lp) { _logQueue = []; return; }
+        var frag = document.createDocumentFragment();
+        _logQueue.forEach(function(text) {
+            var line = document.createElement('div');
+            line.className = 'log-line' +
+                (text.indexOf('🎉')>=0||text.indexOf('🏆')>=0||text.indexOf('⚠️')>=0 ? ' log-important' : '');
+            line.textContent = text;
+            frag.appendChild(line);
+        });
+        _logQueue = [];
+        lp.appendChild(frag);
+        // 超出上限时删最旧的
+        while (lp.childNodes.length > MAX_LOG_LINES) {
+            lp.removeChild(lp.firstChild);
+        }
+        lp.scrollTop = lp.scrollHeight;
+    }
+
     function applyTrace2v2() {
         if (typeof haxe !== 'undefined' && haxe.Log) {
             haxe.Log.trace = function(v, infos) {
                 var text = String(v);
                 if (typeof Main !== 'undefined' && Main.logBuffer) Main.logBuffer.push(text);
-                var lp = document.getElementById('logPanel2');
-                if (!lp) return;
-                var line = document.createElement('div');
-                line.className = 'log-line' +
-                    (text.indexOf('🎉')>=0||text.indexOf('🏆')>=0||text.indexOf('⚠️')>=0 ? ' log-important' : '');
-                line.textContent = text;
-                lp.appendChild(line);
-                lp.scrollTop = lp.scrollHeight;
+                _logQueue.push(text);
+                if (!_logFlushPending) {
+                    _logFlushPending = true;
+                    requestAnimationFrame(_flushLog);
+                }
             };
             window._trace2v2Applied = true;
         }

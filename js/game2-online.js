@@ -66,12 +66,12 @@ NET.onRemoteAction = function(payload) {
             break;
 
         case 'steal':
-            // 大乔抢夺决定
-            if (payload.choice === 'steal') {
-                onStealConfirmById(payload.stealId, true);
-            } else {
-                onStealCancelById(payload.stealId, true);
+            // 对方（大乔所在方）已决定，我方同步执行
+            if (payload.choice === 'confirm') {
+                Main.invokeAction(payload.daQiaoIdx, 'doSteal', { healerIdx: payload.healerIdx, netHeal: payload.netHeal });
+                render2();
             }
+            // cancel 不需要操作，什么都不发生
             break;
     }
 };

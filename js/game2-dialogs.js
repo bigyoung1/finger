@@ -4,6 +4,8 @@
 
 // ── 帮抗弹窗 ──
 function showHelpTankDialog(helperIdx, victimIdx) {
+    // 联机：只对受伤方所在阵营显示帮抗弹窗
+    if (ONLINE.active && campOf(victimIdx) !== ONLINE.myCamp()) return;
     var players = Main.turnManager.players;
     G.helpTankContext = { helperIdx: helperIdx, victimIdx: victimIdx };
 
@@ -187,6 +189,9 @@ function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
     if (window._stealUsedThisTurn[key]) return;
     window._stealUsedThisTurn[key] = true;
 
+    // 联机：大乔不是我方角色时不显示弹窗（对方自己决定）
+    if (ONLINE.active && campOf(daQiaoIdx) !== ONLINE.myCamp()) return;
+
     _ensureStealOverlay();
     _doShowSteal(daQiaoIdx, healerIdx, netHeal);
 }
@@ -227,13 +232,15 @@ function _doShowSteal(daQiaoIdx, healerIdx, netHeal) {
 
     document.getElementById('stealConfirmBtn').onclick = function() {
         clearInterval(G.stealTimer);
-        _closeStealOverlay();               // 先关窗口
+        _closeStealOverlay();
         Main.invokeAction(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal });
+        if (ONLINE.active) ONLINE.sendAction({ type: 'steal', choice: 'confirm', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
         render2();
     };
     document.getElementById('stealCancelBtn').onclick = function() {
         clearInterval(G.stealTimer);
         _closeStealOverlay();
+        if (ONLINE.active) ONLINE.sendAction({ type: 'steal', choice: 'cancel', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
     };
 }
 
@@ -250,6 +257,8 @@ function clearStealCooldownForPlayer(playerIdx) {
 
 // ── 蛋糕弹窗 ──
 function openCakeDialog(actorIdx, cakesCount) {
+    // 联机：只有本方才能操作蛋糕
+    if (ONLINE.active && campOf(actorIdx) !== ONLINE.myCamp()) return;
     G.cakeActorIdx = actorIdx; G.cakeGroups = 1;
     document.getElementById('cakeGroupCount2').textContent = '1';
     // cakesCount 由 getCustomActions 里直接编入，避免读Haxe字段失败

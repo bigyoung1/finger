@@ -146,7 +146,6 @@ class GameEngine {
                 case TRUE:     "真实";
             };
             lastTouchDamageLog.push({ type: type, outputAmount: finalAmount, typeName: tName });
-            trace('📝 [帮抗记录] 第${lastTouchDamageLog.length}笔 → ${tName} ${finalAmount}');
         }
 
         // 3. 走标准抗伤

@@ -26,6 +26,8 @@ function campOf(idx) { return (idx === 0 || idx === 2) ? 'hero' : 'rebel'; }
 function toggleTank(playerIdx, fromRemote) {
     var camp = campOf(playerIdx);
     if (G.tankIdx[camp] === playerIdx) return;
+    // 联机：不能切换敌方抗伤位
+    if (ONLINE.active && !fromRemote && camp !== ONLINE.myCamp()) return;
     G.tankIdx[camp] = playerIdx;
     updateTankButtons();
     if (!fromRemote) ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });

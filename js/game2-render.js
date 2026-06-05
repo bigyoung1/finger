@@ -1,3 +1,25 @@
+// ── rAF 批量渲染：同一帧内多次调用只执行一次，避免重复DOM操作 ──
+var _renderPending = false;
+var _stylesPending = false;
+
+function render2() {
+    if (_renderPending) return;
+    _renderPending = true;
+    requestAnimationFrame(function() {
+        _renderPending = false;
+        _doRender2();
+    });
+}
+
+function refreshHandStyles2() {
+    if (_stylesPending) return;
+    _stylesPending = true;
+    requestAnimationFrame(function() {
+        _stylesPending = false;
+        _doRefreshHandStyles2();
+    });
+}
+
 // ════════════════════════════════════════════════════════
 //  game2-render.js  渲染 + 手牌样式
 // ════════════════════════════════════════════════════════
@@ -9,7 +31,7 @@ var SHIELD_NAMES = {
     TRUE:                '真实护盾',
 };
 
-function render2() {
+function _doRender2() {
     if (!Main.turnManager) return;
     var players = Main.turnManager.players;
     if (!players || players.length < 4) return;
@@ -60,7 +82,9 @@ function render2() {
         // 自定义按钮（只在当前行动者回合显示）
         var actEl = document.getElementById('actions2v_' + i);
         actEl.innerHTML = '';
-        if (i === curIdx && !gameOver && !dead && p.getCustomActions) {
+        // 联机时只给本方阵营显示自定义操作按钮（蛋糕/模态切换等）
+        var isMyChar = !ONLINE.active || (campOf(i) === ONLINE.myCamp());
+        if (i === curIdx && !gameOver && !dead && p.getCustomActions && isMyChar) {
             p.getCustomActions().forEach(function(a) {
                 if (!a.enabled) return;
                 var btn = document.createElement('button');
@@ -96,7 +120,7 @@ function _toggleDeadClock(playerIdx, handIdx, isZero, turns) {
     txt.textContent = hasClock ? ('0剩余: ' + turns + '步') : '';
 }
 
-function refreshHandStyles2() {
+function _doRefreshHandStyles2() {
     if (!Main.turnManager || Main.turnManager.players.length < 4) return;
     var players   = Main.turnManager.players;
     var actorIdx  = Main.turnManager.currentPlayerIdx;
