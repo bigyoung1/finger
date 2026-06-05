@@ -72,11 +72,16 @@ class RenZhe extends Player {
         }
 
         // 加 1 层毒
-        // 双子星的毒由 [x,7] 被动统一处理（双子星自带3层+被动1层=4层），不重复叠加
-        // [0,7] 同理：GameEngine 已加1层 + [x,7]被动1层=2层，不重复叠加
+        // 规则：
+        //   普通攻击（无新7）→ 本钩子加1层
+        //   新变出7（[1,7]/[0,7]/[7,7]）→ 本钩子跳过，由 onAfterTouchResolved 的 [x,7] 被动统一加1层
+        //     [0,7] 组合本身已在 GameEngine 加了1层，再加被动1层 = 共2层 ✓
+        //     [7,7] 双子星已在 GameEngine 加了3层，再加被动1层 = 共4层 ✓
+        //     [1,7] 仅被动1层 ✓
         var isDoubleStar = (hands[0] == hands[1]);
-        var isZeroSeven  = (hands[0] == 0 && hands[1] == 7) || (hands[1] == 0 && hands[0] == 7);
-        if (!isDoubleStar  && target.hp > 0) {
+        var isNewSeven   = (hands[0] == 7 && _prevHand0 != 7)
+                        || (hands[1] == 7 && _prevHand1 != 7);
+        if (!isDoubleStar && !isNewSeven && target.hp > 0) {
             target.addBuff(new PoisonBuff(1));
             trace('🥷 忍者给 ${target.name} 加 1 层中毒！');
         }

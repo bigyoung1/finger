@@ -87,6 +87,18 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 
 /* 蛋糕弹窗 */
 #cakeDialog2 .dialog-box h3{color:#eb2f96}
+
+/* ── 联机大厅 ── */
+#modePanel{text-align:center;margin-bottom:16px}
+.mode-btn{padding:10px 32px;font-size:15px;font-weight:bold;border:2px solid #1890ff;border-radius:8px;cursor:pointer;margin:0 8px;background:white;color:#1890ff;transition:all .2s}
+.mode-btn:hover,.mode-btn.active{background:#1890ff;color:white}
+#onlinePanel{background:#f0f7ff;border:1px solid #91d5ff;border-radius:8px;padding:16px;margin-top:14px}
+#onlinePanel input{padding:8px 12px;font-size:14px;border:1px solid #d9d9d9;border-radius:5px;width:200px}
+.online-btn{padding:8px 20px;font-size:13px;font-weight:bold;border:none;border-radius:5px;cursor:pointer;margin-left:8px}
+#onlineStatus{color:#1890ff;font-size:13px;margin-top:10px;font-weight:bold;min-height:20px}
+#roomCodeArea{display:none;margin-top:10px;font-size:20px;font-weight:bold;color:#52c41a;letter-spacing:4px}
+#onlineJoinArea{margin-top:10px}
+#onlineStartArea{display:none;margin-top:10px}
 </style>
 </head>
 <body>
@@ -94,6 +106,27 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 
 <!-- ══ 设置面板 ══ -->
 <div id="setupPanel2">
+    <!-- 模式选择 -->
+    <div id="modePanel">
+        <button class="mode-btn active" id="btnLocal" onclick="selectMode('local')">👥 本地对战</button>
+        <button class="mode-btn" id="btnOnline" onclick="selectMode('online')">🌐 联机对战</button>
+    </div>
+    <!-- 联机面板 -->
+    <div id="onlinePanel" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <input id="playerName" placeholder="你的昵称（必填）" maxlength="12">
+            <button class="online-btn" style="background:#52c41a;color:white" onclick="onlineCreate()">🏠 创建房间</button>
+            <span style="color:#999">或</span>
+            <input id="roomCodeInput" placeholder="输入房间码" maxlength="5" style="width:130px;text-transform:uppercase">
+            <button class="online-btn" style="background:#1890ff;color:white" onclick="onlineJoin()">🚪 加入房间</button>
+        </div>
+        <div id="onlineStatus"></div>
+        <div id="roomCodeArea">房间码：<span id="roomCodeDisplay"></span>（发给朋友）</div>
+        <div id="onlineJoinArea" style="display:none"></div>
+        <div id="onlineStartArea">
+            <div style="font-size:13px;color:#555;margin-bottom:8px">选好角色后点击开始👇</div>
+        </div>
+    </div>
     <h2>选择角色</h2>
     <div class="setup-teams">
         <div class="setup-team">
@@ -403,6 +436,77 @@ function restartGame2() {
     var lp = document.getElementById('logPanel2');
     if (lp) lp.innerHTML = '<div class="log-line">等待游戏开始...</div>';
 }
+</script>
+<script src="network.js"></script>
+<script src="js/game2-online.js"></script>
+<script>
+function selectMode(mode) {
+    document.getElementById('btnLocal').className  = 'mode-btn' + (mode==='local'  ? ' active' : '');
+    document.getElementById('btnOnline').className = 'mode-btn' + (mode==='online' ? ' active' : '');
+    document.getElementById('onlinePanel').style.display = mode==='online' ? 'block' : 'none';
+    ONLINE.active = false;
+}
+
+function onlineCreate() {
+    var name = document.getElementById('playerName').value.trim();
+    if (!name) { alert('请填写昵称'); return; }
+    setOnlineStatus('正在连接...');
+    NET.connect(function() {
+        NET.createRoom(name);
+        ONLINE.seat = 0; // 房主 = HERO
+    });
+}
+
+function onlineJoin() {
+    var name = document.getElementById('playerName').value.trim();
+    var code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+    if (!name) { alert('请填写昵称'); return; }
+    if (!code)  { alert('请输入房间码'); return; }
+    setOnlineStatus('正在连接...');
+    NET.connect(function() {
+        NET.joinRoom(code, name);
+        ONLINE.seat = 1; // 访客 = REBEL
+    });
+}
+
+// 房主：选好角色后开始（把角色ID发给访客）
+var _origStartGame2 = startGame2;
+startGame2 = function() {
+    if (ONLINE.active && ONLINE.seat === 0) {
+        // 联机房主：发角色配置给访客，然后本地开始
+        var ids = [
+            document.getElementById('heroSelect1').value,
+            document.getElementById('rebelSelect2').value,
+            document.getElementById('heroSelect3').value,
+            document.getElementById('rebelSelect4').value
+        ];
+        NET.sendAction({ type: 'charConfig', charIds: ids });
+        ONLINE.active = true;
+    }
+    _origStartGame2();
+};
+
+// 访客：收到角色配置后开始游戏
+function startOnlineGame(id0, id1, id2, id3) {
+    setupTrace2v2();
+    var lp = document.getElementById('logPanel2');
+    if (lp) lp.innerHTML = '';
+    Main.setupGame2v2(id0, id1, id2, id3);
+    G.tankIdx = { hero: 0, rebel: 1 };
+    setupTankResolver();
+    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+    document.getElementById('setupPanel2').style.display = 'none';
+    document.getElementById('battleArena2').style.display = 'block';
+    render2(); updateTankButtons(); refreshHandStyles2();
+    setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+}
+
+// 监听访客加入后，房主启用开始按钮
+var _origOnOpponentJoined = NET.onOpponentJoined;
+NET.onOpponentJoined = function(opponentName) {
+    _origOnOpponentJoined(opponentName);
+    ONLINE.active = true; // 双方就绪，联机生效
+};
 </script>
 </body>
 </html>

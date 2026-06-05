@@ -23,11 +23,12 @@ var G = {
 function campOf(idx) { return (idx === 0 || idx === 2) ? 'hero' : 'rebel'; }
 
 // ── 抗伤位切换 ──
-function toggleTank(playerIdx) {
+function toggleTank(playerIdx, fromRemote) {
     var camp = campOf(playerIdx);
-    if (G.tankIdx[camp] === playerIdx) return; // 已经是抗伤位，无需切换
+    if (G.tankIdx[camp] === playerIdx) return;
     G.tankIdx[camp] = playerIdx;
     updateTankButtons();
+    if (!fromRemote) ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });
 }
 
 function updateTankButtons() {

@@ -56,6 +56,8 @@ function onHelpTankConfirm() {
 
     try {
         if (ctx) {
+            // 联机：我是受伤方，通知攻击方
+            if (ONLINE.active) ONLINE.sendAction({ type: "helpTank", choice: "confirm", helperIdx: ctx.helperIdx });
             // 全部结算在 Haxe 内完成：恢复 victim + helper 承伤 ×1.5
             Main.engine.resolveHelpTank(ctx.helperIdx);
         }
@@ -74,8 +76,11 @@ function onHelpTankCancel() {
     clearInterval(G.helpTankTimer);
     var dlg = document.getElementById('helpTankDialog');
     if (dlg) dlg.style.display = 'none';
+    var ctx = G.helpTankContext;
     G.helpTankContext = null;
     G.inputLocked = false;
+    // 联机：通知攻击方放弃帮抗
+    if (ONLINE.active && ctx) ONLINE.sendAction({ type: "helpTank", choice: "cancel", helperIdx: ctx.helperIdx });
     // victim 正常死亡，直接推进回合
     finishTurn2();
 }
@@ -116,7 +121,7 @@ function showWukongTargetDialog(actorIdx) {
     document.getElementById('wukongTargetDialog').style.display = 'flex';
 }
 
-function executeWukong02(chosenTargetIdx) {
+function executeWukong02(chosenTargetIdx, fromRemote) {
     var ctx = G.wukongPending; G.wukongPending = null;
     if (!ctx) return;
     var players     = Main.turnManager.players;
@@ -132,8 +137,10 @@ function executeWukong02(chosenTargetIdx) {
         flashHint2(result); refreshHandStyles2(); return;
     }
 
+    if (!fromRemote) ONLINE.sendAction({ type: "wukong02", wukongPending: ctx, chosenTargetIdx: chosenTargetIdx });
+
     // 濒死检测 → 若弹出帮抗窗则回合暂停
-    if (tryHelpTankOrPause(chosenTargetIdx)) return;
+    if (tryHelpTankOrPause(chosenTargetIdx, fromRemote)) return;
 
     finishTurn2();
 }

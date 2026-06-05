@@ -3839,10 +3839,10 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 			}
 		}
 		var isDoubleStar = this.hands[0] == this.hands[1];
-		var isZeroSeven = this.hands[0] == 0 && this.hands[1] == 7 || this.hands[1] == 0 && this.hands[0] == 7;
-		if(!isDoubleStar && target.hp > 0) {
+		var isNewSeven = this.hands[0] == 7 && this._prevHand0 != 7 || this.hands[1] == 7 && this._prevHand1 != 7;
+		if(!isDoubleStar && !isNewSeven && target.hp > 0) {
 			target.addBuff(new buffs_PoisonBuff(1));
-			haxe_Log.trace("🥷 忍者给 " + target.name + " 加 1 层中毒！",{ fileName : "./character/RenZhe.hx", lineNumber : 81, className : "character.RenZhe", methodName : "onAfterDealtDamage"});
+			haxe_Log.trace("🥷 忍者给 " + target.name + " 加 1 层中毒！",{ fileName : "./character/RenZhe.hx", lineNumber : 86, className : "character.RenZhe", methodName : "onAfterDealtDamage"});
 		}
 	}
 	,calcDamageReduction: function(engine) {
@@ -3884,7 +3884,7 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 			var reduction = this.calcDamageReduction(GameEngine.instance);
 			if(reduction > 0) {
 				inputAmount = amount * (100 - reduction) / 100 | 0;
-				haxe_Log.trace("🥷 忍者减伤：" + amount + " → " + inputAmount + "（敌方毒层提供 " + reduction + "% 减伤）",{ fileName : "./character/RenZhe.hx", lineNumber : 119, className : "character.RenZhe", methodName : "handleIncomingDamage"});
+				haxe_Log.trace("🥷 忍者减伤：" + amount + " → " + inputAmount + "（敌方毒层提供 " + reduction + "% 减伤）",{ fileName : "./character/RenZhe.hx", lineNumber : 124, className : "character.RenZhe", methodName : "handleIncomingDamage"});
 			}
 		}
 		return model_Player.prototype.handleIncomingDamage.call(this,attacker,inputAmount,dmgType);
@@ -3896,14 +3896,14 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 		if(actualPoisonDamage <= 0) {
 			return;
 		}
-		haxe_Log.trace("🥷 忍者监听毒伤：" + victim.name + " 扣 " + actualPoisonDamage + " 毒血 → 忍者回 " + actualPoisonDamage + "！",{ fileName : "./character/RenZhe.hx", lineNumber : 132, className : "character.RenZhe", methodName : "onAnyPoisonTick"});
+		haxe_Log.trace("🥷 忍者监听毒伤：" + victim.name + " 扣 " + actualPoisonDamage + " 毒血 → 忍者回 " + actualPoisonDamage + "！",{ fileName : "./character/RenZhe.hx", lineNumber : 137, className : "character.RenZhe", methodName : "onAnyPoisonTick"});
 		engine.applyRawHeal(this,actualPoisonDamage,model_HealType.SUPPLY,true);
 	}
 	,onAnyPoisonCleared: function(victim,engine) {
 		if(victim == this) {
 			return;
 		}
-		haxe_Log.trace("🥷 忍者监听解毒：" + victim.name + " 解了一层毒 → 忍者回 20！",{ fileName : "./character/RenZhe.hx", lineNumber : 138, className : "character.RenZhe", methodName : "onAnyPoisonCleared"});
+		haxe_Log.trace("🥷 忍者监听解毒：" + victim.name + " 解了一层毒 → 忍者回 20！",{ fileName : "./character/RenZhe.hx", lineNumber : 143, className : "character.RenZhe", methodName : "onAnyPoisonCleared"});
 		engine.applyRawHeal(this,20,model_HealType.SUPPLY,true);
 	}
 	,onAfterTouchResolved: function() {
@@ -3921,7 +3921,7 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 		if(target == null || target.hp <= 0) {
 			return;
 		}
-		haxe_Log.trace("🥷 忍者 [x,7] 毒刃被动：7刚变出，额外给 " + target.name + " 附加 1 层中毒！",{ fileName : "./character/RenZhe.hx", lineNumber : 165, className : "character.RenZhe", methodName : "onAfterTouchResolved"});
+		haxe_Log.trace("🥷 忍者 [x,7] 毒刃被动：7刚变出，额外给 " + target.name + " 附加 1 层中毒！",{ fileName : "./character/RenZhe.hx", lineNumber : 170, className : "character.RenZhe", methodName : "onAfterTouchResolved"});
 		target.addBuff(new buffs_PoisonBuff(1));
 	}
 	,getCustomDisplay: function() {

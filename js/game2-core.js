@@ -4,6 +4,8 @@
 
 function onHandClick2(playerIdx, handIdx) {
     if (!Main.turnManager || Main.turnManager.gameOver) return;
+    if (ONLINE.waitingRemoteHelpTank) { flashHint2("⏳ 等待对方决定是否帮抗..."); return; }
+    if (ONLINE.active && !ONLINE.isMyTurn()) { flashHint2("⏳ 等待对方操作..."); return; }
     if (G.inputLocked) { flashHint2('⏳ 等待帮抗决定...'); return; }
     var players  = Main.turnManager.players;
     var actorIdx = Main.turnManager.currentPlayerIdx;
@@ -68,7 +70,7 @@ function onHandClick2(playerIdx, handIdx) {
 }
 
 // ── 执行攻击 ──
-function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx) {
+function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx, fromRemote) {
     var players       = Main.turnManager.players;
     var actor         = players[actorIdx];
     var touchTarget   = players[touchTargetIdx];
@@ -88,8 +90,11 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx)
         flashHint2(result); refreshHandStyles2(); return;
     }
 
+    // 发送操作给对手
+    if (!fromRemote) ONLINE.sendAction({ type: "attack", actorIdx: actorIdx, myHand: myHand, touchTargetIdx: touchTargetIdx, touchHandIdx: touchHandIdx, dmgTargetIdx: dmgTargetIdx2 });
+
     // 濒死检测 → 若弹出帮抗窗则回合暂停
-    if (tryHelpTankOrPause(dmgTargetIdx2)) return;
+    if (tryHelpTankOrPause(dmgTargetIdx2, fromRemote)) return;
 
     finishTurn2();
 }
@@ -97,7 +102,7 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx)
 // ── 帮抗濒死检测（doAttack2 / executeWukong02 共用）──
 // 返回 true 表示已弹出帮抗窗，调用方应 return（回合暂停，等待玩家选择）
 // 返回 false 表示无需帮抗，调用方继续 finishTurn2()
-function tryHelpTankOrPause(dmgTargetIdx2) {
+function tryHelpTankOrPause(dmgTargetIdx2, fromRemote) {
     var players = Main.turnManager.players;
     var dmgTarget = players[dmgTargetIdx2];
     if (!dmgTarget || dmgTarget.hp > 0) return false;
@@ -126,6 +131,19 @@ function tryHelpTankOrPause(dmgTargetIdx2) {
         break;
     }
     if (helperIdx < 0) return false;
+
+    // 联机：受伤方自己弹窗，攻击方等待
+    if (ONLINE.active) {
+        var victimCamp = campOf(dmgTargetIdx2);
+        if (victimCamp !== ONLINE.myCamp()) {
+            // 我是攻击方，对方决定帮抗 — 等待
+            ONLINE.waitingRemoteHelpTank = true;
+            G.inputLocked = true;
+            setHint2("⏳ 等待对方决定是否帮抗...");
+            return true;
+        }
+        // 我是受伤方，我弹窗决定（结果通过 onHelpTankConfirm/Cancel 发送给对方）
+    }
 
     // 冻结本次伤害快照（防止后续操作清空 lastTouchDamageLog）
     Main.engine.captureHelpTankDamage();
