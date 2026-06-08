@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>指尖博弈 2v2</title>
+<link rel="stylesheet" href="css/game2.css">
+</head>
+<body>
+<!-- 右上角音乐播放器 -->
+<div id="musicPlayer">
+    <button id="musicPlayBtn" title="播放/暂停">🎵</button>
+    <span id="musicTitle">点击播放音乐</span>
+    <input id="musicVolume" type="range" min="0" max="1" step="0.05" value="0.5" title="音量">
+    <button id="musicNext" title="下一首">⏭</button>
+</div>
+<audio id="bgmAudio" preload="none"></audio>
+
+
+<h1>☯ 指尖博弈 2v2 对战</h1>
+
+<!-- ══ 设置面板 ══ -->
+<div id="setupPanel2">
+    <!-- 模式选择 -->
+    <div id="modePanel">
+        <button class="mode-btn active" id="btnLocal" onclick="selectMode('local')">👥 本地对战</button>
+        <button class="mode-btn" id="btnOnline" onclick="selectMode('online')">🌐 联机对战</button>
+    </div>
+    <!-- 联机面板 -->
+    <div id="onlinePanel" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <input id="playerName" placeholder="你的昵称（必填）" maxlength="12">
+            <button class="online-btn" style="background:#52c41a;color:white" onclick="onlineCreate()">🏠 创建房间</button>
+            <span style="color:#999">或</span>
+            <input id="roomCodeInput" placeholder="输入房间码" maxlength="5" style="width:130px;text-transform:uppercase">
+            <button class="online-btn" style="background:#1890ff;color:white" onclick="onlineJoin()">🚪 加入房间</button>
+        </div>
+        <div id="onlineStatus"></div>
+        <div id="roomCodeArea">房间码：<span id="roomCodeDisplay"></span>（发给朋友）</div>
+        <div id="onlineJoinArea" style="display:none"></div>
+        <div id="onlineStartArea">
+            <div style="font-size:13px;color:#555;margin-bottom:8px">选好角色后点击开始👇</div>
+        </div>
+    </div>
+    <h2>选择角色</h2>
+    <div class="setup-teams">
+        <div class="setup-team">
+            <b style="color:#1890ff">🔵 HERO 队（1号、3号）</b>
+            <div style="margin:8px 0 4px">
+                <span style="font-size:13px;color:#555;margin-right:6px">阵容：</span>
+                <button class="formation-btn active" id="heroFormDualHalf" onclick="setFormation('hero','dual_half')">👥 双半肉</button>
+                <button class="formation-btn" id="heroFormTankCarry" onclick="setFormation('hero','tank_carry')">🏰 坦脆流</button>
+            </div>
+            <div id="heroTankWho" style="display:none" class="tank-who">
+                <span>坦克：</span>
+                <label><input type="radio" name="heroTank" value="0" checked onchange="setSetupTank('hero',0)"> 1号位</label>
+                <label><input type="radio" name="heroTank" value="2" onchange="setSetupTank('hero',2)"> 3号位</label>
+            </div>
+            <label>1号位</label><select id="heroSelect1"></select>
+            <label>3号位</label><select id="heroSelect3"></select>
+        </div>
+        <div class="setup-team rebel">
+            <b style="color:#f5222d">🔴 REBEL 队（2号、4号）</b>
+            <div style="margin:8px 0 4px">
+                <span style="font-size:13px;color:#555;margin-right:6px">阵容：</span>
+                <button class="formation-btn active" id="rebelFormDualHalf" onclick="setFormation('rebel','dual_half')">👥 双半肉</button>
+                <button class="formation-btn" id="rebelFormTankCarry" onclick="setFormation('rebel','tank_carry')">🏰 坦脆流</button>
+            </div>
+            <div id="rebelTankWho" style="display:none" class="tank-who">
+                <span>坦克：</span>
+                <label><input type="radio" name="rebelTank" value="1" checked onchange="setSetupTank('rebel',1)"> 2号位</label>
+                <label><input type="radio" name="rebelTank" value="3" onchange="setSetupTank('rebel',3)"> 4号位</label>
+            </div>
+            <label>2号位</label><select id="rebelSelect2"></select>
+            <label>4号位</label><select id="rebelSelect4"></select>
+        </div>
+    </div>
+    <label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:14px"><input type="checkbox" id="vsAIToggle"> 🤖 vs AI 对战（AI 控制 REBEL 队）</label>
+            <button id="startBtn2">⚔️ 开始 2v2 对战</button>
+</div>
+
+<!-- ══ 战场 ══ -->
+<div id="battleArena2">
+    <div class="arena-layout">
+        <!-- 左队 HERO -->
+        <div class="team-col">
+            <div class="team-header hero">🔵 HERO 队</div>
+
+
+            
+        <div class="player-card2" id="card2v_0">
+            <button class="tank-btn" id="tankBtn0" onclick="toggleTank(0)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_0" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_0">👤</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_0">-</div>
+                    </div>
+                    <div class="hp-bar2">HP: <span id="hp2v_0">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_0_0_box" onclick="onHandClick2(0,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_0_0">1</div>
+                            <div class="death-turns2" id="dt2v_0_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_0_1_box" onclick="onHandClick2(0,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_0_1">1</div>
+                            <div class="death-turns2" id="dt2v_0_1"></div>
+                        </div>
+                    </div>
+                    <div class="card-info">Buff: <span id="buffs2v_0">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_0">无</span></div>
+                    <div class="custom-display2" id="custom2v_0"></div>
+                    <div class="custom-actions2" id="actions2v_0"></div>
+                    <div id="tankTargetArea0" style="margin-top:2px"></div>
+                </div>
+            </div>
+        </div>
+        <div class="player-card2" id="card2v_2">
+            <button class="tank-btn" id="tankBtn2" onclick="toggleTank(2)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_2" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_2">👤</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_2">-</div>
+                    </div>
+                    <div class="hp-bar2">HP: <span id="hp2v_2">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_2_0_box" onclick="onHandClick2(2,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_2_0">1</div>
+                            <div class="death-turns2" id="dt2v_2_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_2_1_box" onclick="onHandClick2(2,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_2_1">1</div>
+                            <div class="death-turns2" id="dt2v_2_1"></div>
+                        </div>
+                    </div>
+                    <div class="card-info">Buff: <span id="buffs2v_2">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_2">无</span></div>
+                    <div class="custom-display2" id="custom2v_2"></div>
+                    <div class="custom-actions2" id="actions2v_2"></div>
+                    <div id="tankTargetArea2" style="margin-top:2px"></div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- 中间列 -->
+        <div class="mid-col">
+            <div id="turnBadge">第 1 回合</div>
+            <div id="hintBar2">等待开始...</div>
+        </div>
+
+        <!-- 右队 REBEL -->
+        <div class="team-col">
+            <div class="team-header rebel">🔴 REBEL 队</div>
+        <div class="player-card2" id="card2v_1">
+            <button class="tank-btn" id="tankBtn1" onclick="toggleTank(1)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_1" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_1">👤</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_1">-</div>
+                    </div>
+                    <div class="hp-bar2">HP: <span id="hp2v_1">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_1_0_box" onclick="onHandClick2(1,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_1_0">1</div>
+                            <div class="death-turns2" id="dt2v_1_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_1_1_box" onclick="onHandClick2(1,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_1_1">1</div>
+                            <div class="death-turns2" id="dt2v_1_1"></div>
+                        </div>
+                    </div>
+                    <div class="card-info">Buff: <span id="buffs2v_1">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_1">无</span></div>
+                    <div class="custom-display2" id="custom2v_1"></div>
+                    <div class="custom-actions2" id="actions2v_1"></div>
+                    <div id="tankTargetArea1" style="margin-top:2px"></div>
+                </div>
+            </div>
+        </div>
+        <div class="player-card2" id="card2v_3">
+            <button class="tank-btn" id="tankBtn3" onclick="toggleTank(3)">🛡 抗伤</button>
+            <div class="card-inner">
+                <div class="char-avatar-wrap">
+                    <img class="char-avatar" id="avatar_3" src="" alt="" style="display:none">
+                    <div class="char-avatar-placeholder" id="avatar_ph_3">👤</div>
+                </div>
+                <div class="card-body">
+                    <div class="card-top">
+                        <div class="player-name2" id="name2v_3">-</div>
+                    </div>
+                    <div class="hp-bar2">HP: <span id="hp2v_3">-</span></div>
+                    <div class="hands-row">
+                        <div class="hand-box2" id="h2v_3_0_box" onclick="onHandClick2(3,0)">
+                            <div class="hand-label">左手</div>
+                            <div class="hand-val" id="h2v_3_0">1</div>
+                            <div class="death-turns2" id="dt2v_3_0"></div>
+                        </div>
+                        <div class="hand-box2" id="h2v_3_1_box" onclick="onHandClick2(3,1)">
+                            <div class="hand-label">右手</div>
+                            <div class="hand-val" id="h2v_3_1">1</div>
+                            <div class="death-turns2" id="dt2v_3_1"></div>
+                        </div>
+                    </div>
+                    <div class="card-info">Buff: <span id="buffs2v_3">无</span></div>
+                    <div class="card-info">护盾: <span id="shields2v_3">无</span></div>
+                    <div class="custom-display2" id="custom2v_3"></div>
+                    <div class="custom-actions2" id="actions2v_3"></div>
+                    <div id="tankTargetArea3" style="margin-top:2px"></div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- 底部按钮行 -->
+
+    <button onclick="restartGame2()" style="background:#722ed1;color:white;border:none;padding:6px 16px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px">🔄 重新选择角色</button>
+    <button onclick="endGame2()" style="background:#fa541c;color:white;border:none;padding:6px 16px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px">📥 结束并下载日志</button>
+</div>
+<div id="logPanel2" style="max-width:1100px;margin:0 auto"><div class="log-line">等待游戏开始...</div></div>
+
+<!-- ══ 弹窗 ══ -->
+
+<!-- 帮抗 -->
+<div class="overlay" id="helpTankDialog">
+    <div class="dialog-box" style="max-width:380px">
+        <h3 style="color:#cf1322">🛡️ 队友濒死！是否帮抗？</h3>
+        <div id="helpTankMsg" style="font-size:13px;color:#444;line-height:1.6;margin-bottom:8px;"></div>
+        <div id="helpTankCountdown" style="font-size:28px;font-weight:bold;color:#ff4d4f;text-align:center;margin:8px 0">10</div>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:12px">
+            <button onclick="onHelpTankConfirm()" style="background:#52c41a;color:white;padding:8px 22px;font-size:13px;font-weight:bold;border:none;border-radius:5px;cursor:pointer">✅ 帮抗！</button>
+            <button onclick="onHelpTankCancel()" style="background:#ff4d4f;color:white;padding:8px 22px;font-size:13px;font-weight:bold;border:none;border-radius:5px;cursor:pointer">❌ 放弃</button>
+        </div>
+    </div>
+</div>
+
+<!-- 孙悟空选目标 -->
+<div class="overlay" id="wukongTargetDialog">
+    <div class="dialog-box">
+        <h3>🐒 [0,2] 大招 — 选择目标</h3>
+        <p style="font-size:12px;color:#555">选择要冻结的敌方：</p>
+        <div id="wukongTargetList"></div>
+    </div>
+</div>
+
+<!-- 蛋糕弹窗 -->
+<div class="overlay" id="cakeDialog2">
+    <div class="dialog-box">
+        <h3>🍓 释放草莓蛋糕</h3>
+        <div style="margin:12px 0 8px">
+            <div style="margin-bottom:6px;font-size:13px">释放组数（每组 = 3蛋糕 → 10法伤+10补给）：</div>
+            <div style="display:flex;align-items:center;gap:10px">
+                <button onclick="changeCakeGroups2(-1)" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:4px 12px;border-radius:4px;cursor:pointer">－</button>
+                <span id="cakeGroupCount2" style="font-size:20px;font-weight:bold;color:#eb2f96;min-width:28px;text-align:center">1</span>
+                <button onclick="changeCakeGroups2(1)" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:4px 12px;border-radius:4px;cursor:pointer">＋</button>
+                <span id="cakeCostHint2" style="color:#8c8c8c;font-size:12px"></span>
+            </div>
+        </div>
+        <div style="font-size:13px;margin-bottom:6px">选择目标（点击释放）：</div>
+        <div id="cakeTargetList2" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+        <div style="text-align:right">
+            <button onclick="closeCakeDialog2()" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:6px 16px;border-radius:4px;cursor:pointer">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ 脚本加载顺序很重要 ══ -->
+<script src="main.js"></script>
+<script>
+// main.js 加载完毕，立刻覆盖 haxe.Log.trace 指向2v2日志框
+// （main.js 的 Main.main() 会在 DOMContentLoaded 时再次设置，所以我们也在 DOMContentLoaded 后再覆盖一次）
+(function() {
+    // 日志缓冲：批量写入 DOM，避免每条 trace 都触发重绘
+    var _logQueue = [];
+    var _logFlushPending = false;
+    var MAX_LOG_LINES = 80;
+
+    function _flushLog() {
+        _logFlushPending = false;
+        if (_logQueue.length === 0) return;
+        var lp = document.getElementById('logPanel2');
+        if (!lp) { _logQueue = []; return; }
+        var frag = document.createDocumentFragment();
+        _logQueue.forEach(function(text) {
+            var line = document.createElement('div');
+            line.className = 'log-line' +
+                (text.indexOf('🎉')>=0||text.indexOf('🏆')>=0||text.indexOf('⚠️')>=0 ? ' log-important' : '');
+            line.textContent = text;
+            frag.appendChild(line);
+        });
+        _logQueue = [];
+        lp.appendChild(frag);
+        // 超出上限时删最旧的
+        while (lp.childNodes.length > MAX_LOG_LINES) {
+            lp.removeChild(lp.firstChild);
+        }
+        lp.scrollTop = lp.scrollHeight;
+    }
+
+    function applyTrace2v2() {
+        if (typeof haxe !== 'undefined' && haxe.Log) {
+            haxe.Log.trace = function(v, infos) {
+                var text = String(v);
+                if (typeof Main !== 'undefined' && Main.logBuffer) Main.logBuffer.push(text);
+                _logQueue.push(text);
+                if (!_logFlushPending) {
+                    _logFlushPending = true;
+                    requestAnimationFrame(_flushLog);
+                }
+            };
+            window._trace2v2Applied = true;
+        }
+    }
+    // 立刻尝试（main.js同步加载完后haxe已存在）
+    applyTrace2v2();
+    // DOMContentLoaded 后再覆盖一次（Main.main()会重设trace）
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(applyTrace2v2, 0);
+    });
+    // 暴露给 startGame2 调用
+    window.setupTrace2v2 = applyTrace2v2;
+})();
+</script>
+<script src="js/game2-state.js"></script>
+<script src="js/game2-render.js"></script>
+<script src="js/game2-dialogs.js"></script>
+<script src="js/game2-core.js"></script>
+<script src="js/game2-ai.js"></script>
+<script>
+// ── 初始化：填充下拉框 + 劫持trace ──
+document.addEventListener('DOMContentLoaded', function() {
+    // 等 main.js 的 Main 对象就绪
+    function tryInit() {
+        if (typeof Main === 'undefined' || typeof Main.getCharacterOptions !== 'function') {
+            setTimeout(tryInit, 50); return;
+        }
+        var opts = Main.getCharacterOptions();
+        ['heroSelect1','heroSelect3','rebelSelect2','rebelSelect4'].forEach(function(id) {
+            var sel = document.getElementById(id);
+            opts.forEach(function(opt) {
+                var o = document.createElement('option');
+                o.value = opt.id; o.textContent = opt.displayName;
+                sel.appendChild(o);
+            });
+        });
+
+        // 劫持 Haxe trace —— main.js 加载后 haxe.Log 已挂载，直接覆盖
+        // Main.hx 的 main() 会在 DOMContentLoaded 之前被调用并设置自己的 trace，
+        // 这里在 tryInit 成功后再覆盖一次，确保指向2v2日志框
+        setupTrace2v2(); // 覆盖 haxe.Log，把trace输出到2v2日志框
+    }
+    tryInit();
+
+    document.getElementById('startBtn2').onclick = startGame2;
+// AI 行动 hook：每次 render2 后检查
+var _origRender2_ai = (typeof render2 === 'function') ? render2 : null;
+if (_origRender2_ai) {
+    render2 = function() {
+        var r = _origRender2_ai.apply(this, arguments);
+        if (window.AI && AI.enabled) setTimeout(function() { AI.checkAndAct(); }, 400);
+        return r;
+    };
+}
+});
+
+// setupTrace2v2 已在 main.js 加载后的内联脚本里定义
+
+function restartGame2() {
+    if(typeof resetAvatars==="function") resetAvatars();
+    // 停止任何计时器
+    if (G.stealTimer) { clearInterval(G.stealTimer); G.stealTimer = null; }
+    // 关闭所有弹窗
+    // 关闭所有弹窗（.overlay 类），新增角色弹窗无需修改此处
+    document.querySelectorAll('.overlay').forEach(function(el){ el.style.display='none'; });
+    var so = document.getElementById('stealOverlay'); if(so) so.style.display='none';
+    var sd = document.getElementById('stealDialog');
+    if (sd && sd.parentNode) sd.parentNode.removeChild(sd);
+    // 重置状态
+    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+    G.wukongPending = null;
+    G.helpTankContext = null;
+    clearInterval(G.helpTankTimer);
+    G.inputLocked = false;
+    G.stealQueue = []; G.cakeActorIdx = -1;
+    // 回到设置界面
+    document.getElementById('battleArena2').style.display = 'none';
+    document.getElementById('setupPanel2').style.display = 'block';
+    setHint2('等待开始...');
+}
+
+function startGame2() {
+    setupTrace2v2(); // 确保游戏开始时已劫持 trace
+    // 清空上一局日志
+    var lp = document.getElementById('logPanel2');
+    if (lp) lp.innerHTML = '';
+    var id0 = document.getElementById('heroSelect1').value;
+    var id1 = document.getElementById('rebelSelect2').value;
+    var id2 = document.getElementById('heroSelect3').value;
+    var id3 = document.getElementById('rebelSelect4').value;
+
+    Main.setupGame2v2(id0, id1, id2, id3);
+
+    G.tankIdx = { hero: 0, rebel: 1 };
+    setupTankResolver(); // 让引擎被动技能也走抗伤位
+    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+
+    document.getElementById('setupPanel2').style.display = 'none';
+    document.getElementById('battleArena2').style.display = 'block';
+
+    render2();
+    updateTankButtons();
+    refreshHandStyles2();
+    setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+}
+
+function restartGame2() {
+    // 重置引擎状态
+    Main.turnManager.gameOver = true;
+    clearTankResolver(); // 清除2v2抗伤位注入
+    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+    clearInterval(G.stealTimer);
+    G.stealQueue = [];
+    if (typeof resetAvatars === 'function') resetAvatars();
+    // 切回设置面板
+    document.getElementById('battleArena2').style.display = 'none';
+    document.getElementById('setupPanel2').style.display = 'block';
+    // 清空日志
+    var lp = document.getElementById('logPanel2');
+    if (lp) lp.innerHTML = '<div class="log-line">等待游戏开始...</div>';
+}
+</script>
+<script src="network.js"></script>
+<script src="js/game2-online.js"></script>
+<script>
+function selectMode(mode) {
+    document.getElementById('btnLocal').className  = 'mode-btn' + (mode==='local'  ? ' active' : '');
+    document.getElementById('btnOnline').className = 'mode-btn' + (mode==='online' ? ' active' : '');
+    document.getElementById('onlinePanel').style.display = mode==='online' ? 'block' : 'none';
+    ONLINE.active = false;
+}
+
+function onlineCreate() {
+    var name = document.getElementById('playerName').value.trim();
+    if (!name) { alert('请填写昵称'); return; }
+    setOnlineStatus('正在连接...');
+    NET.connect(function() {
+        NET.createRoom(name);
+        ONLINE.seat = 0; // 房主 = HERO
+    });
+}
+
+function onlineJoin() {
+    var name = document.getElementById('playerName').value.trim();
+    var code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+    if (!name) { alert('请填写昵称'); return; }
+    if (!code)  { alert('请输入房间码'); return; }
+    setOnlineStatus('正在连接...');
+    NET.connect(function() {
+        NET.joinRoom(code, name);
+        ONLINE.seat = 1; // 访客 = REBEL
+    });
+}
+
+// 房主：选好角色后开始（把角色ID发给访客）
+var _origStartGame2 = startGame2;
+startGame2 = function() {
+    if (ONLINE.active && ONLINE.seat === 0) {
+        // 联机房主：发角色配置给访客，然后本地开始
+        var ids = [
+            document.getElementById('heroSelect1').value,
+            document.getElementById('rebelSelect2').value,
+            document.getElementById('heroSelect3').value,
+            document.getElementById('rebelSelect4').value
+        ];
+        NET.sendAction({ type: 'charConfig', charIds: ids });
+        ONLINE.active = true;
+    }
+    _origStartGame2();
+};
+
+// 访客：收到角色配置后开始游戏
+function startOnlineGame(id0, id1, id2, id3) {
+    setupTrace2v2();
+    var lp = document.getElementById('logPanel2');
+    if (lp) lp.innerHTML = '';
+    Main.setupGame2v2(id0, id1, id2, id3);
+    G.tankIdx = { hero: 0, rebel: 1 };
+    setupTankResolver();
+    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+    document.getElementById('setupPanel2').style.display = 'none';
+    document.getElementById('battleArena2').style.display = 'block';
+    render2(); updateTankButtons(); refreshHandStyles2();
+    setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+}
+
+// 监听访客加入后，房主启用开始按钮
+var _origOnOpponentJoined = NET.onOpponentJoined;
+NET.onOpponentJoined = function(opponentName) {
+    _origOnOpponentJoined(opponentName);
+    ONLINE.active = true; // 双方就绪，联机生效
+};
+</script>
+
+<script>
+// ── BGM 播放器 ──
+(function() {
+    var audio     = document.getElementById('bgmAudio');
+    var playBtn   = document.getElementById('musicPlayBtn');
+    var titleEl   = document.getElementById('musicTitle');
+    var volSlider = document.getElementById('musicVolume');
+    var nextBtn   = document.getElementById('musicNext');
+
+    var playlist  = [];   // mp3文件名数组
+    var curIdx    = 0;
+    var isPlaying = false;
+
+    // 从服务器拉取歌单
+    fetch('/api/music')
+        .then(function(r) { return r.json(); })
+        .then(function(files) {
+            if (!files || files.length === 0) {
+                titleEl.textContent = '暂无音乐';
+                return;
+            }
+            // 随机打乱顺序
+            playlist = files.sort(function() { return Math.random() - 0.5; });
+            audio.volume = parseFloat(volSlider.value);
+            titleEl.textContent = cleanName(playlist[0]);
+        })
+        .catch(function() { titleEl.textContent = '暂无音乐'; });
+
+    function cleanName(filename) {
+        // 去掉文件扩展名和常见前缀，显示更友好
+        return filename.replace(/\.mp3$/i, '').replace(/^\d+-\d+-\d+\s*/, '').trim() || filename;
+    }
+
+    function loadAndPlay(idx) {
+        if (!playlist.length) return;
+        curIdx = (idx + playlist.length) % playlist.length;
+        var src = '/music1/' + encodeURIComponent(playlist[curIdx]);
+        audio.src = src;
+        titleEl.textContent = cleanName(playlist[curIdx]);
+        audio.play().then(function() {
+            isPlaying = true;
+            playBtn.textContent = '⏸';
+        }).catch(function(e) {
+            console.warn('播放失败:', e);
+        });
+    }
+
+    // 播放结束自动下一首
+    audio.addEventListener('ended', function() {
+        loadAndPlay(curIdx + 1);
+    });
+
+    // 播放/暂停
+    playBtn.addEventListener('click', function() {
+        if (!playlist.length) return;
+        if (isPlaying) {
+            audio.pause();
+            isPlaying = false;
+            playBtn.textContent = '🎵';
+        } else {
+            if (!audio.src || audio.src === window.location.href) {
+                loadAndPlay(curIdx);
+            } else {
+                audio.play().then(function() {
+                    isPlaying = true;
+                    playBtn.textContent = '⏸';
+                });
+            }
+        }
+    });
+
+    // 下一首
+    nextBtn.addEventListener('click', function() {
+        loadAndPlay(curIdx + 1);
+    });
+
+    // 音量
+    volSlider.addEventListener('input', function() {
+        audio.volume = parseFloat(this.value);
+    });
+})();
+</script>
+
+<script>
+// ── 选角色界面：阵容设置 ──
+// 临时存储：等游戏开始时读取并传给 G.formation / G.tankIdx
+var _setupFormation = { hero: 'dual_half', rebel: 'dual_half' };
+var _setupTankIdx   = { hero: 0, rebel: 1 };
+
+function setFormation(camp, type) {
+    _setupFormation[camp] = type;
+    var prefix = camp === 'hero' ? 'hero' : 'rebel';
+    document.getElementById(prefix + 'FormDualHalf').className = 'formation-btn' + (type==='dual_half' ? ' active' : '');
+    document.getElementById(prefix + 'FormTankCarry').className = 'formation-btn' + (type==='tank_carry' ? ' active' : '');
+    document.getElementById(prefix + 'TankWho').style.display = type==='tank_carry' ? 'flex' : 'none';
+}
+
+function setSetupTank(camp, idx) {
+    _setupTankIdx[camp] = idx;
+}
+
+// 覆盖 startGame2，游戏开始时把阵容设置写入 G，并给坦克施加加成
+var _origStartGame2_formation_ai = startGame2;
+startGame2 = function() {
+    var ret = _origStartGame2_formation_ai.apply(this, arguments);
+    var vsAI = document.getElementById('vsAIToggle');
+    if (vsAI && vsAI.checked) {
+        AI.start('rebel');
+    } else {
+        AI.stop();
+    }
+    return ret;
+};
+var _origStartGame2_formation = startGame2;
+startGame2 = function() {
+    _origStartGame2_formation();
+    // 写入阵容
+    G.formation = { hero: _setupFormation.hero, rebel: _setupFormation.rebel };
+    G.tankIdx   = { hero: _setupTankIdx.hero,   rebel: _setupTankIdx.rebel   };
+    G.tankTarget = { hero: 'carry', rebel: 'carry' };
+    // 给坦脆流的坦克施加永久加成
+    ['hero', 'rebel'].forEach(function(camp) {
+        if (G.formation[camp] === 'tank_carry') {
+            Main.engine.applyTankFormationBuff(G.tankIdx[camp]);
+        }
+    });
+    updateTankButtons();
+};
+</script>
+</body>
+</html>

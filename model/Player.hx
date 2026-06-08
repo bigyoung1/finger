@@ -60,6 +60,15 @@ class Player {
      */
     public function onAfterHeal(actualHeal:Int, type:HealType, engine:GameEngine):Void {}
 
+    /** 帮抗是否可接管本次伤害（大乔有复活甲时返回 false，交给复活甲处理）*/
+    @:keep public function canReceiveHelpTank():Bool { return true; }
+
+    /**
+     * 攻击前钩子：角色若需要弹出选目标弹窗（如孙悟空[0,2]），返回 true 并自行处理弹窗。
+     * 返回 true = 攻击流程中断，等待弹窗回调；返回 false = 正常继续。
+     */
+    @:keep public function interceptAttackForDialog(myHand:Int, touchTarget:Player, touchHandIdx:Int):Bool { return false; }
+
     // ─────────────────────────────────────────────────────────────
     // 【全场事件监听钩子】（藏师草莓蛋糕等需要监听全场行为的技能）
     // ─────────────────────────────────────────────────────────────
@@ -118,7 +127,10 @@ class Player {
      */
     public function onAnyTurnStart(actor:Player, engine:GameEngine):Void {}
 
-    public function onBigRoundEnd():Void {}
+    public function onBigRoundEnd():Void {
+        for (b in buffList) b.onBigRoundEnd(this);
+        cleanEmptyBuffs();
+    }
 
     // ─────────────────────────────────────────────────────────────
     // 【角色自描述接口】让角色自己描述前端显示、日志快照、按钮、技能覆盖
@@ -250,21 +262,27 @@ class Player {
         var finalDamage = amount;
 
         // 0. 攻击者的 Buff 修改伤害（如双4翻倍）
-        // 注意：这里的伤害已经是 calculateOutputDamage 之后的了，所以这里仅做Buff加成
-        if (attacker != null) {
+        // 若 applyDamage 已经提前应用过（_skipAttackerDealBuffs=true），这里跳过避免重复消耗
+        if (attacker != null && (GameEngine.instance == null || !GameEngine.instance._skipAttackerDealBuffs)) {
             for (b in attacker.buffList) {
                 finalDamage = b.onDealDamage(attacker, this, finalDamage, dmgType);
             }
             attacker.cleanEmptyBuffs();
+        } else if (attacker != null) {
+            // 已提前应用，只做清理
+            attacker.cleanEmptyBuffs();
         }
 
         // 1. 自己的 Buff 拦截（如双5反弹、双1无敌）
-        for (b in buffList) {
-            finalDamage = b.onTakeDamage(this, attacker, finalDamage, dmgType);
-        }
-        if (finalDamage <= 0) {
-            cleanEmptyBuffs();
-            return { damageBeforeShield: 0, actualDamage: 0 };
+        // 真伤穿透所有防御性拦截（无敌/反弹），但仍受攻击者增伤buff影响
+        if (dmgType != TRUE) {
+            for (b in buffList) {
+                finalDamage = b.onTakeDamage(this, attacker, finalDamage, dmgType);
+            }
+            if (finalDamage <= 0) {
+                cleanEmptyBuffs();
+                return { damageBeforeShield: 0, actualDamage: 0 };
+            }
         }
 
         // 【关键】记录"减伤后但未被护盾抵挡前"的伤害值

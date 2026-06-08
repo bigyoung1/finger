@@ -16,8 +16,8 @@ import buffs.FrozenBuff;
  */
 class SunWuKong extends Player {
 
-    public var x:Int = 30; // 物伤增益
-    public var y:Int = 15; // 回血增益
+    public var x:Int = 40; // 物伤增益
+    public var y:Int = 30; // 回血增益
 
     // [0,2] 在当前0增益期间已使用次数（0增益重置时归零）
     public var zeroTwoUses:Int = 0;
@@ -37,6 +37,14 @@ class SunWuKong extends Player {
     // 【后果预判】重写触碰合法性校验
     // 0寿命耗尽时，如果本次碰撞能凑出 [0,2] 且次数未满，则放行
     // ─────────────────────────────────────────────────────────────
+    override public function interceptAttackForDialog(myHand:Int, touchTarget:Player, touchHandIdx:Int):Bool {
+        if (zeroTwoUses >= 3) return false;
+        var newVal = (this.hands[myHand] + touchTarget.hands[touchHandIdx]) % 10;
+        var otherVal = this.hands[1 - myHand];
+        var will02 = (otherVal == 0 && newVal == 2) || (newVal == 0 && otherVal == 2);
+        return will02; // true = 弹出选目标弹窗，由 JS 侧的 showWukongTargetDialog 处理
+    }
+
     override public function isValidTouch(handIdx:Int, target:Player, targetHandIdx:Int):Bool {
         var otherIdx = 1 - handIdx;
 
@@ -62,24 +70,32 @@ class SunWuKong extends Player {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // (2) 监听全场物伤输出事件，更新 x
+    // (2a) 自己出伤时，在 calculateOutputDamage 里把 x 合并进去
+    //      引擎只调一次 applyDamage，只产生一次 notifyOutputDamage / 反弹
+    //      双4等 buff 的倍率作用在合并后的值：(base + x) * 2
+    // ─────────────────────────────────────────────────────────────
+    override public function calculateOutputDamage(baseAmount:Int, type:DamageType):Int {
+        if (type != PHYSICAL) return baseAmount;
+        if (_inExtraEffect) return baseAmount;
+        var merged = baseAmount + this.x;
+        trace('🐒 [悟空被动] 物伤合并：base(${baseAmount}) + x(${this.x}) = ${merged}（单次输出）');
+        return merged;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // (2b) 监听全场物伤输出事件，更新 x
+    //      自己打出去：x 更新为本次 notifyOutputDamage 的总值
+    //      他人打出去：x 更新为对方的输出值
     // ─────────────────────────────────────────────────────────────
     override public function onAnyOutputDamage(attacker:Player, target:Player, outputDamage:Int, type:DamageType, engine:GameEngine):Void {
         if (attacker == null || type != PHYSICAL || outputDamage <= 0) return;
-        if (_inExtraEffect) return; // 防止追加物伤的事件再次进来（也防止其他大乔抢导致的连锁）
+        if (_inExtraEffect) return;
 
+        var oldX = this.x;
+        this.x = Std.int(Math.max(40, outputDamage));
         if (attacker == this) {
-            var oldX = this.x;
-            this.x = outputDamage + oldX; // 本次总输出 = 主+追加
-            trace('🐒 [悟空被动] 自身造成物伤 ${outputDamage}，x：${oldX} → ${this.x}，追加 ${oldX} 点额外物伤！');
-
-            _inExtraEffect = true;
-            // 用 applyDamage 让追加伤害走标准流程（被双4加成等，但守卫防止再次进入本钩子）
-            engine.applyDamage(this, target, oldX, PHYSICAL);
-            _inExtraEffect = false;
+            trace('🐒 [悟空被动] 自身总输出 ${outputDamage}，x：${oldX} → ${this.x}');
         } else {
-            var oldX = this.x;
-            this.x = outputDamage;
             trace('🐒 [悟空被动] 全场物伤监听，x：${oldX} → ${this.x}');
         }
     }
@@ -91,11 +107,11 @@ class SunWuKong extends Player {
         if (healer == this) {
             // 仅更新 y（追加回血已在 calculateFinalHeal 里合并为一段，不在此处二次触发）
             var oldY = this.y;
-            this.y = amount;
+            this.y = Std.int(Math.max(30, amount));
             trace('🐒 [悟空被动] 自身回血事件 ${amount}，y：${oldY} → ${this.y}');
         } else {
             var oldY = this.y;
-            this.y = amount;
+            this.y = Std.int(Math.max(30, amount));
             trace('🐒 [悟空被动] 全场回血监听，y：${oldY} → ${this.y}');
         }
     }

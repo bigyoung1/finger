@@ -50,11 +50,8 @@ class CharacterRegistry {
         register("yangdali",  "💪 杨大力 (沙包 1000HP)", 1000,
             (id, camp) -> new Player(id, "杨大力", 1000, camp));
 
-        // ── 白板（用工厂创建，名字写死） ──
-        register("p1", "白板 A (刘备 350HP)", 350, (id, camp) -> new Player(id, "白板刘备", 350, camp));
-        register("p2", "白板 B (曹操 350HP)", 350, (id, camp) -> new Player(id, "白板曹操", 350, camp));
-        register("p3", "白板 C (赵云 350HP)", 350, (id, camp) -> new Player(id, "白板赵云", 350, camp));
-        register("p4", "白板 D (吕布 350HP)", 350, (id, camp) -> new Player(id, "白板吕布", 350, camp));
+        register("yayan", "🦅 鸦眼 (输出 140HP)", 140,
+            (id, camp) -> new YaYan(id, "鸦眼", camp));
 
         // 后续新角色只在这里 register 一行
     }

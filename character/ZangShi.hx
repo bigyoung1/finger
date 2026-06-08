@@ -51,12 +51,16 @@ class ZangShi extends Player {
         if (dmgType == PHYSICAL && result.actualDamage > 0 && attacker != null) {
             var _eng = GameEngine.instance;
             if (_eng != null && !_eng.isReflecting) {
-                var reflectDmg = Std.int(result.actualDamage * 0.5);
+                var reflectDmg = Std.int(Math.min(result.actualDamage * 0.5, 200)); // 反弹上限200
                 if (reflectDmg > 0) {
-                    trace('🛡️ 藏师被动反弹：实际扣血 ${result.actualDamage} → 反弹 ${reflectDmg} 物伤给 ${attacker.name}！');
+                    // 反弹不杀人：最多打到1血
+                    var cappedReflect = (attacker.hp - 1 > 0) ? Std.int(Math.min(reflectDmg, attacker.hp - 1)) : 0;
+                    if (cappedReflect > 0) {
+                    trace('🛡️ 藏师被动反弹：实际扣血 ${result.actualDamage} → 反弹 ${cappedReflect} 物伤给 ${attacker.name}！');
                     _eng.isReflecting = true;
-                    attacker.handleIncomingDamage(this, reflectDmg, PHYSICAL);
+                    attacker.handleIncomingDamage(this, cappedReflect, PHYSICAL);
                     _eng.isReflecting = false;
+                    } // cappedReflect > 0
                 }
             }
         }

@@ -67,7 +67,7 @@ class RenZhe extends Player {
             _inExtraMagic = false;
             if (result.actualDamage > 0) {
                 trace('🥷 忍者回复 ${result.actualDamage} 血（法伤实际造成的）');
-                engine.applyRawHeal(this, result.actualDamage, SUPPLY, true);
+                engine.applyRawHeal(this, result.actualDamage, RECOVERY, true);
             }
         }
 
@@ -141,7 +141,7 @@ class RenZhe extends Player {
     override public function onAnyPoisonCleared(victim:Player, engine:GameEngine):Void {
         if (victim == this) return; // 自己解毒不触发
         trace('🥷 忍者监听解毒：${victim.name} 解了一层毒 → 忍者回 20！');
-        engine.applyRawHeal(this, 20, SUPPLY, true);
+        engine.applyRawHeal(this, 20, RECOVERY, true);
     }
 
     // ─────────────────────────────────────────────────────────────

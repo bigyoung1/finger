@@ -21,6 +21,9 @@ class GameEngine {
 
     // ── 帮抗伤害记录 ──
     // handleTouch 期间自动记录对 dmgTarget 造成的每一笔伤害（type + 输出值）
+    public var lastApplyDamageBase:Int = 0;
+    public var currentComboMultiplier:Float = 1.0;
+    public var _skipAttackerDealBuffs:Bool = false; // 组合特殊倍率（如双九1.5^N），在加算之后、calculateOutputDamage之前应用
     @:keep public var lastTouchDamageLog:Array<Dynamic> = []; // {type:DamageType, outputAmount:Int}
     public var lastTouchDamageTarget:Player = null;
     private var _recordingDamage:Bool = false;
@@ -132,11 +135,65 @@ class GameEngine {
      * 4. 触发 actor.onAfterDealtDamage 钩子
      */
     public function applyDamage(actor:Player, target:Player, baseAmount:Int, type:DamageType):DamageResult {
-        // 1. 角色加成
-        var finalAmount = (actor != null) ? actor.calculateOutputDamage(baseAmount, type) : baseAmount;
+        // 暴露原始 baseAmount 给 onAfterDealtDamage 钩子用（如张飞模态2第二刀需要原始值重新走流程）
+        this.lastApplyDamageBase = baseAmount;
+        // 0. 目标身上的"基础加算buff"（如乌鸦诅咒+20），在攻击者乘算之前加
+        //    返回修改后的 baseAmount，以及额外加了多少（供buff回调计算回血用）
+        var crowExtra = 0;
+        if (target != null) {
+            for (b in target.buffList) {
+                if (Std.isOfType(b, buffs.CrowBuff)) {
+                    var cb = cast(b, buffs.CrowBuff);
+                    crowExtra = cb.getBaseBonus(type);
+                    break;
+                }
+            }
+        }
+        var adjustedBase = baseAmount + crowExtra;
+        // 0c. 组合倍率（如双九的1.5^N），在加算之后、角色乘算之前应用
+        if (currentComboMultiplier != 1.0) {
+            adjustedBase = Std.int(adjustedBase * currentComboMultiplier);
+            // baseAmount 也同步缩放，让 baseOnlyFinal 计算正确（无乌鸦版本也要×倍率）
+            baseAmount = Std.int(baseAmount * currentComboMultiplier);
+        }
 
-        // 2. 通知场上：本次"输出"的最终值（含角色被动加成，未计target侧减伤/护盾）
+        // 1. 角色加成（calculateOutputDamage）
+        var baseOnlyFinal = (actor != null) ? actor.calculateOutputDamage(baseAmount, type) : baseAmount;
+        var finalAmount   = (actor != null) ? actor.calculateOutputDamage(adjustedBase, type) : adjustedBase;
+
+        // 1b. 攻击者增伤Buff（双4等）— 提前应用，使乌鸦回血差值和广播都包含双4效果
+        //     用 snapshot/restore 避免重复消耗 layers；handleIncomingDamage 里用 _skipAttackerDealBuffs 标记跳过
+        if (actor != null) {
+            // 备份 layers
+            var snapshot = [for (b in actor.buffList) b.layers];
+            for (b in actor.buffList) {
+                baseOnlyFinal = b.onDealDamage(actor, target, baseOnlyFinal, type);
+            }
+            // 还原 layers（不消耗）
+            for (i in 0...actor.buffList.length) actor.buffList[i].layers = snapshot[i];
+            // 真正消耗一次，应用到 finalAmount
+            for (b in actor.buffList) {
+                finalAmount = b.onDealDamage(actor, target, finalAmount, type);
+            }
+            // 标记 handleIncomingDamage 跳过 step 0（避免再次消耗）
+            _skipAttackerDealBuffs = true;
+        }
+
+        // 2. 通知场上：本次"输出"的最终值（已含攻击者所有buff加成）
         notifyOutputDamage(actor, target, finalAmount, type);
+
+        // 2b. 乌鸦buff回调：鸦眼回复乘算后的额外量
+        if (crowExtra > 0 && target != null) {
+            var crowHeal = finalAmount - baseOnlyFinal; // 乌鸦贡献的乘算后增量
+            if (crowHeal > 0) {
+                for (b in target.buffList) {
+                    if (Std.isOfType(b, buffs.CrowBuff)) {
+                        cast(b, buffs.CrowBuff).onTriggered(crowHeal, this);
+                        break;
+                    }
+                }
+            }
+        }
 
         // ── 帮抗记录：记录对 lastTouchDamageTarget 造成的每笔输出伤害 ──
         if (_recordingDamage && target == lastTouchDamageTarget) {
@@ -151,8 +208,10 @@ class GameEngine {
         // 3. 走标准抗伤
         var result = target.handleIncomingDamage(actor, finalAmount, type);
 
-        // 4. 触发攻击者钩子（即使0伤害也调用，让钩子内自行判断
-        //    例如忍者即使物伤被完全免疫也要加毒；小乔自己判断 actualDamage>0 才回血）
+        // reset 标记（必须在 handleIncomingDamage 之后）
+        _skipAttackerDealBuffs = false;
+
+        // 4. 触发攻击者钩子
         if (actor != null) {
             actor.onAfterDealtDamage(target, result.damageBeforeShield, result.actualDamage, type, this);
         }
@@ -165,7 +224,42 @@ class GameEngine {
      * 用途：钩子内部调用，防止套娃
      */
     public function applyRawDamage(actor:Player, target:Player, amount:Int, type:DamageType):DamageResult {
-        return target.handleIncomingDamage(actor, amount, type);
+        // 乌鸦buff加算：先算无乌鸦的actor输出，再算有乌鸦的，差值即为乌鸦贡献
+        var crowExtra = 0;
+        if (target != null) {
+            for (b in target.buffList) {
+                if (Std.isOfType(b, buffs.CrowBuff)) {
+                    crowExtra = cast(b, buffs.CrowBuff).getBaseBonus(type);
+                    break;
+                }
+            }
+        }
+        // applyRawDamage 不走 calculateOutputDamage，但乌鸦的加算仍要体现乘算效果
+        // 用 actor.calculateOutputDamage 推算差值（与 applyDamage 逻辑对齐）
+        var baseOnlyFinal = (actor != null) ? actor.calculateOutputDamage(amount, type) : amount;
+        var finalAmount   = (actor != null) ? actor.calculateOutputDamage(amount + crowExtra, type) : (amount + crowExtra);
+        var crowHeal = finalAmount - baseOnlyFinal;
+
+        // 帮抗记录（与 applyDamage 对齐）：记录对 lastTouchDamageTarget 造成的输出伤害
+        if (_recordingDamage && target == lastTouchDamageTarget) {
+            var tName = switch(type) {
+                case PHYSICAL: "物理";
+                case MAGIC:    "法术";
+                case TRUE:     "真实";
+            };
+            lastTouchDamageLog.push({ type: type, outputAmount: finalAmount, typeName: tName });
+        }
+
+        var result = target.handleIncomingDamage(actor, finalAmount, type);
+        if (crowHeal > 0 && target != null) {
+            for (b in target.buffList) {
+                if (Std.isOfType(b, buffs.CrowBuff)) {
+                    cast(b, buffs.CrowBuff).onTriggered(crowHeal, this);
+                    break;
+                }
+            }
+        }
+        return result;
     }
 
     /**
@@ -174,10 +268,11 @@ class GameEngine {
     public function applyHeal(actor:Player, baseAmount:Int, type:HealType):Int {
         var finalAmount = actor.calculateFinalHeal(baseAmount, type);
         var actualHeal = doHealing(actor, finalAmount, type);
+        actor.onAfterHeal(actualHeal, type, this);
         if (actualHeal > 0) {
-            actor.onAfterHeal(actualHeal, type, this);
-            // 通知场上：发生了一次回血事件（标准路径，非技能内部）
             notifyHealEvent(actor, actualHeal, type, false);
+            var idx = turnManager != null ? turnManager.players.indexOf(actor) : -1;
+            if (idx >= 0) js.Syntax.code("if(window.VFX&&VFX.notifyHeal)VFX.notifyHeal({0},{1})", idx, type == SUPPLY ? "SUPPLY" : "RECOVERY");
         }
         return actualHeal;
     }
@@ -189,8 +284,10 @@ class GameEngine {
     public function applyRawHeal(actor:Player, amount:Int, type:HealType, isFromSkill:Bool = true):Int {
         var actualHeal = doHealing(actor, amount, type);
         if (actualHeal > 0) {
-            // 通知场上：来自技能内部的回血事件
             notifyHealEvent(actor, actualHeal, type, isFromSkill);
+            // 通知 VFX：回血类型（SUPPLY=补给黄色，RECOVERY=绿色）
+            var idx = turnManager != null ? turnManager.players.indexOf(actor) : -1;
+            if (idx >= 0) js.Syntax.code("if(window.VFX&&VFX.notifyHeal)VFX.notifyHeal({0},{1})", idx, type == SUPPLY ? "SUPPLY" : "RECOVERY");
         }
         return actualHeal;
     }
@@ -325,7 +422,7 @@ class GameEngine {
         if (newValue == 0) {
             if (handIdx == 0) actor.zeroTurns0 = actor.initTurns;
             else              actor.zeroTurns1 = actor.initTurns;
-            trace('⚠️ [寿命警告] ${actor.name} 的第 ${handIdx} 只手变成了 0！启动 ${actor.initTurns} 回合毁灭倒计时。');
+            trace('🔢 ${actor.name} 第 ${handIdx} 手变为 0，启动 ${actor.initTurns} 回合倒计时。');
         } else {
             if (handIdx == 0) actor.zeroTurns0 = 0;
             else              actor.zeroTurns1 = 0;
@@ -369,10 +466,13 @@ class GameEngine {
         switch (num) {
             case 9:
                 var count = countMultiplesOf3OnField();
-                var dmg = 40 * Std.int(Math.pow(2, count));
-                trace('💥 ${actor.name} 凑齐【双九】！场上有 ${count} 个3的倍数(不含0)，伤害 40×2^${count} = ${dmg}！');
-                applyDamage(actor, dmgTarget, dmg, PHYSICAL);
-
+                var mult = Math.pow(1.5, count);
+                trace('💥 ${actor.name} 凑齐【双九】！场上有 ${count} 个3的倍数(不含0)，基础60×1.5^${count}=${Std.int(60*mult)}（乌鸦+20会先加再乘）');
+                currentComboMultiplier = mult;
+                applyDamage(actor, dmgTarget, 60, PHYSICAL);
+                currentComboMultiplier = 1.0;
+                
+             
             case 8:
                 trace('🎉 ${actor.name} 凑齐【双八】！获得 2 次再动！');
                 actor.addBuff(new ExtraActionBuff(2));

@@ -28,7 +28,7 @@ class ReflectBuff extends Buff {
         if (engine != null && engine.isReflecting) return amount; // 正在反弹中，不再次反弹
 
         this.layers--;
-        var reflectDmg = Std.int(amount / 2);
+        var reflectDmg = Std.int(Math.min(amount / 2, 200)); // 反弹上限200
 
         if (attacker != null && reflectDmg > 0 && engine != null) {
             trace('${owner.name} 触发反伤！反弹 ${reflectDmg} 点物伤给 ${attacker.name}！');

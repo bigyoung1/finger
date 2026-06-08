@@ -228,8 +228,8 @@ class YinYangShi extends Player {
         switch (modal) {
             case "yin":
                 _pendingYinBase = baseAmount;
-                trace('☯️ 阴模态：回复将转为物伤，回复置1（基础值 ${baseAmount} 将×3.5打伤）');
-                return 1; // 必须返回1而非0，否则 onAfterHeal 不会被调用
+                trace('☯️ 阴模态：回复将转为物伤，拦截为0（基础值 ${baseAmount} 将×3.5转为物伤）');
+                return 0; // 不实际回血；GameEngine.applyHeal 会在actualHeal=0时仍调 onAfterHeal
             case "yang":
                 var base    = super.calculateFinalHeal(baseAmount, type); // 含坦克加成
                 var boosted = Math.ceil(base * 3.5);
@@ -273,7 +273,6 @@ class YinYangShi extends Player {
             if (enemy != null) {
                 trace('☯️ 阴模态：本次「基础」回复 ${_pendingYinBase} × 3.5 = ${dmgAmount}，转为物伤！');
                 _pendingYinBase = 0;
-                this.hp -= 1; // 撤销那1点占位回血
                 _inYinHealConvert = true;
                 engine.applyRawDamage(this, enemy, dmgAmount, PHYSICAL);
                 _inYinHealConvert = false;

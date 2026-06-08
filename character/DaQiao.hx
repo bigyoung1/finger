@@ -104,6 +104,11 @@ class DaQiao extends Player {
     // ─────────────────────────────────────────────────────────────
     // (4) 复活甲：tryRevive 钩子（任何时候 HP<=0 时 TurnManager 会调用）
     // ─────────────────────────────────────────────────────────────
+    /** 有复活甲时不走帮抗，由复活甲自己处理 */
+    override public function canReceiveHelpTank():Bool {
+        return isGodForm || hasRevived; // 没有复活甲时才接受帮抗
+    }
+
     override public function tryRevive(engine:GameEngine):Bool {
         // 神大乔/已用过复活甲 → 真的死
         if (isGodForm || hasRevived) return false;

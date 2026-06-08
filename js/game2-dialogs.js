@@ -156,30 +156,48 @@ function executeWukong02(chosenTargetIdx, fromRemote) {
 window._stealUsedThisTurn = {};
 
 // 固定的弹窗DOM（不动态创建，避免重复/找不到）
-// 在 index2.html 里已有 id="stealOverlay" 的固定弹窗，这里用它
-// 如果没有就在 body 里注入一个
-function _ensureStealOverlay(daQiaoIdx) {
-    var existing = document.getElementById('stealOverlay');
-    var card = document.getElementById('card2v_' + daQiaoIdx);
-    if (!card) return;
-    if (existing) {
-        // 已存在：移到当前大乔的卡片下
-        if (existing.parentNode !== card) card.appendChild(existing);
-        return;
-    }
+// 大乔抢血弹窗：直接插入大乔卡片内部，position:absolute 相对卡片定位
+// 每次显示时移动到正确的卡片里
+
+function _ensureStealOverlay() {
+    if (document.getElementById('stealOverlay')) return;
     var div = document.createElement('div');
     div.id = 'stealOverlay';
-    div.style.cssText = 'display:none;margin-top:8px;padding:12px 14px;background:#fff0f6;border:2px solid #eb2f96;border-radius:8px;font-size:13px;';
+    div.style.cssText = [
+        'display:none',
+        'position:absolute',
+        'z-index:9999',
+        'top:6px',
+        'right:6px',
+        'padding:8px 12px',
+        'background:#fff0f6',
+        'border:2px solid #eb2f96',
+        'border-radius:10px',
+        'font-size:13px',
+        'box-shadow:0 4px 16px rgba(235,47,150,0.25)',
+        'max-width:calc(100% - 12px)'
+    ].join(';');
     div.innerHTML = [
-        '<div style="font-weight:bold;color:#eb2f96;margin-bottom:6px;">🎯 抢夺机会！</div>',
-        '<div id="stealDesc" style="margin-bottom:10px;"></div>',
-        '<div style="display:flex;gap:8px;align-items:center;">',
-        '  <button id="stealConfirmBtn" style="background:#eb2f96;color:white;border:none;padding:5px 16px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:14px;">抢！</button>',
-        '  <button id="stealCancelBtn" style="background:#f5f5f5;color:#555;border:1px solid #d9d9d9;padding:5px 12px;border-radius:5px;cursor:pointer;">不抢</button>',
-        '  <span style="margin-left:auto;color:#ff4d4f;font-weight:bold;"><span id="stealCd">5</span> s</span>',
+        '<div id="stealDesc" style="color:#333;margin-bottom:6px;font-weight:bold;font-size:12px;"></div>',
+        '<div style="display:flex;gap:6px;align-items:center;">',
+        '  <button id="stealConfirmBtn" style="background:#eb2f96;color:white;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:12px;">是</button>',
+        '  <button id="stealCancelBtn" style="background:white;color:#555;border:1px solid #d9d9d9;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:12px;">否</button>',
+        '  <span style="color:#ff4d4f;font-size:12px;"><span id="stealCd">5</span>s</span>',
         '</div>'
     ].join('');
-    card.appendChild(div);
+    // 先挂到 body，_positionStealOverlay 会移到正确卡片里
+    document.body.appendChild(div);
+}
+
+// 把弹窗节点移入大乔所在的卡片（position:absolute 相对卡片）
+function _positionStealOverlay(daQiaoIdx) {
+    var overlay = document.getElementById('stealOverlay');
+    var card    = document.getElementById('card2v_' + daQiaoIdx);
+    if (!overlay || !card) return;
+    // 确保卡片有 position:relative（CSS 已设置，这里保险起见再加）
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    // 移入卡片
+    if (overlay.parentNode !== card) card.appendChild(overlay);
 }
 
 // Haxe 调用此函数（全局）
@@ -197,7 +215,7 @@ function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
 }
 
 function _doShowSteal(daQiaoIdx, healerIdx, netHeal) {
-    _ensureStealOverlay(daQiaoIdx);
+    _ensureStealOverlay();
 
     var players = Main.turnManager.players;
     var daQiao  = players[daQiaoIdx];
@@ -205,9 +223,11 @@ function _doShowSteal(daQiaoIdx, healerIdx, netHeal) {
     var steal   = Math.floor(netHeal * 0.5) + (daQiao.isGodForm ? 10 : 0);
 
     document.getElementById('stealDesc').innerHTML =
-        '抢 <b>' + healer.name + '</b> 的 <b>' + netHeal + '</b> 血 → 得 <b>' + steal + '</b>' +
-        (daQiao.isGodForm ? ' <span style="color:#eb2f96">(+10 神大乔)</span>' : '');
+        '🎯 抢 <b>' + healer.name + '</b> 回血 <b>' + netHeal + '</b>' +
+        ' → 得 <b style="color:#eb2f96">' + steal + '</b>' +
+        (daQiao.isGodForm ? '<span style="color:#eb2f96;font-size:11px"> +10</span>' : '');
 
+    _positionStealOverlay(daQiaoIdx);
     var overlay = document.getElementById('stealOverlay');
     overlay.style.display = 'block';
 
@@ -248,6 +268,7 @@ function _closeStealOverlay() {
     clearInterval(G.stealTimer);
     var overlay = document.getElementById('stealOverlay');
     if (overlay) overlay.style.display = 'none';
+
 }
 
 // render2 调用：当轮到 playerIdx 行动时，清除对他的冷却
@@ -302,5 +323,39 @@ function _castCake(targetIdx) {
     var r = Main.invokeAction(G.cakeActorIdx, 'useCake', { targetIdx: targetIdx, groupCount: G.cakeGroups });
     if (typeof r === 'string' && r.indexOf('错误') === 0) { alert(r); return; }
     closeCakeDialog2();
+    render2();
+}
+
+// ════════════════════════════════════════════════════════
+//  鸦眼乌鸦诅咒：选择阵营弹窗
+// ════════════════════════════════════════════════════════
+function showCrowCurseDialog(actorIdx) {
+    if (ONLINE.active && campOf(actorIdx) !== ONLINE.myCamp()) return;
+    // 动态创建简单弹窗
+    var existing = document.getElementById('crowCurseDialog');
+    if (existing) existing.remove();
+
+    var dlg = document.createElement('div');
+    dlg.id = 'crowCurseDialog';
+    dlg.className = 'overlay';
+    dlg.style.cssText = 'display:flex;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9998;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
+    dlg.innerHTML = [
+        '<div style="background:white;border-radius:12px;padding:20px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3)">',
+        '<div style="font-size:16px;font-weight:bold;margin-bottom:16px">🐦 乌鸦诅咒 — 选择目标阵营</div>',
+        '<div style="display:flex;gap:12px;justify-content:center">',
+        '<button onclick="castCrowCurse('+actorIdx+',\'enemy\')" style="background:#cf1322;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold">⚔️ 对方阵营</button>',
+        '<button onclick="castCrowCurse('+actorIdx+',\'ally\')" style="background:#1890ff;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold">🛡 己方阵营</button>',
+        '<button onclick="document.getElementById(\'crowCurseDialog\').remove()" style="background:#8c8c8c;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px">取消</button>',
+        '</div></div>'
+    ].join('');
+    document.body.appendChild(dlg);
+}
+
+function castCrowCurse(actorIdx, camp) {
+    var dlg = document.getElementById('crowCurseDialog');
+    if (dlg) dlg.remove();
+    var r = Main.invokeAction(actorIdx, 'crowCurseTarget', { camp: camp });
+    if (typeof r === 'string' && r.indexOf('错误') === 0) { alert(r); return; }
+    if (ONLINE.active) ONLINE.sendAction({ type: 'crowCurse', actorIdx: actorIdx, camp: camp });
     render2();
 }

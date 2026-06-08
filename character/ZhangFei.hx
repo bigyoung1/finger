@@ -28,9 +28,11 @@ class ZhangFei extends Player {
 
     // 套娃保护
     private var _inModalEffect:Bool = false;
+    private var _inSecondHit:Bool = false; // 模态2第二刀进行中，禁止再次触发模态2追加
+    private var _lastOutputDmg:Int = 0; // 缓存本次 calculateOutputDamage 输出值（模态2第二刀用）
 
     public function new(id:String, name:String, camp:Camp) {
-        super(id, name, 560, camp);
+        super(id, name, 460, camp);
     }
 
     inline function isFrenzied():Bool return frenzyTurns > 0;
@@ -92,28 +94,56 @@ class ZhangFei extends Player {
     // ─────────────────────────────────────────────────────────────
     override public function calculateOutputDamage(baseAmount:Int, type:DamageType):Int {
         if (_inModalEffect) return baseAmount;
-        if (type != PHYSICAL) return baseAmount;
+        // 物理和真实伤害都走模态乘算（真伤也受增伤影响）
+        if (type == MAGIC) return baseAmount;
 
         var amount = baseAmount;
-        // 模态1：×1.5；模态2：×0.75；模态3：原值
         switch (modal) {
             case 1: amount = Std.int(amount * 1.5);
             case 2: amount = Std.int(amount * 0.75);
             case 3: amount = Std.int(amount);
         }
-        // 狂暴：物伤再×1.5
         if (isFrenzied()) amount = Std.int(amount * 2);
 
+        _lastOutputDmg = amount;
         if (amount != baseAmount) {
-            trace('🐗 张飞物伤加成：${baseAmount} → ${amount}（模态${modal}${isFrenzied() ? " + 狂暴" : ""}）');
+            var typeName = (type == TRUE) ? "真实" : "物理";
+            trace('🐗 张飞${typeName}伤加成：${baseAmount} → ${amount}（模态${modal}${isFrenzied() ? " + 狂暴" : ""}）');
         }
         return amount;
     }
 
     override public function onAfterDealtDamage(target:Player, damageBeforeShield:Int, actualDamage:Int, type:DamageType, engine:GameEngine):Void {
         if (_inModalEffect) return;
-        if (type != PHYSICAL) return;
+        // 模态2对任意伤害类型都打第二刀；模态3只对物理回血
+        if (type != PHYSICAL && modal != 2) return;
         if (actualDamage <= 0) return;
+
+        // 模态2：用完整 applyDamage 对第二个敌人重新走一遍流程
+        // 第二刀的 baseAmount = 第一刀的原始 baseAmount（从 engine 取），保证乌鸦/护盾/增伤都正确独立计算
+        // _inSecondHit 守卫确保第二刀不会再触发模态2追加（避免无限递归），但允许 calculateOutputDamage 正常乘算
+        if (modal == 2 && !_inSecondHit) {
+            var secondTarget:Player = null;
+            if (engine.turnManager != null) {
+                for (p in engine.turnManager.players) {
+                    if (p == this) continue;
+                    if (p == target) continue;
+                    if (p.hp <= 0) continue;
+                    if (p.camp == this.camp) continue;
+                    secondTarget = p;
+                    break;
+                }
+            }
+            if (secondTarget != null) {
+                var originalBase = engine.lastApplyDamageBase;
+                trace('🐗 张飞模态②：对第二目标 ${secondTarget.name} 重新走流程，原始 baseAmount=${originalBase}');
+                _inSecondHit = true;
+                engine.applyDamage(this, secondTarget, originalBase, type);
+                _inSecondHit = false;
+            } else {
+                trace('🐗 张飞模态②：场上只有一个敌人，不追加。');
+            }
+        }
 
         // 模态3：补给 actualDamage / 2 血（RECOVERY）
         if (modal == 3) {
@@ -126,16 +156,7 @@ class ZhangFei extends Player {
 
         // 造伤加怒气
         tryGainRage('造伤');
-
-        // 模态2 已经在攻击逻辑里处理打两人（用 useModalAttack 主动技），不在这里再追加
     }
-
-    /**
-     * 模态2：主动技能"0.75倍打两人"
-     * 需要前端在攻击前主动调用本方法选目标；如果只有一个敌人，模态2 用本方法也只打一个
-     * （为简单起见，本版本"模态2"在攻击事件里只走 calculateOutputDamage 加成0.75倍；
-     *  "打两人"留作未来 2v2 时的扩展）
-     */
 
     // ─────────────────────────────────────────────────────────────
     // (4) 怒气与狂暴

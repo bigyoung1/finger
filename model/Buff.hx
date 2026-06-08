@@ -16,6 +16,7 @@ class Buff {
     
     // 钩子2：回合结束（毒伤在这里结算）
     public function onTurnEnd(owner:Player) {}
+    public function onBigRoundEnd(owner:Player) {}
     
     // 钩子3：造成伤害前（双4的伤害翻倍在这里）
     public function onDealDamage(owner:Player, target:Player, amount:Int, type:DamageType):Int {

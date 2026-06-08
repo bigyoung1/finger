@@ -3,425 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>指尖博弈 2v2</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;padding:12px;color:#333;min-width:900px}
-h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
-
-/* ── 设置面板 ── */
-#setupPanel2{background:white;border-radius:8px;padding:20px 28px;box-shadow:0 2px 8px rgba(0,0,0,.1);max-width:820px;margin:0 auto 12px}
-#setupPanel2 h2{color:#1890ff;font-size:15px;margin-bottom:14px}
-.setup-teams{display:flex;gap:16px}
-.setup-team{flex:1;background:#f0f7ff;border-radius:6px;padding:14px;border:2px solid #91d5ff}
-.setup-team.rebel{background:#fff5f5;border-color:#ffa39e}
-.setup-team b{display:block;margin-bottom:10px;font-size:13px}
-.setup-team label{font-size:12px;font-weight:bold;display:block;margin:8px 0 3px}
-.setup-team select{width:100%;padding:6px 8px;font-size:13px;border-radius:4px;border:1px solid #d9d9d9}
-#startBtn2{display:block;margin:16px auto 0;padding:10px 40px;font-size:15px;font-weight:bold;background:#1890ff;color:white;border:none;border-radius:6px;cursor:pointer}
-#startBtn2:hover{background:#40a9ff}
-
-/* ── 战场 ── */
-#battleArena2{display:none;width:96vw;max-width:1600px;margin:0 auto}
-.arena-layout{display:grid;grid-template-columns:1fr 110px 1fr;gap:8px;align-items:start}
-.team-col{display:flex;flex-direction:column;gap:6px}
-.team-header{text-align:center;font-weight:bold;font-size:13px;padding:5px;border-radius:4px;margin-bottom:2px}
-.team-header.hero{color:#1890ff;background:#e6f7ff}
-.team-header.rebel{color:#f5222d;background:#fff1f0}
-
-/* ── 玩家卡片 ── */
-.player-card2{border:2px solid #e0e0e0;border-radius:8px;padding:10px 12px;background:#fafafa;position:relative;font-size:13px}
-.player-card2.active{border-color:#52c41a;background:#f6ffed;box-shadow:0 0 8px rgba(82,196,26,.3)}
-.player-card2.active::before{content:"👉 行动中";position:absolute;top:-11px;right:8px;background:#52c41a;color:white;padding:1px 7px;font-size:11px;border-radius:3px}
-.player-card2.dead{opacity:.4;border-color:#bfbfbf;background:#f5f5f5}
-.card-top{display:flex;align-items:center;gap:6px;margin-bottom:5px}
-.player-name2{font-size:14px;font-weight:bold;flex:1}
-.camp-badge{padding:1px 6px;font-size:11px;border-radius:3px;color:white}
-.camp-HERO{background:#1890ff}.camp-REBEL{background:#f5222d}
-.hp-bar2{font-size:13px;font-weight:bold;color:#ff4d4f;margin-bottom:5px}
-.card-info{font-size:11px;color:#595959;margin-bottom:2px}
-.card-info span{color:#237804}
-
-/* 双手 */
-.hands-row{display:flex;gap:5px;margin-bottom:5px}
-.hand-box2{flex:1;background:white;border:2px solid #d9d9d9;border-radius:5px;padding:5px;text-align:center;font-size:11px;transition:all .12s;cursor:default}
-.hand-box2 .hand-val{font-size:24px;font-weight:bold;color:#262626;margin:2px 0}
-.hand-box2.clickable-mine{cursor:pointer;border-color:#1890ff}
-.hand-box2.clickable-mine:hover{background:#e6f7ff;transform:scale(1.05)}
-.hand-box2.selected-mine{cursor:pointer;border-color:#52c41a;background:#f6ffed;box-shadow:0 0 0 3px rgba(82,196,26,.25);transform:scale(1.07)}
-.hand-box2.clickable-enemy{cursor:pointer;border-color:#52c41a}
-.hand-box2.clickable-enemy:hover{background:#f6ffed;transform:scale(1.05)}
-.hand-box2.locked{opacity:.35;cursor:not-allowed;border-color:#bfbfbf!important;background:#f5f5f5!important}
-.hand-box2.death-clock{background:#fff1f0;border-color:#ffa39e!important}
-.death-turns2{font-size:10px;color:#f5222d}
-
-/* 抗伤位按钮 */
-.tank-btn{position:absolute;top:6px;right:6px;padding:2px 8px;font-size:11px;font-weight:bold;border:2px solid #1890ff;background:white;color:#1890ff;border-radius:10px;cursor:pointer;transition:all .15s}
-.tank-btn.active{background:#1890ff;color:white}
-.custom-display2{display:none;margin-top:4px;padding:4px 8px;background:#fff7e6;border:1px solid #ffd591;border-radius:4px;color:#874d00;font-size:11px}
-.custom-actions2{margin-top:3px;display:flex;flex-wrap:wrap;gap:3px}
-
-/* ── 中间列 ── */
-.mid-col{display:flex;flex-direction:column;gap:8px;align-items:center}
-#turnBadge{width:100%;background:#1890ff;color:white;border-radius:8px;padding:8px 10px;text-align:center;font-weight:bold;font-size:13px}
-#hintBar2{width:100%;padding:7px 8px;border-radius:5px;font-size:11px;font-weight:bold;background:#fffbe6;border:1px solid #ffe58f;color:#874d00;text-align:center;line-height:1.4}
-.mid-btn{width:100%;padding:7px 0;font-size:12px;border:none;border-radius:5px;cursor:pointer;font-weight:bold}
-#endTurnBtn2{background:#52c41a;color:white}
-#endTurnBtn2:hover{background:#73d13d}
-#endGameBtn2{background:#fa541c;color:white}
-
-/* ── 日志 ── */
-#logPanel2{max-width:1100px;margin:10px auto 0;background:#001529;color:#a6adb4;padding:12px;border-radius:6px;height:180px;overflow-y:auto;font-family:monospace;font-size:12px}
-.log-line{margin-bottom:3px;line-height:1.4}
-.log-important{color:#fadb14;font-weight:bold}
-
-/* ── 弹窗通用遮罩 ── */
-.overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center}
-.dialog-box{background:white;border-radius:10px;padding:22px 26px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:300px}
-.dialog-box h3{margin-bottom:10px}
-
-/* 悟空弹窗 */
-#wukongTargetDialog .dialog-box h3{color:#722ed1}
-#wukongTargetList{display:flex;flex-direction:column;gap:7px;margin-top:10px}
-.wukong-target-btn{padding:9px 14px;border:2px solid #722ed1;background:#f9f0ff;color:#722ed1;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px}
-.wukong-target-btn:hover{background:#722ed1;color:white}
-
-/* 蛋糕弹窗 */
-#cakeDialog2 .dialog-box h3{color:#eb2f96}
-
-/* ── 联机大厅 ── */
-#modePanel{text-align:center;margin-bottom:16px}
-.mode-btn{padding:10px 32px;font-size:15px;font-weight:bold;border:2px solid #1890ff;border-radius:8px;cursor:pointer;margin:0 8px;background:white;color:#1890ff;transition:all .2s}
-.mode-btn:hover,.mode-btn.active{background:#1890ff;color:white}
-#onlinePanel{background:#f0f7ff;border:1px solid #91d5ff;border-radius:8px;padding:16px;margin-top:14px}
-#onlinePanel input{padding:8px 12px;font-size:14px;border:1px solid #d9d9d9;border-radius:5px;width:200px}
-.online-btn{padding:8px 20px;font-size:13px;font-weight:bold;border:none;border-radius:5px;cursor:pointer;margin-left:8px}
-#onlineStatus{color:#1890ff;font-size:13px;margin-top:10px;font-weight:bold;min-height:20px}
-#roomCodeArea{display:none;margin-top:10px;font-size:20px;font-weight:bold;color:#52c41a;letter-spacing:4px}
-#onlineJoinArea{margin-top:10px}
-#onlineStartArea{display:none;margin-top:10px}
-
-/* ── 右上角音乐播放器 ── */
-#musicPlayer {
-    position: fixed;
-    top: 12px;
-    right: 16px;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.92);
-    border: 1px solid #e8e8e8;
-    border-radius: 24px;
-    padding: 6px 14px 6px 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-    backdrop-filter: blur(6px);
-    transition: all 0.2s;
-    font-size: 13px;
-}
-#musicPlayer:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
-#musicPlayBtn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 20px;
-    padding: 0;
-    line-height: 1;
-    transition: transform 0.15s;
-}
-#musicPlayBtn:hover { transform: scale(1.15); }
-#musicTitle {
-    max-width: 160px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: #555;
-    font-size: 12px;
-}
-#musicVolume {
-    width: 60px;
-    accent-color: #1890ff;
-    cursor: pointer;
-}
-#musicNext {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 15px;
-    padding: 0;
-    color: #888;
-    transition: color 0.15s;
-}
-#musicNext:hover { color: #1890ff; }
-
-/* ── 坦脆流 UI ── */
-.formation-btn { padding:5px 16px;font-size:13px;border:1.5px solid #aaa;border-radius:6px;cursor:pointer;background:white;color:#555;margin-right:6px;transition:all .15s; }
-.formation-btn.active { border-color:#1890ff;background:#e6f4ff;color:#1890ff;font-weight:bold; }
-.tank-who { display:flex;gap:8px;margin-top:8px;align-items:center;font-size:13px;color:#555; }
-.tank-who label { cursor:pointer;display:flex;align-items:center;gap:4px; }
-.tank-who input[type=radio] { accent-color:#1890ff; }
-.tank-fixed  { background:#fff7e6!important;border-color:#fa8c16!important;color:#d46b08!important; }
-.carry-fixed { background:#f9f0ff!important;border-color:#9254de!important;color:#722ed1!important; }
-.tank-target-btn { padding:3px 10px;font-size:12px;border:1.5px solid #d9d9d9;border-radius:4px;cursor:pointer;background:white;color:#555;margin-right:4px; }
-.tank-target-btn.active { border-color:#1890ff;background:#1890ff;color:white;font-weight:bold; }
-
-
-/* ══ 卡片新布局：等比放大 1.5 倍与黄金舒适圈排版 ══ */
-/* ══ 卡片新布局：高度进一步拉高，留足生存空间 ══ */
-.player-card2 {
-    border: 2px solid #e0e0e0; 
-    border-radius: 12px;
-    background: #fafafa; 
-    position: relative;
-    font-size: 13px; 
-    overflow: visible;          /* 💡 允许所有子弹窗和高亮标签溢出显示，绝不切断 */
-    padding: 0 !important;
-    height: 310px;              /* 💡 关键：从 260px 进一步拉高至 310px，张飞技能再多也撑得住 */
-    box-sizing: border-box;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
-    transition: all 0.2s ease;
-}
-
-.card-inner {
-    display: flex; 
-    flex-direction: row;
-    height: 100%; 
-    overflow: visible;          /* 💡 内部包裹层也允许可见，不挡大乔弹窗 */
-    border-radius: 10px;
-}
-
-/* ── 左侧图片区保持拉长 ── */
-.char-avatar-wrap {
-    width: 160px;               
-    flex-shrink: 0; 
-    height: 100%;
-    background: #eaeaea;    
-    display: flex; 
-    align-items: center;        
-    justify-content: center;    
-    overflow: hidden;
-    border-right: 1px solid #e2e2e2;
-}
-
-.char-avatar {
-    width: 100%; 
-    height: 100%;
-    object-fit: cover;          
-    object-position: center;    
-    /* 💡 核心修正：使用 !important 强行覆盖掉 HTML 行内硬编码的 display:none */
-    display: block !important; 
-    position: relative;
-    z-index: 2; /* 💡 保证图片层级在占位符之上 */
-}
-
-.char-avatar-placeholder {
-    font-size: 42px; 
-    color: #bbb;
-    /* 💡 核心修正：让占位符绝对居中悬浮在底层 */
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 1; /* 💡 层级在图片下方，一旦图片加载出来，就会完美挡住它 */
-}
-
-/* 💡 附加防御：如果图片因为路径问题碎了，让占位符能漏出来兜底 */
-.char-avatar[src=""], .char-avatar:not([src]) {
-    opacity: 0 !important;
-}
-/* ── 右侧内容区定位基础 ── */
-.card-body {
-    flex: 1; 
-    padding: 14px 16px;
-    display: flex; 
-    flex-direction: column; 
-    min-width: 0; 
-    height: 100%;
-    box-sizing: border-box;
-    position: relative;         /* 💡 确保红圈提示语和交互按钮基于此进行绝对定位 */
-}
-
-/* 强行利用 CSS order 将所有文本和状态信息打包归属【右上半区】 */
-.card-top, .hp-bar2, .card-info, .custom-display2, .custom-actions2, [id^="tankTargetArea"], .per-card-hint {
-    order: 1;
-}
-
-.card-top { 
-    display: flex; 
-    align-items: center; 
-    margin-bottom: 4px;
-}
-
-.player-name2 { 
-    font-size: 18px;            /* 角色名等比放大 1.5 倍 */
-    font-weight: bold; 
-    color: #1a1a1a; 
-}
-
-.hp-bar2 { 
-    font-size: 16px;            /* 血量条等比放大 1.5 倍 */
-    font-weight: bold; 
-    color: #ff4d4f; 
-    margin-bottom: 6px;
-}
-
-.card-info { 
-    font-size: 13px;            /* 状态字体放大，清晰易读 */
-    color: #525252; 
-    line-height: 1.5;
-    margin-bottom: 2px;
-    white-space: nowrap; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-}
-
-.card-info span { 
-    color: #237804; 
-    font-weight: bold;
-}
-
-/* ── 双手行 ── */
-.hands-row { 
-    order: 2;
-    margin-top: auto;           /* 牢牢沉在最底部 */
-    display: flex; 
-    gap: 12px; 
-    width: 100%; 
-}
-
-/* 手牌正方形框：大小锁定，不盲目跟随大卡片无限放大 */
-.hand-box2 {
-    width: 76px !important;     /* 锁定尺寸，精致小巧 */
-    height: 76px !important; 
-    flex: 0 0 76px !important;  /* 固死宽高，防止被其他组件挤压 */
-    aspect-ratio: 1 / 1 !important; 
-    background: #ffffff; 
-    border: 2px solid #d9d9d9;
-    border-radius: 8px; 
-    text-align: center;
-    transition: all .12s; 
-    cursor: default;
-    display: flex; 
-    flex-direction: column;
-    align-items: center; 
-    justify-content: center;    /* 内部数字完美上下左右居中 */
-    box-sizing: border-box;
-    padding: 2px 0 !important;
-}
-
-/* 核心要求：数字狂暴放大，顶天立地 */
-.hand-box2 .hand-val { 
-    font-size: 42px !important; /* 极大字号！粗体黑字顶着框显示 */
-    font-weight: 900; 
-    color: #111111; 
-    line-height: 1;           
-}
-
-.hand-label { 
-    font-size: 11px; 
-    color: #8c8c8c; 
-    font-weight: bold;
-}
-
-/* 抗伤/坦克/脆皮按钮绝对定位 */
-.tank-btn { 
-    position: absolute; 
-    top: 12px; 
-    right: 12px; 
-    z-index: 20;
-    font-size: 12px; 
-    padding: 4px 12px; 
-    border-radius: 14px;
-}
-
-/* 👉 行动中 标签重构：从边缘移入卡片内部，彻底解决遮挡与切断问题 */
-.player-card2.active::before {
-    content: "👉 行动中";
-    position: absolute; 
-    top: 12px; 
-    right: 88px;                /* 精准避开右侧的“抗伤”按钮，并排完美展现 */
-    background: #52c41a; 
-    color: white; 
-    padding: 4px 12px; 
-    font-size: 12px; 
-    font-weight: bold;
-    border-radius: 14px;
-    z-index: 20;
-    box-shadow: 0 2px 6px rgba(82,196,26,0.3);
-}
-
-/* 行动状态高亮 */
-.player-card2.active { 
-    border-color: #52c41a; 
-    box-shadow: 0 4px 14px rgba(82,196,26,.25); 
-}
-.player-card2.active .card-inner { 
-    background: #f6ffed; 
-}
-.player-card2.dead { 
-    opacity: .45; 
-}
-
-/* 其他动态辅助组件适配 */
-/* ── 技能文字描述区优化 ── */
-.custom-display2 { 
-    font-size: 12px; 
-    color: #d46b08; 
-    order: 1; 
-    margin-bottom: 4px;
-    width: 100%;
-    word-break: break-all;     /* 避免超长文本把排版顶崩 */
-}
-.custom-actions2 { display: flex; flex-wrap: wrap; gap: 4px; order: 1; }
-/* 如果当前角色既有行动提示又有操作按钮，让操作按钮稍微往上错开一点，防止叠在一起 */
-.custom-actions2:not(:empty) ~ .per-card-hint {
-    bottom: 54px;              /* 当有大乔按钮出现时，提示语自动往上浮动，完美共存 */
-}
-.custom-actions2 {
-    position: absolute;
-    bottom: 14px;              /* 同样塞入红圈高度 */
-    left: 190px;               /* 避开双手 */
-    right: 16px;
-    
-    display: flex; 
-    flex-wrap: wrap; 
-    gap: 4px; 
-    order: unset !important;
-    margin-top: 0 !important;
-    z-index: 11;               /* 层级调高，确保能点得到大乔的各种选项 */
-}
-/* 1. 隐藏中间多余的黄色横条，同时保留节点让 JS 能够正常运行不报错 */
-#hintBar2 {
-    display: none !important;
-}
-
-/* 2. 让右侧内容区作为定位基准 */
-.card-body {
-    position: relative; /* 确保子元素可以基于它进行绝对定位 */
-}
-
-/* 3. 狂暴爆改：把提示语变成绝对定位，精准平移到双手右侧的红圈空白区 */
-.per-card-hint {
-    position: absolute;
-    bottom: 14px;              /* 与两只手框平行沉底 */
-    left: 190px;               /* 完美避开左边 165px 宽的双手框，打入右侧红圈 */
-    right: 16px;               /* 撑满右边 */
-    
-    font-size: 12px; 
-    color: #874d00; 
-    background: #fffbe6; 
-    border: 1px solid #ffe58f; 
-    border-radius: 6px; 
-    padding: 6px 10px; 
-    text-align: left;
-    line-height: 1.4;
-    box-sizing: border-box;
-    order: unset !important;
-    margin-top: 0 !important;
-    z-index: 10;
-}
-
-
-</style>
+<link rel="stylesheet" href="css/game2.css">
 </head>
 <body>
 <!-- 右上角音乐播放器 -->
@@ -492,7 +74,8 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
             <label>4号位</label><select id="rebelSelect4"></select>
         </div>
     </div>
-    <button id="startBtn2">⚔️ 开始 2v2 对战</button>
+    <label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:14px"><input type="checkbox" id="vsAIToggle"> 🤖 vs AI 对战（AI 控制 REBEL 队）</label>
+            <button id="startBtn2">⚔️ 开始 2v2 对战</button>
 </div>
 
 <!-- ══ 战场 ══ -->
@@ -533,7 +116,6 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
                     <div class="custom-display2" id="custom2v_0"></div>
                     <div class="custom-actions2" id="actions2v_0"></div>
                     <div id="tankTargetArea0" style="margin-top:2px"></div>
-                    <div class="per-card-hint" id="hint2v_0"></div>
                 </div>
             </div>
         </div>
@@ -566,7 +148,6 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
                     <div class="custom-display2" id="custom2v_2"></div>
                     <div class="custom-actions2" id="actions2v_2"></div>
                     <div id="tankTargetArea2" style="margin-top:2px"></div>
-                    <div class="per-card-hint" id="hint2v_2"></div>
                 </div>
             </div>
         </div>
@@ -610,7 +191,6 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
                     <div class="custom-display2" id="custom2v_1"></div>
                     <div class="custom-actions2" id="actions2v_1"></div>
                     <div id="tankTargetArea1" style="margin-top:2px"></div>
-                    <div class="per-card-hint" id="hint2v_1"></div>
                 </div>
             </div>
         </div>
@@ -643,7 +223,6 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
                     <div class="custom-display2" id="custom2v_3"></div>
                     <div class="custom-actions2" id="actions2v_3"></div>
                     <div id="tankTargetArea3" style="margin-top:2px"></div>
-                    <div class="per-card-hint" id="hint2v_3"></div>
                 </div>
             </div>
         </div>
@@ -760,9 +339,11 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 })();
 </script>
 <script src="js/game2-state.js"></script>
+<script src="js/game2-vfx.js"></script>
 <script src="js/game2-render.js"></script>
 <script src="js/game2-dialogs.js"></script>
 <script src="js/game2-core.js"></script>
+<script src="js/game2-ai.js"></script>
 <script>
 // ── 初始化：填充下拉框 + 劫持trace ──
 document.addEventListener('DOMContentLoaded', function() {
@@ -789,17 +370,27 @@ document.addEventListener('DOMContentLoaded', function() {
     tryInit();
 
     document.getElementById('startBtn2').onclick = startGame2;
+// AI 行动 hook：每次 render2 后检查
+var _origRender2_ai = (typeof render2 === 'function') ? render2 : null;
+if (_origRender2_ai) {
+    render2 = function() {
+        var r = _origRender2_ai.apply(this, arguments);
+        if (window.AI && AI.enabled) setTimeout(function() { AI.checkAndAct(); }, 400);
+        return r;
+    };
+}
 });
 
 // setupTrace2v2 已在 main.js 加载后的内联脚本里定义
 
 function restartGame2() {
+    if(typeof resetAvatars==="function") resetAvatars();
     // 停止任何计时器
     if (G.stealTimer) { clearInterval(G.stealTimer); G.stealTimer = null; }
     // 关闭所有弹窗
-    document.getElementById('helpTankDialog').style.display = 'none';
-    document.getElementById('wukongTargetDialog').style.display = 'none';
-    document.getElementById('cakeDialog2').style.display = 'none';
+    // 关闭所有弹窗（.overlay 类），新增角色弹窗无需修改此处
+    document.querySelectorAll('.overlay').forEach(function(el){ el.style.display='none'; });
+    var so = document.getElementById('stealOverlay'); if(so) so.style.display='none';
     var sd = document.getElementById('stealDialog');
     if (sd && sd.parentNode) sd.parentNode.removeChild(sd);
     // 重置状态
@@ -847,6 +438,7 @@ function restartGame2() {
     G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
     clearInterval(G.stealTimer);
     G.stealQueue = [];
+    if (typeof resetAvatars === 'function') resetAvatars();
     // 切回设置面板
     document.getElementById('battleArena2').style.display = 'none';
     document.getElementById('setupPanel2').style.display = 'block';
@@ -1029,6 +621,17 @@ function setSetupTank(camp, idx) {
 }
 
 // 覆盖 startGame2，游戏开始时把阵容设置写入 G，并给坦克施加加成
+var _origStartGame2_formation_ai = startGame2;
+startGame2 = function() {
+    var ret = _origStartGame2_formation_ai.apply(this, arguments);
+    var vsAI = document.getElementById('vsAIToggle');
+    if (vsAI && vsAI.checked) {
+        AI.start('rebel');
+    } else {
+        AI.stop();
+    }
+    return ret;
+};
 var _origStartGame2_formation = startGame2;
 startGame2 = function() {
     _origStartGame2_formation();

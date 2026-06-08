@@ -2,7 +2,7 @@
 // 角色图片映射（文件名和角色ID对应）
 var _AVATAR_MAP = {
     '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师',
-    '孙悟空': '孙悟空', '忍者': 'Sni忍者', '张飞': '张飞', '阴阳师': '阴阳师'
+    '孙悟空': '孙悟空', '忍者': 'Sni忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼'
 };
 var _avatarsInited = false;
 
@@ -60,10 +60,16 @@ var SHIELD_NAMES = {
     TRUE:                '真实护盾',
 };
 
+// VFX 快照（每次 render 前保存旧状态，render 后对比触发特效）
+var _vfxSnapshot = [];
+
 function _doRender2() {
     if (!Main.turnManager) return;
     var players = Main.turnManager.players;
     if (!players || players.length < 4) return;
+
+    // 记录 render 前状态（用于 VFX 差量对比）
+    var prevSnap = _vfxSnapshot.slice();
 
     document.getElementById('turnBadge').textContent = '第 ' + Main.turnManager.turnCount + ' 回合';
     var curIdx  = Main.turnManager.currentPlayerIdx;
@@ -72,6 +78,10 @@ function _doRender2() {
     for (var i = 0; i < 4; i++) {
         var p = players[i];
         var dead = p.hp <= 0;
+        _vfxSnapshot[i] = {
+            hp: p.hp,
+            shieldCount: (p.shieldList || []).filter(function(s){return s.amount > 0;}).length
+        };
 
         // 基本信息
         document.getElementById('name2v_'  + i).textContent = p.name;
@@ -140,6 +150,50 @@ function _doRender2() {
         document.getElementById('hintBar2').style.cssText =
             'background:#f6ffed;border-color:#52c41a;color:#237804;';
     }
+
+    // VFX 差量触发
+    if (window.VFX && prevSnap.length > 0) {
+        for (var vi = 0; vi < players.length; vi++) {
+            var prev = prevSnap[vi];
+            var curr = _vfxSnapshot[vi];
+            if (!prev || !curr) continue;
+            var hpDiff = curr.hp - prev.hp;
+            // 受伤
+            if (hpDiff < -8) {
+                var dtype = 'PHYSICAL';
+                var log = Main.engine && Main.engine.lastTouchDamageLog;
+                if (log && log.length > 0) {
+                    var tn = log[log.length-1].typeName;
+                    dtype = tn === '法术' ? 'MAGIC' : tn === '真实' ? 'TRUE' : 'PHYSICAL';
+                }
+                // 毒死单独用绿斩
+                if ((players[vi].buffList||[]).some(function(b){return b.id==='POISON'&&b.layers>0;})) {
+                    dtype = 'POISON';
+                }
+                VFX.slash(vi, dtype);
+                if (hpDiff < -60) VFX.screenShake(Math.min(3, Math.ceil(-hpDiff / 80)));
+            }
+            // 回血
+            if (hpDiff > 5) {
+                var healType = (VFX._lastHealTypes && VFX._lastHealTypes[vi]) || 'RECOVERY';
+                VFX.heal(vi, healType);
+                if (VFX._lastHealTypes) VFX._lastHealTypes[vi] = null;
+            }
+            // 新增护盾
+            if (curr.sc > prev.sc || curr.sa > prev.sa + 5) {
+                var shields = players[vi].shieldList || [];
+                var lastSh = shields.filter(function(s){return s.amount>0;}).pop();
+                var st = 'PHYSICAL';
+                if (lastSh) {
+                    var sn = String(lastSh.type||'');
+                    if (sn.indexOf('MAGIC')>=0 && sn.indexOf('PHYSICAL')>=0) st = 'BOTH';
+                    else if (sn.indexOf('MAGIC')>=0) st = 'MAGIC';
+                    else if (sn.indexOf('TRUE')>=0) st = 'TRUE';
+                }
+                VFX.shield(vi, st);
+            }
+        }
+    }
 }
 
 function _toggleDeadClock(playerIdx, handIdx, isZero, turns) {
@@ -205,35 +259,33 @@ function _doRefreshHandStyles2() {
 
 // ── 提示栏 ──
 function _setCardHint(msg, isError) {
-    // 清所有卡片的提示
-    for (var i = 0; i < 4; i++) {
-        var h = document.getElementById('hint2v_' + i);
-        if (h) h.style.display = 'none';
-    }
-    if (!msg || !Main.turnManager) return;
-    var idx = Main.turnManager.currentPlayerIdx;
-    var h = document.getElementById('hint2v_' + idx);
-    if (!h) return;
-    h.textContent = msg;
-    h.style.display = 'block';
-    h.style.background = isError ? '#fff1f0' : '#fffbe6';
-    h.style.borderColor = isError ? '#ffa39e' : '#ffe58f';
-    h.style.color       = isError ? '#cf1322' : '#874d00';
+    // per-card-hint 已删除，此函数保留为空操作避免报错
 }
+
 
 function setHint2(msg) {
     var bar = document.getElementById('hintBar2');
+    if (!bar) return;
     bar.textContent = msg;
     bar.style.background = '#fffbe6';
     bar.style.borderColor = '#ffe58f';
     bar.style.color = '#874d00';
-    _setCardHint(msg, false);
 }
 function flashHint2(msg) {
     var bar = document.getElementById('hintBar2');
+    if (!bar) return;
     bar.textContent = msg;
     bar.style.background = '#fff1f0';
     bar.style.borderColor = '#ffa39e';
     bar.style.color = '#cf1322';
-    _setCardHint(msg, true);
+}
+
+function resetAvatars() {
+    _avatarsInited = false;
+    for (var i = 0; i < 4; i++) {
+        var imgEl = document.getElementById('avatar_' + i);
+        var ph    = document.getElementById('avatar_ph_' + i);
+        if (imgEl) { imgEl.src = ''; imgEl.style.display = 'none'; }
+        if (ph)    { ph.style.display = ''; }
+    }
 }
