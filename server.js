@@ -44,10 +44,10 @@ const server = http.createServer((req, res) => {
 
     const ext = path.extname(filePath);
     const mime = {
-        '.html': 'text/html',
-        '.js':   'application/javascript',
-        '.css':  'text/css',
-        '.json': 'application/json',
+        '.html': 'text/html; charset=utf-8',
+        '.js':   'application/javascript; charset=utf-8',
+        '.css':  'text/css; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
         '.png':  'image/png',
         '.mp3':  'audio/mpeg',
         '.ogg':  'audio/ogg',
