@@ -13,44 +13,63 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
     const url = req.url.split('?')[0]; // 去掉查询参数
 
-    // /api/ai — LLM AI 决策代理（避免在前端暴露 API key）
+    // /api/ai — LLM AI 决策代理，支持 provider: 'minimax' | 'deepseek'
     if (url === '/api/ai' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
                 const payload = JSON.parse(body);
-                const apiKey = process.env.MINIMAX_API_KEY || require('fs').existsSync(require('os').homedir() + '/.minimax_api_key')
-                    ? require('fs').readFileSync(require('os').homedir() + '/.minimax_api_key', 'utf8').trim()
-                    : '';
+                const provider = payload.provider || 'minimax';
+
+                let apiKey, endpoint, modelName;
+                if (provider === 'deepseek') {
+                    apiKey   = process.env.DEEPSEEK_API_KEY || 'sk-76c2685331c14d149be64c1d9036f84e';
+                    endpoint = 'https://api.deepseek.com/chat/completions';
+                    modelName = payload.model || 'deepseek-chat';
+                } else {
+                    // minimax
+                    const mmKeyFile = require('os').homedir() + '/.minimax_api_key';
+                    apiKey = process.env.MINIMAX_API_KEY ||
+                        (require('fs').existsSync(mmKeyFile) ? require('fs').readFileSync(mmKeyFile,'utf8').trim() : '');
+                    endpoint  = 'https://api.minimax.chat/v1/text/chatcompletion_v2';
+                    modelName = payload.model || 'MiniMax-M2.7';
+                }
+
                 if (!apiKey) {
                     res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'No API key configured. Set MINIMAX_API_KEY env or ~/.minimax_api_key' }));
+                    res.end(JSON.stringify({ error: 'No API key for provider: ' + provider }));
                     return;
                 }
-                const upstream = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
+
+                const upstream = await fetch(endpoint, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + apiKey,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        model: payload.model || 'MiniMax-M2.7',
+                        model: modelName,
                         messages: payload.messages,
                         max_tokens: payload.max_tokens || 1024,
                         temperature: payload.temperature || 0.5,
                     })
                 });
                 const data = await upstream.json();
-                res.writeHead(200, {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                });
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
                 res.end(JSON.stringify(data));
             } catch (e) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: String(e) }));
             }
+        });
+        return;
+    }
+
+    // /api/skill — 读取角色技能文档
+    if (url.startsWith('/api/skill') && req.method === 'GET') {
+        const name = decodeURIComponent(url.split('=')[1] || '');
+        const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
+        fs.readFile(skillPath, 'utf8', (err, txt) => {
+            res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+            res.end(err ? '' : txt);
         });
         return;
     }
@@ -112,11 +131,15 @@ const server = http.createServer((req, res) => {
 
     const ext = path.extname(filePath);
     const mime = {
-        '.html': 'text/html',
-        '.js':   'application/javascript',
-        '.css':  'text/css',
-        '.json': 'application/json',
+        '.html': 'text/html; charset=utf-8',
+        '.js':   'application/javascript; charset=utf-8',
+        '.css':  'text/css; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.md':   'text/plain; charset=utf-8',
         '.png':  'image/png',
+        '.jpg':  'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
         '.mp3':  'audio/mpeg',
         '.ogg':  'audio/ogg',
         '.wav':  'audio/wav',
@@ -124,9 +147,13 @@ const server = http.createServer((req, res) => {
 
     fs.readFile(filePath, (err, data) => {
         if (err) {
-            res.writeHead(404); res.end('Not found'); return;
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Not found'); return;
         }
-        res.writeHead(200, { 'Content-Type': mime[ext] || 'application/octet-stream' });
+        res.writeHead(200, {
+            'Content-Type': mime[ext] || 'application/octet-stream',
+            'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600',
+        });
         res.end(data);
     });
 });
