@@ -1,7 +1,7 @@
 
 // 角色图片映射（文件名和角色ID对应）
 var _AVATAR_MAP = {
-    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师',
+    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师', '杨大力': '杨大力',
     '孙悟空': '孙悟空', '忍者': 'Sni忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼'
 };
 var _avatarsInited = false;
@@ -80,7 +80,8 @@ function _doRender2() {
         var dead = p.hp <= 0;
         _vfxSnapshot[i] = {
             hp: p.hp,
-            shieldCount: (p.shieldList || []).filter(function(s){return s.amount > 0;}).length
+            shieldCount: (p.shieldList || []).filter(function(s){return s.amount > 0;}).length,
+            shieldAmount: (p.shieldList || []).reduce(function(sum,s){return sum+(s.amount>0?s.amount:0);}, 0)
         };
 
         // 基本信息
@@ -158,29 +159,40 @@ function _doRender2() {
             var curr = _vfxSnapshot[vi];
             if (!prev || !curr) continue;
             var hpDiff = curr.hp - prev.hp;
-            // 受伤
+
+            // ── 受伤斩击：从 damageQueue 取伤害类型（精确，不猜测）──
             if (hpDiff < -8) {
                 var dtype = 'PHYSICAL';
-                var log = Main.engine && Main.engine.lastTouchDamageLog;
-                if (log && log.length > 0) {
-                    var tn = log[log.length-1].typeName;
-                    dtype = tn === '法术' ? 'MAGIC' : tn === '真实' ? 'TRUE' : 'PHYSICAL';
-                }
-                // 毒死单独用绿斩
-                if ((players[vi].buffList||[]).some(function(b){return b.id==='POISON'&&b.layers>0;})) {
-                    dtype = 'POISON';
+                var dq = VFX._damageQueue && VFX._damageQueue[vi];
+                if (dq && dq.length > 0) {
+                    dtype = dq[dq.length - 1]; // 取最后一笔
+                } else {
+                    // fallback：读 lastTouchDamageLog
+                    var log = Main.engine && Main.engine.lastTouchDamageLog;
+                    if (log && log.length > 0) {
+                        var tn = log[log.length-1].typeName;
+                        dtype = tn === '法术' ? 'MAGIC' : tn === '真实' ? 'TRUE' : 'PHYSICAL';
+                    }
                 }
                 VFX.slash(vi, dtype);
                 if (hpDiff < -60) VFX.screenShake(Math.min(3, Math.ceil(-hpDiff / 80)));
             }
-            // 回血
+            // 清空 damageQueue
+            if (VFX._damageQueue) VFX._damageQueue[vi] = [];
+
+            // ── 回血加号：从 healQueue 取类型 ──
             if (hpDiff > 5) {
-                var healType = (VFX._lastHealTypes && VFX._lastHealTypes[vi]) || 'RECOVERY';
+                var hq = VFX._healQueue && VFX._healQueue[vi];
+                var healType = (hq && hq.length > 0) ? hq[hq.length - 1] : 'RECOVERY';
                 VFX.heal(vi, healType);
-                if (VFX._lastHealTypes) VFX._lastHealTypes[vi] = null;
             }
-            // 新增护盾
-            if (curr.sc > prev.sc || curr.sa > prev.sa + 5) {
+            // 清空 healQueue
+            if (VFX._healQueue) VFX._healQueue[vi] = [];
+
+            // ── 护盾特效：用正确的字段名 shieldCount / shieldAmount ──
+            var shieldAdded = (curr.shieldCount > prev.shieldCount) ||
+                              (curr.shieldAmount > prev.shieldAmount + 5);
+            if (shieldAdded) {
                 var shields = players[vi].shieldList || [];
                 var lastSh = shields.filter(function(s){return s.amount>0;}).pop();
                 var st = 'PHYSICAL';

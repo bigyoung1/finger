@@ -159,11 +159,18 @@ window.VFX = (function () {
     };
 
     // ════════════════════════════════════════════════════
-    //  护盾特效 — 盾牌 SVG 出现后渐隐
+    //  护盾特效 — 盾牌 SVG 出现后渐隐（定位在头像中央）
     // ════════════════════════════════════════════════════
     VFX.shield = function (playerIdx, shieldType) {
         const card = getCard(playerIdx);
         if (!card) return;
+
+        // 优先挂到头像容器（char-avatar-wrap），回落到整张卡片
+        const avatarImg = document.getElementById('avatar_' + playerIdx);
+        const avatarWrap = (avatarImg && avatarImg.parentElement) || card;
+        // 确保 avatarWrap 可作为定位父元素
+        const wrapPos = window.getComputedStyle(avatarWrap).position;
+        if (wrapPos === 'static') avatarWrap.style.position = 'relative';
 
         const pal = SHIELD_COLORS[shieldType] || SHIELD_COLORS.PHYSICAL;
         const id = `shield-${playerIdx}-${Date.now()}`;
@@ -172,8 +179,8 @@ window.VFX = (function () {
         el.style.cssText = `
             position:absolute;
             top:50%; left:50%;
-            transform:translate(-50%, -55%) scale(0);
-            width:min(70%, 110px);
+            transform:translate(-50%, -50%) scale(0);
+            width:min(80%, 120px);
             aspect-ratio:1;
             pointer-events:none;
             z-index:1001;
@@ -212,7 +219,7 @@ window.VFX = (function () {
           <rect x="70" y="178" width="60" height="4" rx="2" fill="white" opacity="0.25"/>
         </svg>`;
 
-        card.appendChild(el);
+        avatarWrap.appendChild(el);
         setTimeout(() => el.remove(), 2500);
     };
 
@@ -229,11 +236,22 @@ window.VFX = (function () {
     };
 
     // ════════════════════════════════════════════════════
-    //  Haxe 侧在 applyRawHeal / applyHeal 时调用，标记回血类型
+    //  Haxe 侧通知接口（applyHeal/applyRawHeal/applyDamage 调用）
+    //  用队列积累，render差量对比时消费，避免多帧竞态
     // ════════════════════════════════════════════════════
-    VFX._lastHealTypes = {};
+    VFX._healQueue   = {};  // playerIdx → ['RECOVERY'|'SUPPLY', ...]
+    VFX._damageQueue = {};  // playerIdx → ['PHYSICAL'|'MAGIC'|'TRUE'|'POISON', ...]
+    VFX._lastHealTypes = {}; // 兼容旧代码
+
     VFX.notifyHeal = function(playerIdx, healType) {
-        VFX._lastHealTypes[playerIdx] = healType; // 'RECOVERY' | 'SUPPLY'
+        if (!VFX._healQueue[playerIdx]) VFX._healQueue[playerIdx] = [];
+        VFX._healQueue[playerIdx].push(healType);
+        VFX._lastHealTypes[playerIdx] = healType;
+    };
+
+    VFX.notifyDamage = function(playerIdx, damageType) {
+        if (!VFX._damageQueue[playerIdx]) VFX._damageQueue[playerIdx] = [];
+        VFX._damageQueue[playerIdx].push(damageType);
     };
 
     // ════════════════════════════════════════════════════

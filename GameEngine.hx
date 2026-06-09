@@ -216,6 +216,19 @@ class GameEngine {
             actor.onAfterDealtDamage(target, result.damageBeforeShield, result.actualDamage, type, this);
         }
 
+        // 5. 通知 VFX：伤害类型（实际扣到血后才通知，避免被盾全挡时也显示斩击）
+        if (result.actualDamage > 0 && target != null) {
+            var targetIdx = turnManager != null ? turnManager.players.indexOf(target) : -1;
+            if (targetIdx >= 0) {
+                var typeStr = switch(type) {
+                    case PHYSICAL: "PHYSICAL";
+                    case MAGIC:    "MAGIC";
+                    case TRUE:     "TRUE";
+                };
+                js.Syntax.code("if(window.VFX&&VFX.notifyDamage)VFX.notifyDamage({0},{1})", targetIdx, typeStr);
+            }
+        }
+
         return result;
     }
 
@@ -259,6 +272,20 @@ class GameEngine {
                 }
             }
         }
+
+        // 通知 VFX：伤害类型
+        if (result.actualDamage > 0 && target != null) {
+            var targetIdx = turnManager != null ? turnManager.players.indexOf(target) : -1;
+            if (targetIdx >= 0) {
+                var typeStr = switch(type) {
+                    case PHYSICAL: "PHYSICAL";
+                    case MAGIC:    "MAGIC";
+                    case TRUE:     "TRUE";
+                };
+                js.Syntax.code("if(window.VFX&&VFX.notifyDamage)VFX.notifyDamage({0},{1})", targetIdx, typeStr);
+            }
+        }
+
         return result;
     }
 

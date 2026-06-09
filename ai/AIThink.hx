@@ -31,8 +31,8 @@ class AIThink {
         doubleStar:  50.0,
         zeroCombo:   25.0,
         sixCombo:    15.0,
-        zeroRisk:   -40.0,
-        zeroCountdown: -30.0,
+        zeroRisk:    0.0,  // 0 没有风险，双手全0只是强制用0手，不会死亡
+        zeroCountdown: 0.0, // 倒计时快用完不是坏事，0组合收益极高
         oppZeroGood: 20.0,
         hpAdvantage:  0.5,
         handQuality:  2.0,
@@ -273,27 +273,8 @@ class AIThink {
 
     private static function evaluateRisk(actor:Player, handIdx:Int, newValue:Int, w:WeightSet):Float {
         var score:Float = 0;
-
-        if (newValue == 0) {
-            var currentTurns = (handIdx == 0) ? actor.zeroTurns0 : actor.zeroTurns1;
-            // 另一只手也是0 → 双0死亡危机！惩罚极大
-            var otherHand = actor.hands[1 - handIdx];
-            if (otherHand == 0) {
-                score += w.zeroRisk * 5; // 极度危险
-            } else if (currentTurns <= 0) {
-                score += w.zeroRisk * 1.5;
-            } else {
-                score += w.zeroRisk;
-            }
-        }
-
-        // 已有0且倒计时快用完
-        var otherIdx = 1 - handIdx;
-        if (actor.hands[otherIdx] == 0) {
-            var otherTurns = (otherIdx == 0) ? actor.zeroTurns0 : actor.zeroTurns1;
-            if (otherTurns <= 1) score += w.zeroCountdown;
-        }
-
+        // 0 没有额外风险——倒计时只是强制下次用0手行动，0组合收益极高
+        // （原"双0死亡"逻辑已删除，规则中双手全0不会死亡）
         return score;
     }
 
@@ -769,22 +750,11 @@ function extractFeatureVector(
     if (otherValue == 6 || newValue == 6) scBonus = 15.0;
     f.push(scBonus / 15.0);
 
-    // 8. zeroRisk (negative weight, so feature is 0/1)
-    var risk = 0.0;
-    if (newValue == 0) {
-        var otherHand = actor.hands[otherIdx];
-        if (otherHand == 0) risk = 1.0;
-        else if ((myHandIdx == 0 ? actor.zeroTurns0 : actor.zeroTurns1) <= 0) risk = 1.0;
-    }
-    f.push(risk);
+    // 8. zeroRisk — 权重已设为0，0对自己没有风险，此特征保留结构但不影响评分
+    f.push(0.0);
 
-    // 9. zeroCountdown
-    var zcd = 0.0;
-    if (actor.hands[otherIdx] == 0) {
-        var otherTurns = (otherIdx == 0) ? actor.zeroTurns0 : actor.zeroTurns1;
-        if (otherTurns <= 1) zcd = 1.0;
-    }
-    f.push(zcd);
+    // 9. zeroCountdown — 权重已设为0，倒计时快用完不是坏事
+    f.push(0.0);
 
     // 10. oppZeroGood
     var ozg = 0.0;

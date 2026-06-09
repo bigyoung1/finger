@@ -262,9 +262,6 @@ class BattleLearning {
         // 0组合多 → 说明 zeroCombo 权重有效
         if (zeroCombos > 0) _adjustWeight(w, "zeroCombo", signal * lr * zeroCombos);
 
-        // 0危机多且输了 → zeroRisk 惩罚不够大
-        if (zeroCrises > 2 && !challengerWon) _adjustWeight(w, "zeroRisk", -lr * 2);
-
         // 伤害高且赢了 → damage 权重有效
         if (totalDamage > 200 && challengerWon) _adjustWeight(w, "damage", signal * lr);
     }

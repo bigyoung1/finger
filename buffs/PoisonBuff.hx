@@ -37,6 +37,12 @@ class PoisonBuff extends Buff {
             // 通知全场：发生了一次毒伤扣血（让忍者按实际扣血量回血）
             if (result.actualDamage > 0 && GameEngine.instance != null) {
                 GameEngine.instance.notifyPoisonTick(owner, result.actualDamage);
+                // 通知 VFX：毒伤显示绿色斩击
+                var ownerIdx = GameEngine.instance.turnManager != null
+                    ? GameEngine.instance.turnManager.players.indexOf(owner) : -1;
+                if (ownerIdx >= 0) {
+                    js.Syntax.code("if(window.VFX&&VFX.notifyDamage)VFX.notifyDamage({0},'POISON')", ownerIdx);
+                }
             }
         }
     }
