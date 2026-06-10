@@ -2253,24 +2253,6 @@ ai_AIThink.evaluateComboPotential = function(actor,newValue,handIdx,w) {
 };
 ai_AIThink.evaluateRisk = function(actor,handIdx,newValue,w) {
 	var score = 0;
-	if(newValue == 0) {
-		var currentTurns = handIdx == 0 ? actor.zeroTurns0 : actor.zeroTurns1;
-		var otherHand = actor.hands[1 - handIdx];
-		if(otherHand == 0) {
-			score += w.zeroRisk * 5;
-		} else if(currentTurns <= 0) {
-			score += w.zeroRisk * 1.5;
-		} else {
-			score += w.zeroRisk;
-		}
-	}
-	var otherIdx = 1 - handIdx;
-	if(actor.hands[otherIdx] == 0) {
-		var otherTurns = otherIdx == 0 ? actor.zeroTurns0 : actor.zeroTurns1;
-		if(otherTurns <= 1) {
-			score += w.zeroCountdown;
-		}
-	}
 	return score;
 };
 ai_AIThink.evaluateOpponentThreat = function(actor,opponent,w) {
@@ -2831,24 +2813,8 @@ function ai_AIThink_extractFeatureVector(actor,opponent,myHandIdx,targetHandIdx,
 		scBonus = 15.0;
 	}
 	f.push(scBonus / 15.0);
-	var risk = 0.0;
-	if(newValue == 0) {
-		var otherHand = actor.hands[otherIdx];
-		if(otherHand == 0) {
-			risk = 1.0;
-		} else if((myHandIdx == 0 ? actor.zeroTurns0 : actor.zeroTurns1) <= 0) {
-			risk = 1.0;
-		}
-	}
-	f.push(risk);
-	var zcd = 0.0;
-	if(actor.hands[otherIdx] == 0) {
-		var otherTurns = otherIdx == 0 ? actor.zeroTurns0 : actor.zeroTurns1;
-		if(otherTurns <= 1) {
-			zcd = 1.0;
-		}
-	}
-	f.push(zcd);
+	f.push(0.0);
+	f.push(0.0);
 	var ozg = 0.0;
 	if(opponent.hands[0] == 0 && opponent.zeroTurns0 <= 1) {
 		ozg += 0.5;
@@ -3090,9 +3056,6 @@ ai_BattleLearning.prototype = {
 		if(zeroCombos > 0) {
 			this._adjustWeight(w,"zeroCombo",signal * lr * zeroCombos);
 		}
-		if(zeroCrises > 2 && !challengerWon) {
-			this._adjustWeight(w,"zeroRisk",-lr * 2);
-		}
 		if(totalDamage > 200 && challengerWon) {
 			this._adjustWeight(w,"damage",signal * lr);
 		}
@@ -3125,16 +3088,16 @@ ai_BattleLearning.prototype = {
 		return "第 " + this.generationCount + " 代 | 当前挑战者 " + this.challengeBattlesPlayed + "/" + ai_BattleLearning.BATTLES_PER_GENERATION + " 场 " + ("| 冠军Elo " + (this.champion.elo | 0));
 	}
 	,_printCurrentBest: function() {
-		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 299, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╔══════════════════════════════════════════════════════╗",{ fileName : "./ai/BattleLearning.hx", lineNumber : 300, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║        当前最优 AI 权重（" + this.champion.id + "）",{ fileName : "./ai/BattleLearning.hx", lineNumber : 301, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╠══════════════════════════════════════════════════════╣",{ fileName : "./ai/BattleLearning.hx", lineNumber : 302, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 296, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("╔══════════════════════════════════════════════════════╗",{ fileName : "./ai/BattleLearning.hx", lineNumber : 297, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("║        当前最优 AI 权重（" + this.champion.id + "）",{ fileName : "./ai/BattleLearning.hx", lineNumber : 298, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("╠══════════════════════════════════════════════════════╣",{ fileName : "./ai/BattleLearning.hx", lineNumber : 299, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
 		var w = this.champion.weights;
-		haxe_Log.trace("║ damage=" + (w.damage * 100 | 0) / 100 + "  heal=" + (w.heal * 100 | 0) / 100 + "  doubleStar=" + (w.doubleStar * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 304, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║ zeroCombo=" + (w.zeroCombo * 100 | 0) / 100 + "  zeroRisk=" + (w.zeroRisk * 100 | 0) / 100 + "  sixCombo=" + (w.sixCombo * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 305, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║ Elo=" + (this.champion.elo | 0) + "  总对局=" + this.totalBattlesRecorded + "  进化代数=" + this.generationCount,{ fileName : "./ai/BattleLearning.hx", lineNumber : 306, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╚══════════════════════════════════════════════════════╝",{ fileName : "./ai/BattleLearning.hx", lineNumber : 307, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 308, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("║ damage=" + (w.damage * 100 | 0) / 100 + "  heal=" + (w.heal * 100 | 0) / 100 + "  doubleStar=" + (w.doubleStar * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 301, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("║ zeroCombo=" + (w.zeroCombo * 100 | 0) / 100 + "  zeroRisk=" + (w.zeroRisk * 100 | 0) / 100 + "  sixCombo=" + (w.sixCombo * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 302, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("║ Elo=" + (this.champion.elo | 0) + "  总对局=" + this.totalBattlesRecorded + "  进化代数=" + this.generationCount,{ fileName : "./ai/BattleLearning.hx", lineNumber : 303, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("╚══════════════════════════════════════════════════════╝",{ fileName : "./ai/BattleLearning.hx", lineNumber : 304, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
+		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 305, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
 	}
 	,applyREINFORCE: function() {
 		if(!this.rlEnabled) {
@@ -3260,7 +3223,7 @@ ai_BattleLearning.prototype = {
 				}
 				ai_AIThink.setWeight(weightNames[i],newVal);
 			}
-			haxe_Log.trace("[RL] REINFORCE 更新完成，" + validCount + " 个有效样本，" + n + " 个总转换",{ fileName : "./ai/BattleLearning.hx", lineNumber : 411, className : "ai.BattleLearning", methodName : "applyREINFORCE"});
+			haxe_Log.trace("[RL] REINFORCE 更新完成，" + validCount + " 个有效样本，" + n + " 个总转换",{ fileName : "./ai/BattleLearning.hx", lineNumber : 408, className : "ai.BattleLearning", methodName : "applyREINFORCE"});
 		}
 		this.valueFunction.batchUpdate(transitions,0.001);
 		this.policyBuffer.clear();
@@ -5616,7 +5579,7 @@ js_Boot.__toStr = ({ }).toString;
 Main.engine = new GameEngine();
 Main.turnManager = new TurnManager();
 Main.logBuffer = [];
-ai_AIThink.DEFAULT_WEIGHTS = { damage : 3.0, heal : 2.0, shield : 1.5, poison : 1.2, doubleStar : 50.0, zeroCombo : 25.0, sixCombo : 15.0, zeroRisk : -40.0, zeroCountdown : -30.0, oppZeroGood : 20.0, hpAdvantage : 0.5, handQuality : 2.0, mageZeroBonus : 15.0, wukongZeroTwoBonus : 30.0, ninjaAttackBonus : 8.0, zhangfeiHealBonus : 10.0, xiaoqiaoHealBonus : 15.0, zangshiCakeThreshold : 6.0, zhangfeiModal1Pref : 5.0, zhangfeiModal3Pref : 3.0};
+ai_AIThink.DEFAULT_WEIGHTS = { damage : 3.0, heal : 2.0, shield : 1.5, poison : 1.2, doubleStar : 50.0, zeroCombo : 25.0, sixCombo : 15.0, zeroRisk : 0.0, zeroCountdown : 0.0, oppZeroGood : 20.0, hpAdvantage : 0.5, handQuality : 2.0, mageZeroBonus : 15.0, wukongZeroTwoBonus : 30.0, ninjaAttackBonus : 8.0, zhangfeiHealBonus : 10.0, xiaoqiaoHealBonus : 15.0, zangshiCakeThreshold : 6.0, zhangfeiModal1Pref : 5.0, zhangfeiModal3Pref : 3.0};
 ai_AIThink._defaultInstance = new ai_AIThink("default");
 ai_BattleLearning.BATTLES_PER_GENERATION = 20;
 ai_BattleLearning.WIN_THRESHOLD = 0.58;
