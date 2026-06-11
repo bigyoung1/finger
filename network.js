@@ -1,18 +1,16 @@
 // ════════════════════════════════════════════════════════
-//  network.js — 客户端联机层
-//  在 index2.html 里引入，负责 WebSocket 连接 + 消息收发
+//  network.js — 客户端联机层 (4-slot 版)
 // ════════════════════════════════════════════════════════
 
 var NET = {
-    ws:       null,
-    seat:     -1,    // 0=先手(HERO队p0), 1=后手(REBEL队p1)
-    roomCode: '',
-    myName:   '',
-    isOnline: false,
+    ws:        null,
+    slotIdx:   -1,    // 0~3，我的座位序号
+    roomCode:  '',
+    myName:    '',
+    isOnline:  false,
+    roomState: null,  // 最近一次 roomState 快照
 
-    // ── 连接服务器 ──
     connect: function(onOpen) {
-        // 自动判断 ws:// 或 wss://（HTTPS 页面必须用 wss）
         var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         var url = protocol + '://' + location.host;
         NET.ws = new WebSocket(url);
@@ -31,72 +29,68 @@ var NET = {
         };
     },
 
-    // ── 发送消息 ──
     send: function(obj) {
         if (NET.ws && NET.ws.readyState === WebSocket.OPEN) {
             NET.ws.send(JSON.stringify(obj));
         }
     },
 
-    // ── 创建房间 ──
     createRoom: function(name) {
         NET.myName = name;
         NET.send({ type: 'create', name: name });
     },
 
-    // ── 加入房间 ──
     joinRoom: function(code, name) {
         NET.myName = name;
         NET.send({ type: 'join', code: code.toUpperCase(), name: name });
     },
 
-    // ── 发送游戏操作（由游戏逻辑层调用）──
     sendAction: function(payload) {
         NET.send({ type: 'action', payload: payload });
     },
 
-    // ── 发送聊天 ──
     sendChat: function(text) {
         NET.send({ type: 'chat', text: text });
     },
 
-    // ════════════════════════════════════════
-    //  消息处理（服务器 → 客户端）
-    // ════════════════════════════════════════
     handleMessage: function(msg) {
         switch (msg.type) {
 
             case 'created':
-                NET.seat     = 0;
+                NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
                 NET.onRoomCreated(msg.code);
+                NET.onRoomState(NET.roomState);
                 break;
 
             case 'joined':
-                NET.seat     = 1;
+                NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
-                NET.onRoomJoined(msg.opponentName);
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
+                NET.onRoomJoined(msg.code);
+                NET.onRoomState(NET.roomState);
                 break;
 
-            case 'opponentJoined':
-                NET.onOpponentJoined(msg.opponentName);
+            case 'roomState':
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
+                NET.onRoomState(NET.roomState);
+                break;
+
+            case 'slotLeft':
+                NET.onSlotLeft(msg.slotIdx);
                 break;
 
             case 'action':
-                // 收到对手的操作，执行它
-                NET.onRemoteAction(msg.payload);
+                NET.onRemoteAction(msg.payload, msg.fromSlot);
                 break;
 
             case 'chat':
-                NET.onChat(msg.text);
+                NET.onChat(msg.text, msg.fromSlot);
                 break;
 
             case 'rematch':
                 NET.onRematch();
-                break;
-
-            case 'opponentLeft':
-                NET.onOpponentLeft();
                 break;
 
             case 'error':
@@ -105,16 +99,14 @@ var NET = {
         }
     },
 
-    // ════════════════════════════════════════
-    //  回调（由 index2.html 覆盖实现）
-    // ════════════════════════════════════════
-    onRoomCreated:    function(code) {},
-    onRoomJoined:     function(opponentName) {},
-    onOpponentJoined: function(opponentName) {},
-    onRemoteAction:   function(payload) {},
-    onChat:           function(text) {},
-    onRematch:        function() {},
-    onOpponentLeft:   function() {},
-    onDisconnect:     function() {},
-    onError:          function(msg) { alert('联机错误：' + msg); },
+    // ── 回调（由游戏层覆盖实现）──
+    onRoomCreated:  function(code) {},
+    onRoomJoined:   function(code) {},
+    onRoomState:    function(state) {},
+    onSlotLeft:     function(slotIdx) {},
+    onRemoteAction: function(payload, fromSlot) {},
+    onChat:         function(text, fromSlot) {},
+    onRematch:      function() {},
+    onDisconnect:   function() {},
+    onError:        function(msg) { alert('联机错误：' + msg); },
 };

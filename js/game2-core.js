@@ -142,17 +142,17 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride) {
     }
     if (helperIdx < 0) return false;
 
-    // 联机：受伤方自己弹窗，攻击方等待
+    // 联机：由控制 helper 的 slot 来弹窗决定（攻击方/无关方都等待）
     if (ONLINE.active) {
-        var victimCamp = campOf(dmgTargetIdx2);
-        if (victimCamp !== ONLINE.myCamp()) {
-            // 我是攻击方，对方决定帮抗 — 等待
+        var helperController = ONLINE.charControl[helperIdx];
+        if (helperController !== ONLINE.slotIdx) {
+            // 我不是控制 helper 的玩家 → 等待
             ONLINE.waitingRemoteHelpTank = true;
             G.inputLocked = true;
-            setHint2("⏳ 等待对方决定是否帮抗...");
+            setHint2("⏳ 等待帮抗者决定...");
             return true;
         }
-        // 我是受伤方，我弹窗决定（结果通过 onHelpTankConfirm/Cancel 发送给对方）
+        // 我控制 helper，我弹窗决定
     }
 
     // 冻结本次伤害快照（防止后续操作清空 lastTouchDamageLog）

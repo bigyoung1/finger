@@ -36,10 +36,16 @@
             <button class="online-btn" style="background:#1890ff;color:white" onclick="onlineJoin()">🚪 加入房间</button>
         </div>
         <div id="onlineStatus"></div>
-        <div id="roomCodeArea">房间码：<span id="roomCodeDisplay"></span>（发给朋友）</div>
-        <div id="onlineJoinArea" style="display:none"></div>
-        <div id="onlineStartArea">
-            <div style="font-size:13px;color:#555;margin-bottom:8px">选好角色后点击开始👇</div>
+        <div id="roomCodeArea" style="display:none">房间码：<b id="roomCodeDisplay" style="font-size:18px;color:#1890ff;letter-spacing:2px"></b>（发给朋友）</div>
+
+        <!-- 4人大厅 -->
+        <div id="lobbyArea" style="display:none;margin-top:12px;padding:12px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa">
+            <div style="font-weight:600;margin-bottom:8px">🪑 房间座位（最多4人）</div>
+            <div id="slotList" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            <div style="font-size:12px;color:#888;margin-top:8px">
+                💡 房主可在角色选择上方为每个角色指定控制者，未分配的角色由 AI 接管。<br>
+                💡 中途有人掉线，其控制的角色会自动改为 AI 接管。
+            </div>
         </div>
     </div>
     <h2>选择角色</h2>
@@ -56,8 +62,10 @@
                 <label><input type="radio" name="heroTank" value="0" checked onchange="setSetupTank('hero',0)"> 1号位</label>
                 <label><input type="radio" name="heroTank" value="2" onchange="setSetupTank('hero',2)"> 3号位</label>
             </div>
-            <label>1号位</label><select id="heroSelect1"></select>
-            <label>3号位</label><select id="heroSelect3"></select>
+            <label>1号位</label>
+            <div class="char-row"><select id="heroSelect1"></select><span class="ctrl-line" data-char-idx="0">控制：<select id="ctrlSelect0" class="ctrl-select" data-char-idx="0"></select></span></div>
+            <label>3号位</label>
+            <div class="char-row"><select id="heroSelect3"></select><span class="ctrl-line" data-char-idx="2">控制：<select id="ctrlSelect2" class="ctrl-select" data-char-idx="2"></select></span></div>
         </div>
         <div class="setup-team rebel">
             <b style="color:#f5222d">🔴 REBEL 队（2号、4号）</b>
@@ -71,13 +79,70 @@
                 <label><input type="radio" name="rebelTank" value="1" checked onchange="setSetupTank('rebel',1)"> 2号位</label>
                 <label><input type="radio" name="rebelTank" value="3" onchange="setSetupTank('rebel',3)"> 4号位</label>
             </div>
-            <label>2号位</label><select id="rebelSelect2"></select>
-            <label>4号位</label><select id="rebelSelect4"></select>
+            <label>2号位</label>
+            <div class="char-row"><select id="rebelSelect2"></select><span class="ctrl-line" data-char-idx="1">控制：<select id="ctrlSelect1" class="ctrl-select" data-char-idx="1"></select></span></div>
+            <label>4号位</label>
+            <div class="char-row"><select id="rebelSelect4"></select><span class="ctrl-line" data-char-idx="3">控制：<select id="ctrlSelect3" class="ctrl-select" data-char-idx="3"></select></span></div>
         </div>
     </div>
     <label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:14px"><input type="checkbox" id="vsAIToggle"> 🤖 vs AI 对战（AI 控制 REBEL 队）</label>
             <button id="startBtn2">⚔️ 开始 2v2 对战</button>
+    <button id="trainBtn" onclick="toggleTraining()" style="margin-left:12px;padding:8px 18px;background:#722ed1;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer">🧠 AI 自战训练</button>
 </div>
+
+<!-- 训练面板 -->
+<div id="trainPanel" style="display:none;position:fixed;bottom:16px;right:16px;z-index:9999;background:white;border:1.5px solid #722ed1;border-radius:10px;padding:16px;min-width:260px;box-shadow:0 4px 16px rgba(0,0,0,.18);font-size:13px">
+    <div style="font-weight:700;color:#722ed1;margin-bottom:10px">🧠 AI 自战训练</div>
+    <div id="trainStatus" style="color:#555;margin-bottom:8px">点击开始训练</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1;text-align:center;background:#e6f7ff;border-radius:6px;padding:6px">
+            <div style="font-size:11px;color:#888">MiniMax</div>
+            <div id="trainStatMM" style="font-weight:700;color:#1890ff">W0 L0</div>
+        </div>
+        <div style="flex:1;text-align:center;background:#f9f0ff;border-radius:6px;padding:6px">
+            <div style="font-size:11px;color:#888">DeepSeek</div>
+            <div id="trainStatDS" style="font-weight:700;color:#722ed1">W0 L0</div>
+        </div>
+    </div>
+    <div id="trainWeightHints" style="font-size:11px;color:#888;margin-bottom:10px;max-height:60px;overflow:auto"></div>
+    <div style="display:flex;gap:8px">
+        <button id="trainStartBtn" onclick="doTrainStart()" style="flex:1;padding:6px;background:#52c41a;color:white;border:none;border-radius:5px;cursor:pointer">▶ 开始</button>
+        <button id="trainStopBtn"  onclick="doTrainStop()"  style="flex:1;padding:6px;background:#f5222d;color:white;border:none;border-radius:5px;cursor:pointer">■ 停止保存</button>
+    </div>
+</div>
+
+<script>
+var _trainPanelOpen = false;
+function toggleTraining() {
+    _trainPanelOpen = !_trainPanelOpen;
+    document.getElementById('trainPanel').style.display = _trainPanelOpen ? 'block' : 'none';
+}
+
+function doTrainStart() {
+    if (!window.AI) { alert('请先加载游戏'); return; }
+    document.getElementById('trainStatus').textContent = '训练中...';
+    document.getElementById('trainStartBtn').disabled = true;
+
+    // 注册 UI 更新回调
+    AI.train.onUpdate = function() {
+        const t = AI.train.getStatusText();
+        document.getElementById('trainStatus').textContent    = t.status;
+        document.getElementById('trainStatMM').textContent   = t.minimax;
+        document.getElementById('trainStatDS').textContent   = t.deepseek;
+        document.getElementById('trainWeightHints').textContent = t.weights;
+    };
+
+    AI.train.start();
+}
+
+function doTrainStop() {
+    if (!window.AI) return;
+    AI.train.stop().then(() => {
+        document.getElementById('trainStatus').textContent = '已停止，权重已保存';
+        document.getElementById('trainStartBtn').disabled = false;
+    });
+}
+</script>
 
 <!-- ══ 战场 ══ -->
 <div id="battleArena2">
@@ -455,8 +520,96 @@ function selectMode(mode) {
     document.getElementById('btnLocal').className  = 'mode-btn' + (mode==='local'  ? ' active' : '');
     document.getElementById('btnOnline').className = 'mode-btn' + (mode==='online' ? ' active' : '');
     document.getElementById('onlinePanel').style.display = mode==='online' ? 'block' : 'none';
+    document.body.classList.toggle('online-mode', mode==='online');
     ONLINE.active = false;
+    if (mode === 'online') initCtrlSelects();
 }
+
+// 控制者下拉框初始化
+function initCtrlSelects() {
+    [0,1,2,3].forEach(function(i) {
+        var sel = document.getElementById('ctrlSelect' + i);
+        if (!sel) return;
+        // 默认值：HERO两个由slot0控制，REBEL两个由slot1控制
+        var defaultCtrl = (i === 0 || i === 2) ? 0 : 1;
+        sel.dataset.defaultCtrl = defaultCtrl;
+        rebuildCtrlOptions(sel, defaultCtrl);
+        sel.onchange = onCtrlChange;
+    });
+}
+
+function rebuildCtrlOptions(sel, currentVal) {
+    var slotNames = (NET.roomState && NET.roomState.slotNames) || ['(房主)', '玩家2', '玩家3', '玩家4'];
+    var occupied  = (NET.roomState && NET.roomState.slotOccupied) || [true, false, false, false];
+    sel.innerHTML = '';
+    for (var s = 0; s < 4; s++) {
+        var opt = document.createElement('option');
+        opt.value = String(s);
+        var label = slotNames[s] || ('Slot' + (s+1));
+        if (!occupied[s]) label += '（未入座）';
+        opt.textContent = label;
+        if (!occupied[s]) opt.disabled = true;
+        sel.appendChild(opt);
+    }
+    // AI 选项
+    var aiOpt = document.createElement('option');
+    aiOpt.value = 'AI';
+    aiOpt.textContent = '🤖 AI';
+    sel.appendChild(aiOpt);
+    sel.value = String(currentVal);
+    // 所有人都可以修改（去掉房主限制）
+    sel.disabled = false;
+}
+
+function onCtrlChange(e) {
+    var sel = e.target;
+    var charIdx = parseInt(sel.dataset.charIdx);
+    var val = sel.value;
+    var ctrlVal = val === 'AI' ? 'AI' : parseInt(val);
+    // 所有联机玩家修改后广播给其他人
+    if (ONLINE && NET.roomState != null) {
+        NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal });
+    }
+}
+
+// 当前 UI 上选择的 charControl 数组
+function getCurrentCharControl() {
+    var arr = [];
+    for (var i = 0; i < 4; i++) {
+        var sel = document.getElementById('ctrlSelect' + i);
+        var v = sel ? sel.value : String((i===0||i===2)?0:1);
+        arr.push(v === 'AI' ? 'AI' : parseInt(v));
+    }
+    return arr;
+}
+
+// 房间状态变化时刷新大厅+控制下拉
+window.renderRoomLobby = function(state) {
+    var listEl = document.getElementById('slotList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+        var chip = document.createElement('div');
+        var occupied = state.slotOccupied[i];
+        var isHost   = i === state.hostSlot;
+        var isMe     = i === NET.slotIdx;
+        chip.className = 'slot-chip' + (occupied?' occupied':'') + (isHost?' host':'') + (isMe?' me':'');
+        var name = occupied ? (state.slotNames[i] || ('玩家'+(i+1))) : '(空位)';
+        chip.textContent = 'Slot' + (i+1) + '：' + name + (isMe?' (你)':'');
+        listEl.appendChild(chip);
+    }
+    // 刷新所有控制下拉框的选项（保留当前选择值）
+    [0,1,2,3].forEach(function(i) {
+        var sel = document.getElementById('ctrlSelect' + i);
+        if (!sel) return;
+        var cur = sel.value;
+        // 如果当前选的 slot 已经离开了，回退到 AI
+        var occ = state.slotOccupied;
+        if (cur !== 'AI' && !occ[parseInt(cur)]) cur = 'AI';
+        rebuildCtrlOptions(sel, cur);
+        sel.disabled = false; // 确保所有人都可以改
+    });
+};
 
 function onlineCreate() {
     var name = document.getElementById('playerName').value.trim();
@@ -464,7 +617,6 @@ function onlineCreate() {
     setOnlineStatus('正在连接...');
     NET.connect(function() {
         NET.createRoom(name);
-        ONLINE.seat = 0; // 房主 = HERO
     });
 }
 
@@ -476,29 +628,53 @@ function onlineJoin() {
     setOnlineStatus('正在连接...');
     NET.connect(function() {
         NET.joinRoom(code, name);
-        ONLINE.seat = 1; // 访客 = REBEL
     });
 }
 
-// 房主：选好角色后开始（把角色ID发给访客）
+// ── 处理 ctrlUpdate（任意玩家修改控制下拉后同步给其他人）──
+var _origOnRemoteAction = NET.onRemoteAction;
+NET.onRemoteAction = function(payload, fromSlot) {
+    if (payload.type === 'ctrlUpdate') {
+        // 同步 ONLINE.charControl（游戏中掉线接管也走这里）
+        if (window.ONLINE) {
+            var ctrlVal = payload.controller === 'AI' ? 'AI' : parseInt(payload.controller);
+            ONLINE.charControl[payload.charIdx] = ctrlVal;
+            if (window.AI) AI.refreshControlled();
+        }
+        // 同步 UI 下拉框
+        var sel = document.getElementById('ctrlSelect' + payload.charIdx);
+        if (sel) {
+            rebuildCtrlOptions(sel, String(payload.controller));
+        }
+        return;
+    }
+    _origOnRemoteAction(payload, fromSlot);
+};
+
+// 房主：开始游戏 → 把角色ID + charControl 同步给所有 slot
 var _origStartGame2 = startGame2;
 startGame2 = function() {
-    if (ONLINE.active && ONLINE.seat === 0) {
-        // 联机房主：发角色配置给访客，然后本地开始
+    if (ONLINE && ONLINE.active === false && NET.slotIdx === 0 && NET.roomState) {
+        // 联机模式房主：发配置
         var ids = [
             document.getElementById('heroSelect1').value,
             document.getElementById('rebelSelect2').value,
             document.getElementById('heroSelect3').value,
             document.getElementById('rebelSelect4').value
         ];
-        NET.sendAction({ type: 'charConfig', charIds: ids });
-        ONLINE.active = true;
+        var ctrl = getCurrentCharControl();
+        ONLINE.active      = true;
+        ONLINE.slotIdx     = NET.slotIdx;
+        ONLINE.charControl = ctrl.slice();
+        NET.sendAction({ type: 'charConfig', charIds: ids, charControl: ctrl });
+        if (window.AI) AI.refreshControlled();
     }
     _origStartGame2();
 };
 
 // 访客：收到角色配置后开始游戏
 function startOnlineGame(id0, id1, id2, id3) {
+    ONLINE.slotIdx = NET.slotIdx;
     setupTrace2v2();
     var lp = document.getElementById('logPanel2');
     if (lp) lp.innerHTML = '';
@@ -510,14 +686,8 @@ function startOnlineGame(id0, id1, id2, id3) {
     document.getElementById('battleArena2').style.display = 'block';
     render2(); updateTankButtons(); refreshHandStyles2();
     setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+    if (window.AI) AI.refreshControlled();
 }
-
-// 监听访客加入后，房主启用开始按钮
-var _origOnOpponentJoined = NET.onOpponentJoined;
-NET.onOpponentJoined = function(opponentName) {
-    _origOnOpponentJoined(opponentName);
-    ONLINE.active = true; // 双方就绪，联机生效
-};
 </script>
 
 <script>

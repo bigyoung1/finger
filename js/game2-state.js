@@ -35,8 +35,8 @@ function toggleTank(playerIdx, fromRemote) {
     if (G.tankIdx[camp] === playerIdx) return;
     // 坦脆流：抗伤位固定（等于坦克），不允许切换
     if (G.formation[camp] === 'tank_carry') return;
-    // 联机：不能切换敌方
-    if (ONLINE.active && !fromRemote && camp !== ONLINE.myCamp()) return;
+    // 联机：必须控制至少一个该阵营角色才能切抗伤位
+    if (ONLINE.active && !fromRemote && !ONLINE.iControlAnyOf(camp)) return;
     G.tankIdx[camp] = playerIdx;
     updateTankButtons();
     if (!fromRemote) ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });

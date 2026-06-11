@@ -4,8 +4,8 @@
 
 // ── 帮抗弹窗 ──
 function showHelpTankDialog(helperIdx, victimIdx) {
-    // 联机：只对受伤方所在阵营显示帮抗弹窗
-    if (ONLINE.active && campOf(victimIdx) !== ONLINE.myCamp()) return;
+    // 联机：只对控制 helper 的 slot 显示帮抗弹窗
+    if (ONLINE.active && ONLINE.charControl[helperIdx] !== ONLINE.slotIdx) return;
     var players = Main.turnManager.players;
     G.helpTankContext = { helperIdx: helperIdx, victimIdx: victimIdx };
 
@@ -209,6 +209,16 @@ function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
 
     // 联机：大乔不是我方角色时不显示弹窗（对方自己决定）
     if (ONLINE.active && campOf(daQiaoIdx) !== ONLINE.myCamp()) return;
+
+    // AI 自战：自动决策（大乔血量 < 进化门槛或者抢了更好就抢）
+    const daQiao = Main.turnManager.players[daQiaoIdx];
+    if (window.AI && AI.enabled && AI.controlled && AI.controlled[daQiaoIdx]) {
+        // 大乔永远抢——抢血是她的核心机制
+        clearInterval(G.stealTimer);
+        Main.invokeAction(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal });
+        render2();
+        return;
+    }
 
     _ensureStealOverlay();
     _doShowSteal(daQiaoIdx, healerIdx, netHeal);

@@ -1152,107 +1152,6 @@ Main.invokeAction = function(actorIdx,actionName,params) {
 	if(typeof render2 === 'function' && document.getElementById('battleArena2')) { render2(); } else { render(); }
 	return result;
 };
-Main.startAIBattle = function() {
-	if(ai_AIBattleRunner.instance == null) {
-		new ai_AIBattleRunner();
-	}
-	ai_AIBattleRunner.instance.startBattle();
-};
-Main.stopAIBattle = function() {
-	if(ai_AIBattleRunner.instance != null) {
-		ai_AIBattleRunner.instance.stopBattle();
-	}
-};
-Main.continueAIBattle = function() {
-	if(ai_AIBattleRunner.instance != null) {
-		ai_AIBattleRunner.instance.continueBattle();
-	}
-};
-Main.getAIBattleHistory = function() {
-	if(ai_AIBattleRunner.instance != null) {
-		return ai_AIBattleRunner.instance.getBattleHistory();
-	}
-	return [];
-};
-Main.downloadAIBattleLog = function() {
-	if(ai_AIBattleRunner.instance == null) {
-		haxe_Log.trace("[AIBattle] 无对战记录",{ fileName : "Main.hx", lineNumber : 310, className : "Main", methodName : "downloadAIBattleLog"});
-		return;
-	}
-	var history = ai_AIBattleRunner.instance.getBattleHistory();
-	if(history.length == 0) {
-		haxe_Log.trace("[AIBattle] 无对战记录",{ fileName : "Main.hx", lineNumber : 315, className : "Main", methodName : "downloadAIBattleLog"});
-		return;
-	}
-	var lines = [];
-	lines.push("═══════════════════════════════════════════════════");
-	lines.push("          指尖博弈 AI对战日志");
-	lines.push("═══════════════════════════════════════════════════");
-	lines.push("");
-	var _g = 0;
-	while(_g < history.length) {
-		var record = history[_g];
-		++_g;
-		lines.push("───────────────────────────────────────────────");
-		lines.push("第 " + record.battleNumber + " 场");
-		lines.push("对阵: " + record.player1 + " VS " + record.player2);
-		lines.push("结果: " + (record.winner != null ? Std.string(record.winner) + "获胜" : "平局"));
-		lines.push("回合数: " + record.totalTurns);
-		lines.push("");
-		lines.push("【游戏日志】");
-		var _g1 = 0;
-		var _g2 = record.log;
-		while(_g1 < _g2.length) {
-			var logLine = _g2[_g1];
-			++_g1;
-			lines.push(logLine);
-		}
-		if(record.review != null) {
-			lines.push("");
-			lines.push("【复盘】");
-			lines.push("胜者分析: " + record.review.winner);
-			var _g3 = 0;
-			var _g4 = record.review.winnerAnalysis;
-			while(_g3 < _g4.length) {
-				var a = _g4[_g3];
-				++_g3;
-				lines.push("  - " + a);
-			}
-			lines.push("败者分析: " + record.review.loser);
-			var _g5 = 0;
-			var _g6 = record.review.loserAnalysis;
-			while(_g5 < _g6.length) {
-				var a1 = _g6[_g5];
-				++_g5;
-				lines.push("  - " + a1);
-			}
-			lines.push("关键节点:");
-			var _g7 = 0;
-			var _g8 = record.review.keyMoments;
-			while(_g7 < _g8.length) {
-				var m = _g8[_g7];
-				++_g7;
-				lines.push("  ◆ " + m);
-			}
-		}
-		lines.push("");
-	}
-	lines.push("═══════════════════════════════════════════════════");
-	lines.push("总计: " + history.length + " 场对战");
-	var dateStr = HxOverrides.dateStr(new Date()).split(" ").join("_").split(":").join("-");
-	var fileName = "ai_battle_log_" + dateStr + ".txt";
-	var content = lines.join("\n");
-	var blob = new Blob([content],{ type : "text/plain;charset=utf-8"});
-	var url = URL.createObjectURL(blob);
-	var a = window.document.createElement("a");
-	a.href = url;
-	a.download = fileName;
-	window.document.body.appendChild(a);
-	a.click();
-	window.document.body.removeChild(a);
-	URL.revokeObjectURL(url);
-	haxe_Log.trace("[AIBattle] 日志已下载: " + fileName,{ fileName : "Main.hx", lineNumber : 372, className : "Main", methodName : "downloadAIBattleLog"});
-};
 Main.useCake = function(actorIdx,targetIdx,groupCount) {
 	return Main.invokeAction(actorIdx,"useCake",{ targetIdx : targetIdx, groupCount : groupCount});
 };
@@ -1374,9 +1273,9 @@ Main.render = function() {
 	if(Main.turnManager.gameOver) {
 		window.document.getElementById("actionPanel").style.display = "none";
 		var winMsg = Main.turnManager.winningCamp != null ? "🏆 最终胜出阵营：" + Std.string(Main.turnManager.winningCamp) : "💀 全场同归于尽，平局！";
-		haxe_Log.trace("=========================================",{ fileName : "Main.hx", lineNumber : 500, className : "Main", methodName : "render"});
-		haxe_Log.trace(winMsg,{ fileName : "Main.hx", lineNumber : 501, className : "Main", methodName : "render"});
-		haxe_Log.trace("=========================================",{ fileName : "Main.hx", lineNumber : 502, className : "Main", methodName : "render"});
+		haxe_Log.trace("=========================================",{ fileName : "Main.hx", lineNumber : 392, className : "Main", methodName : "render"});
+		haxe_Log.trace(winMsg,{ fileName : "Main.hx", lineNumber : 393, className : "Main", methodName : "render"});
+		haxe_Log.trace("=========================================",{ fileName : "Main.hx", lineNumber : 394, className : "Main", methodName : "render"});
 	}
 };
 Main.toggleDeadClock = function(boxId,textId,isZero,turns) {
@@ -1416,13 +1315,6 @@ Std.__name__ = true;
 Std.string = function(s) {
 	return js_Boot.__string_rec(s,"");
 };
-Std.random = function(x) {
-	if(x <= 0) {
-		return 0;
-	} else {
-		return Math.floor(Math.random() * x);
-	}
-};
 var StringTools = function() { };
 StringTools.__name__ = true;
 StringTools.replace = function(s,sub,by) {
@@ -1446,1837 +1338,6 @@ Type.enumParameters = function(e) {
 		return [];
 	}
 };
-var ai_AIBattleRunner = function() {
-	this.learning = new ai_BattleLearning();
-	this.currentReview = null;
-	this.currentRecord = null;
-	this.currentTM = null;
-	this.currentEngine = null;
-	this.pendingPrompt = false;
-	this.isRunning = false;
-	this.draws = 0;
-	this.wins2 = 0;
-	this.wins1 = 0;
-	this.totalBattles = 0;
-	this.currentRound = 0;
-	this.battleHistory = [];
-	this.battleLog = [];
-	this.roundsBeforePrompt = 50;
-	this.autoRestartDelay = 3000;
-	ai_AIBattleRunner.instance = this;
-};
-ai_AIBattleRunner.__name__ = true;
-ai_AIBattleRunner.prototype = {
-	printGameRules: function() {
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 61, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("╔═══════════════════════════════════════════════════════════════════╗",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 62, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("║                    AI 智 能 体 游 戏 指 南                          ║",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 63, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("╚═══════════════════════════════════════════════════════════════════╝",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 64, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 65, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("【核心规则】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 66, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  · 1v1回合制，每玩家2手，数字0-9",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 67, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  · 触碰：(A手+B手)%10 → 更新我方A手",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 68, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  · 目标：对方HP归零即获胜",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 69, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 70, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("【数字组合特效】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 71, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  ★ 双子星：双手相同 → S级伤害",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 72, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("    [1,1]无敌2回合 [2,2][3,3]盾30点3回合 [4,4]伤害x2 [5,5]反弹盾",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 73, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("    [6,6]回血90 [7,7]30伤+3层毒 [8,8]额外行动2次 [9,9]终极40x2^N伤 [0,0]150真伤",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 74, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 75, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  ★ 0组合：一只手变成0 → 另一手决定效果",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 76, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("    0+0→150伤  0+1/5/8/9→40伤  0+2/3→20盾  0+4/6→30回血  0+7→10伤+毒",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 77, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 78, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  ★ 单手6：手变成6 → 立即回血30点",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 79, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 80, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("【危险规则】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 81, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  · 两只手同时变0 → 立即死亡",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 82, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  · 0手有倒计时，到0时强制用0手触碰，否则手被摧毁扣HP",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 83, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 84, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("【各角色特点】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 85, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  小乔：回血/物伤x1.5，0可停留3回合",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 86, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  藏师：受伤减半，回血x2.5，可消耗蛋糕造伤+回血",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 87, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  法师：0组合伤害翻倍+45法伤+雷霆之怒",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 88, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  孙悟空：x/y动态增益，[0,2]冻结目标",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 89, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  大乔：抢夺他人50%回血，物伤回50%血",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 90, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  忍者：物伤附加50%法伤+中毒，中毒越多减伤越高",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 91, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("  张飞：怒气系统，狂暴后物伤x2.25，回血翻倍",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 92, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 93, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-		haxe_Log.trace("═══════════════════════════════════════════════════════════════════",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 94, className : "ai.AIBattleRunner", methodName : "printGameRules"});
-	}
-	,startBattle: function() {
-		if(this.isRunning) {
-			haxe_Log.trace("[AIBattle] Battle in progress, please wait",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 106, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			return;
-		}
-		this.printGameRules();
-		if(this.battleHistory.length > 0) {
-			var prev = this.battleHistory[this.battleHistory.length - 1];
-			haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 116, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("╔═══════════════════════════════════════════════════╗",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 117, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("║      上一局复盘 Battle #" + prev.battleNumber + "                   ║",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 118, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("╚═══════════════════════════════════════════════════╝",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 119, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("对阵: " + prev.player1 + " VS " + prev.player2,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 120, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("结果: " + (prev.winner != null ? Std.string(prev.winner) + "阵营获胜" : "平局") + " (" + prev.totalTurns + "回合)",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 121, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 122, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("【游戏日志】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 123, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			var _g = 0;
-			var _g1 = prev.log;
-			while(_g < _g1.length) {
-				var logLine = _g1[_g];
-				++_g;
-				haxe_Log.trace(logLine,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 125, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			}
-			if(prev.review != null) {
-				haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 128, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				haxe_Log.trace("【复盘分析】",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 129, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				haxe_Log.trace("[胜] " + prev.review.winner + ":",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 130, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				var _g = 0;
-				var _g1 = prev.review.winnerAnalysis;
-				while(_g < _g1.length) {
-					var a = _g1[_g];
-					++_g;
-					haxe_Log.trace("  * " + a,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 132, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				}
-				haxe_Log.trace("[败] " + prev.review.loser + ":",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 134, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				var _g = 0;
-				var _g1 = prev.review.loserAnalysis;
-				while(_g < _g1.length) {
-					var a = _g1[_g];
-					++_g;
-					haxe_Log.trace("  * " + a,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 136, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				}
-				haxe_Log.trace("关键节点:",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 138, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				var _g = 0;
-				var _g1 = prev.review.keyMoments;
-				while(_g < _g1.length) {
-					var m = _g1[_g];
-					++_g;
-					haxe_Log.trace("  ◆ " + m,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 140, className : "ai.AIBattleRunner", methodName : "startBattle"});
-				}
-			}
-			haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 143, className : "ai.AIBattleRunner", methodName : "startBattle"});
-			haxe_Log.trace("───────────────────────────────────────────────────",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 144, className : "ai.AIBattleRunner", methodName : "startBattle"});
-		}
-		this.isRunning = true;
-		this.pendingPrompt = false;
-		this.currentRound = 1;
-		this.battleLog = [];
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 151, className : "ai.AIBattleRunner", methodName : "startBattle"});
-		haxe_Log.trace("[AI Battle] Battle #{" + (this.totalBattles + 1) + " begins!",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 152, className : "ai.AIBattleRunner", methodName : "startBattle"});
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 153, className : "ai.AIBattleRunner", methodName : "startBattle"});
-		var char1 = this.randomCharacter();
-		var char2 = this.randomCharacter();
-		while(char2 == char1) char2 = this.randomCharacter();
-		var p1 = character_CharacterRegistry.createCharacter(char1,model_Camp.HERO);
-		var p2 = character_CharacterRegistry.createCharacter(char2,model_Camp.REBEL);
-		this.setupAndRunBattle(p1,p2);
-	}
-	,stopBattle: function() {
-		this.isRunning = false;
-		this.pendingPrompt = false;
-		this.currentEngine = null;
-		this.currentTM = null;
-		this.currentRecord = null;
-		haxe_Log.trace("[AIBattle] Auto battle stopped",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 175, className : "ai.AIBattleRunner", methodName : "stopBattle"});
-	}
-	,continueBattle: function() {
-		if(!this.pendingPrompt) {
-			return;
-		}
-		this.pendingPrompt = false;
-		haxe_Log.trace("[AIBattle] Continuing to next round!",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 184, className : "ai.AIBattleRunner", methodName : "continueBattle"});
-		this.startBattle();
-	}
-	,stopAfterPrompt: function() {
-		this.stopBattle();
-		this.printSummary();
-	}
-	,setupAndRunBattle: function(p1,p2) {
-		this.battleLog = [];
-		var record = { battleNumber : this.totalBattles + 1, player1 : p1.name, player2 : p2.name, winner : null, totalTurns : 0, log : [], review : null};
-		this.currentRecord = record;
-		var engine = new GameEngine();
-		var tm = new TurnManager();
-		engine.setTurnManager(tm);
-		this.currentEngine = engine;
-		this.currentTM = tm;
-		Main.engine = engine;
-		Main.turnManager = tm;
-		var allPlayers = [p1,p2];
-		tm.setupGame(allPlayers);
-		haxe_Log.trace("Sword [AI Battle] " + p1.name + " (" + p1.hp + "HP) VS " + p2.name + " (" + p2.hp + "HP)",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 230, className : "ai.AIBattleRunner", methodName : "setupAndRunBattle"});
-		this.learning.onBattleStart(p1.name,p2.name,true);
-		this.battleLog.push("==== Battle Start ====");
-		this.battleLog.push("P1: " + p1.name + " (HP: " + p1.hp + ", Camp: " + Std.string(p1.camp) + ")");
-		this.battleLog.push("P2: " + p2.name + " (HP: " + p2.hp + ", Camp: " + Std.string(p2.camp) + ")");
-		this.battleLog.push("");
-		this.scheduleNextStep();
-	}
-	,scheduleNextStep: function() {
-		if(!this.isRunning) {
-			return;
-		}
-		var engine = this.currentEngine;
-		var tm = this.currentTM;
-		var record = this.currentRecord;
-		if(tm == null || engine == null || record == null) {
-			this.isRunning = false;
-			return;
-		}
-		if(tm.gameOver) {
-			this.finishBattle();
-			return;
-		}
-		var currentIdx = tm.currentPlayerIdx;
-		var current = tm.players[currentIdx];
-		var opponent = tm.players[1 - currentIdx];
-		var aiInstance = currentIdx == 0 ? this.learning.getChampion() : this.learning.getCurrentAI();
-		var beforeState = ai_StateCopier.snapshot(engine,currentIdx);
-		var prevActorHp = current.hp;
-		var prevOppHp = opponent.hp;
-		var action = aiInstance.chooseActionWith(current,opponent,engine);
-		if(action == null) {
-			haxe_Log.trace("[AI Battle] " + current.name + " has no valid action, skip turn",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 277, className : "ai.AIBattleRunner", methodName : "scheduleNextStep"});
-			tm.nextTurn();
-			record.totalTurns++;
-			haxe_Timer.delay($bind(this,this.scheduleNextStep),50);
-			return;
-		}
-		var result = engine.handleTouch(current,action.myHand,opponent,action.targetHand);
-		var afterState = ai_StateCopier.snapshot(engine,currentIdx);
-		var gamma = 0.95;
-		var actorHpChange = current.hp - prevActorHp;
-		var oppHpChange = opponent.hp - prevOppHp;
-		var reward = Math.pow(gamma,record.totalTurns) * (actorHpChange - oppHpChange) / 100.0;
-		var trans = { before : beforeState, action : { myHand : action.myHand, targetHand : action.targetHand}, after : afterState, reward : reward, isTerminal : tm.gameOver, winner : tm.gameOver ? tm.winningCamp : null, turnNum : record.totalTurns, actionLogProb : 0.0, return_ : 0.0, advantage : 0.0};
-		var _this = this.learning.policyBuffer;
-		_this.buffer.push(trans);
-		if(_this.buffer.length > _this.bufferMaxSize) {
-			_this.buffer.shift();
-		}
-		this.battleLog.push("> " + current.name + " used[" + current.hands[action.myHand] + "] on " + opponent.name + "[" + opponent.hands[action.targetHand] + "] -> " + current.hands[action.myHand]);
-		haxe_Log.trace("Sword AI Action: " + current.name + " -> " + result,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 310, className : "ai.AIBattleRunner", methodName : "scheduleNextStep"});
-		var dmgDealt = prevOppHp - opponent.hp;
-		if(dmgDealt > 0) {
-			this.learning.recordEvent({ type : ai_BattleEventType.Damage, value : dmgDealt, actorName : current.name});
-		}
-		if(current.hands[0] == 0 && current.zeroTurns0 <= 1 || current.hands[1] == 0 && current.zeroTurns1 <= 1) {
-			this.learning.recordEvent({ type : ai_BattleEventType.ZeroCrisis, value : 1, actorName : current.name});
-		}
-		tm.checkGameOver();
-		record.totalTurns++;
-		if(tm.gameOver) {
-			haxe_Timer.delay($bind(this,this.finishBattle),50);
-			return;
-		}
-		tm.nextTurn();
-		haxe_Timer.delay($bind(this,this.scheduleNextStep),50);
-	}
-	,finishBattle: function() {
-		var engine = this.currentEngine;
-		var tm = this.currentTM;
-		var record = this.currentRecord;
-		if(engine == null || tm == null || record == null) {
-			this.isRunning = false;
-			return;
-		}
-		this.totalBattles++;
-		record.winner = tm.winningCamp;
-		this.learning.onBattleEnd(tm.winningCamp,record.totalTurns);
-		this.learning.applyREINFORCE();
-		var winner = null;
-		var loser = null;
-		if(tm.winningCamp == model_Camp.HERO) {
-			winner = tm.players[0];
-			loser = tm.players[1];
-			this.wins1++;
-		} else if(tm.winningCamp == model_Camp.REBEL) {
-			winner = tm.players[1];
-			loser = tm.players[0];
-			this.wins2++;
-		} else {
-			this.draws++;
-		}
-		this.battleLog.push("");
-		this.battleLog.push("==== Battle End ====");
-		this.battleLog.push("Total turns: " + record.totalTurns);
-		if(winner != null) {
-			this.battleLog.push("Winner: " + winner.name + " (HP remaining: " + winner.hp + ")");
-			this.battleLog.push("Loser: " + loser.name + " (HP remaining: " + loser.hp + ")");
-		} else {
-			this.battleLog.push("Result: Draw");
-		}
-		record.log = this.battleLog.slice();
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 383, className : "ai.AIBattleRunner", methodName : "finishBattle"});
-		haxe_Log.trace("Trophy [AI Battle] Battle #" + this.totalBattles + " ended! " + (winner != null ? winner.name + " wins!" : "Draw!"),{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 384, className : "ai.AIBattleRunner", methodName : "finishBattle"});
-		haxe_Log.trace("Record: " + this.wins1 + "W/" + this.wins2 + "W/" + this.draws + "D | " + this.learning.getProgress(),{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 385, className : "ai.AIBattleRunner", methodName : "finishBattle"});
-		if(winner != null && loser != null) {
-			this.currentReview = this.doReview(winner,loser,record,tm);
-			record.review = this.currentReview;
-		}
-		this.battleHistory.push(record);
-		this.learning.recordBattle(record.battleNumber,record.winner,record.player1,record.player2,record.totalTurns,record.log);
-		var resultStr = record.winner != null ? Std.string(record.winner) : "Draw";
-		haxe_Log.trace("[AIBattle] Battle #" + record.battleNumber + " logged (P1:" + record.player1 + " P2:" + record.player2 + " → " + resultStr + ")",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 407, className : "ai.AIBattleRunner", methodName : "finishBattle"});
-		this.currentEngine = null;
-		this.currentTM = null;
-		this.currentRecord = null;
-		this.isRunning = false;
-		if(this.currentRound >= this.roundsBeforePrompt) {
-			this.currentRound = 0;
-			this.pendingPrompt = true;
-			this.promptUser();
-		} else {
-			this.currentRound++;
-			haxe_Log.trace("[AI Battle] Auto next battle in " + this.autoRestartDelay / 1000 + "s...",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 423, className : "ai.AIBattleRunner", methodName : "finishBattle"});
-			haxe_Timer.delay($bind(this,this.startBattle),this.autoRestartDelay);
-		}
-	}
-	,doReview: function(winner,loser,record,tm) {
-		this.battleLog.push("");
-		this.battleLog.push("==== Review Analysis ====");
-		var review = { winner : winner.name, loser : loser.name, winnerAnalysis : this.analyzeWinner(winner,loser,record,tm), loserAnalysis : this.analyzeLoser(winner,loser,record,tm), keyMoments : this.findKeyMoments(record)};
-		this.battleLog.push("[Winner " + winner.name + " Analysis]");
-		var _g = 0;
-		var _g1 = review.winnerAnalysis;
-		while(_g < _g1.length) {
-			var line = _g1[_g];
-			++_g;
-			this.battleLog.push("  * " + line);
-			haxe_Log.trace("  * " + line,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 447, className : "ai.AIBattleRunner", methodName : "doReview"});
-		}
-		this.battleLog.push("");
-		this.battleLog.push("[Loser " + loser.name + " Analysis]");
-		var _g = 0;
-		var _g1 = review.loserAnalysis;
-		while(_g < _g1.length) {
-			var line = _g1[_g];
-			++_g;
-			this.battleLog.push("  * " + line);
-			haxe_Log.trace("  * " + line,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 454, className : "ai.AIBattleRunner", methodName : "doReview"});
-		}
-		this.battleLog.push("");
-		this.battleLog.push("[Key Moments]");
-		var _g = 0;
-		var _g1 = review.keyMoments;
-		while(_g < _g1.length) {
-			var moment = _g1[_g];
-			++_g;
-			this.battleLog.push("  ◆ " + moment);
-			haxe_Log.trace("  ◆ " + moment,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 461, className : "ai.AIBattleRunner", methodName : "doReview"});
-		}
-		return review;
-	}
-	,analyzeWinner: function(winner,loser,record,tm) {
-		var analysis = [];
-		var hpDiff = winner.hp - loser.hp;
-		if(hpDiff > 0) {
-			analysis.push("HP leads by " + hpDiff + ", resource advantage obvious");
-		}
-		var doubleStars = this.countDoubleStars(record.log);
-		var zeroCombos = this.countZeroCombos(record.log);
-		if(doubleStars > 0) {
-			analysis.push("Triggered " + doubleStars + " Double-Star combos");
-		}
-		if(zeroCombos > 0) {
-			analysis.push("Triggered " + zeroCombos + " Zero combos");
-		}
-		if(winner.name == "XiaoQiao" || winner.name == "xiaoqiao") {
-			analysis.push("XiaoQiao heal/damage linkage performed well");
-		} else if(winner.name == "ZangShi" || winner.name == "zangshi") {
-			var cakes = this.analyzeCakes(record.log);
-			analysis.push("Strawberry Cake system worked well (" + cakes + " uses)");
-		} else if(winner.name == "FaShi" || winner.name == "fashi") {
-			analysis.push("Mage Thunder Rage damage stacked well");
-		} else if(winner.name == "SunWuKong" || winner.name == "sunwukong") {
-			analysis.push("SunWuKong dynamic x/y bonus maximized");
-		} else if(winner.name == "RenZhe" || winner.name == "renzhe") {
-			analysis.push("Ninja poison-damage-heal loop sustained output");
-		} else if(winner.name == "ZhangFei" || winner.name == "zhangfei") {
-			analysis.push("ZhangFei Rage system reached Frenzy form");
-		}
-		analysis.push("Overall decisions reasonable, pace control good");
-		return analysis;
-	}
-	,analyzeLoser: function(winner,loser,record,tm) {
-		var analysis = [];
-		if(loser.hp <= 0) {
-			analysis.push("Killed by " + winner.name);
-		}
-		var zeroCrises = this.countZeroCrises(record.log,loser.name);
-		if(zeroCrises > 0) {
-			analysis.push("Fell into " + zeroCrises + " Zero countdown crises, decisions restricted");
-		}
-		if(loser.name == "XiaoQiao" || loser.name == "xiaoqiao") {
-			analysis.push("XiaoQiao fragile, hard to survive focus fire");
-		} else if(loser.name == "ZangShi" || loser.name == "zangshi") {
-			analysis.push("ZangShi cake system not effectively accumulated");
-		} else if(loser.name == "FaShi" || loser.name == "fashi") {
-			analysis.push("Mage HP too low, easy to oneshot");
-		} else if(loser.name == "DaQiao" || loser.name == "daqiao") {
-			analysis.push("DaQiao steal advantage not utilized in 1v1");
-		}
-		analysis.push("Suggestion: Optimize Zero usage strategy, avoid countdown crisis");
-		analysis.push("Suggestion: Trigger more heal/shield combos, maintain resource advantage");
-		return analysis;
-	}
-	,findKeyMoments: function(record) {
-		var moments = [];
-		var log = record.log;
-		var _g = 0;
-		while(_g < log.length) {
-			var line = log[_g];
-			++_g;
-			if(line.indexOf("S") != -1 && (line.indexOf("Double") != -1 || line.indexOf("Trophy") != -1)) {
-				moments.push("Key combo: " + line);
-			} else if(line.indexOf("damage") != -1 && line.indexOf("S") != -1) {
-				moments.push("Key damage: " + line);
-			} else if(line.indexOf("Winner") != -1) {
-				moments.push("Game end: " + line);
-			}
-		}
-		if(moments.length == 0) {
-			moments.push("Battle even, no decisive moment");
-		}
-		return moments;
-	}
-	,randomCharacter: function() {
-		var options = ["xiaoqiao","zangshi","fashi","sunwukong","daqiao","renzhe","zhangfei"];
-		return options[Std.random(options.length)];
-	}
-	,countDoubleStars: function(log) {
-		var count = 0;
-		var _g = 0;
-		while(_g < log.length) {
-			var line = log[_g];
-			++_g;
-			if(line.indexOf("Double") != -1 || line.indexOf("double") != -1) {
-				++count;
-			}
-		}
-		return count;
-	}
-	,countZeroCombos: function(log) {
-		var count = 0;
-		var _g = 0;
-		while(_g < log.length) {
-			var line = log[_g];
-			++_g;
-			if(line.indexOf("Zero") != -1 || line.indexOf("zero") != -1) {
-				++count;
-			}
-		}
-		return count;
-	}
-	,countZeroCrises: function(log,playerName) {
-		var count = 0;
-		var _g = 0;
-		while(_g < log.length) {
-			var line = log[_g];
-			++_g;
-			if(line.indexOf(playerName) != -1 && line.indexOf("countdown") != -1) {
-				++count;
-			}
-		}
-		return count;
-	}
-	,analyzeCakes: function(log) {
-		var count = 0;
-		var _g = 0;
-		while(_g < log.length) {
-			var line = log[_g];
-			++_g;
-			if(line.indexOf("Cake") != -1 && line.indexOf("consume") != -1) {
-				++count;
-			}
-		}
-		return count;
-	}
-	,promptUser: function() {
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 620, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 621, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("[AI Battle] Completed " + this.roundsBeforePrompt + " battles!",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 622, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("Total record: " + this.wins1 + "W/" + this.wins2 + "W/" + this.draws + "D",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 623, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 624, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("Continue battle?",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 625, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("  -> Main.continueAIBattle() to continue",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 626, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("  -> Main.stopAIBattle() to stop and view summary",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 627, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 628, className : "ai.AIBattleRunner", methodName : "promptUser"});
-		var $window = window;
-		var shouldContinue = $window.confirm("AI battle completed " + this.roundsBeforePrompt + " rounds!\nRecord: " + this.wins1 + "W/" + this.wins2 + "W/" + this.draws + "D\n\nContinue battle?");
-		if(shouldContinue) {
-			this.continueBattle();
-		} else {
-			this.stopAfterPrompt();
-		}
-	}
-	,printSummary: function() {
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 641, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 642, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("           AI Battle Summary Report",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 643, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 644, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("Total battles: " + this.totalBattles,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 645, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		if(this.totalBattles > 0) {
-			haxe_Log.trace("Win rate: P1 " + this.wins1 + " (" + (this.wins1 / this.totalBattles * 100 | 0) + "%) | P2 " + this.wins2 + " (" + (this.wins2 / this.totalBattles * 100 | 0) + "%) | Draw " + this.draws,{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 647, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		}
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 649, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		if(this.battleHistory.length > 0) {
-			haxe_Log.trace("Recent battles:",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 652, className : "ai.AIBattleRunner", methodName : "printSummary"});
-			var start = Math.max(0,this.battleHistory.length - 5) | 0;
-			var _g = start;
-			var _g1 = this.battleHistory.length;
-			while(_g < _g1) {
-				var i = _g++;
-				var r = this.battleHistory[i];
-				var result = r.winner != null ? "" + Std.string(r.winner) + "W" : "Draw";
-				haxe_Log.trace("  Battle" + r.battleNumber + ": " + r.player1 + " VS " + r.player2 + " -> " + result + " (" + r.totalTurns + " turns)",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 657, className : "ai.AIBattleRunner", methodName : "printSummary"});
-			}
-		}
-		haxe_Log.trace("==================================================",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 661, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 662, className : "ai.AIBattleRunner", methodName : "printSummary"});
-		haxe_Log.trace("Detailed logs saved to console, use Main.downloadAIBattleLog() to download",{ fileName : "./ai/AIBattleRunner.hx", lineNumber : 663, className : "ai.AIBattleRunner", methodName : "printSummary"});
-	}
-	,getBattleHistory: function() {
-		return this.battleHistory;
-	}
-	,__class__: ai_AIBattleRunner
-};
-var js_Boot = function() { };
-js_Boot.__name__ = true;
-js_Boot.getClass = function(o) {
-	if(o == null) {
-		return null;
-	} else if(((o) instanceof Array)) {
-		return Array;
-	} else {
-		var cl = o.__class__;
-		if(cl != null) {
-			return cl;
-		}
-		var name = js_Boot.__nativeClassName(o);
-		if(name != null) {
-			return js_Boot.__resolveNativeClass(name);
-		}
-		return null;
-	}
-};
-js_Boot.__string_rec = function(o,s) {
-	if(o == null) {
-		return "null";
-	}
-	if(s.length >= 5) {
-		return "<...>";
-	}
-	var t = typeof(o);
-	if(t == "function" && (o.__name__ || o.__ename__)) {
-		t = "object";
-	}
-	switch(t) {
-	case "function":
-		return "<function>";
-	case "object":
-		if(o.__enum__) {
-			var e = $hxEnums[o.__enum__];
-			var con = e.__constructs__[o._hx_index];
-			var n = con._hx_name;
-			if(con.__params__) {
-				s = s + "\t";
-				return n + "(" + ((function($this) {
-					var $r;
-					var _g = [];
-					{
-						var _g1 = 0;
-						var _g2 = con.__params__;
-						while(true) {
-							if(!(_g1 < _g2.length)) {
-								break;
-							}
-							var p = _g2[_g1];
-							_g1 = _g1 + 1;
-							_g.push(js_Boot.__string_rec(o[p],s));
-						}
-					}
-					$r = _g;
-					return $r;
-				}(this))).join(",") + ")";
-			} else {
-				return n;
-			}
-		}
-		if(((o) instanceof Array)) {
-			var str = "[";
-			s += "\t";
-			var _g = 0;
-			var _g1 = o.length;
-			while(_g < _g1) {
-				var i = _g++;
-				str += (i > 0 ? "," : "") + js_Boot.__string_rec(o[i],s);
-			}
-			str += "]";
-			return str;
-		}
-		var tostr;
-		try {
-			tostr = o.toString;
-		} catch( _g ) {
-			return "???";
-		}
-		if(tostr != null && tostr != Object.toString && typeof(tostr) == "function") {
-			var s2 = o.toString();
-			if(s2 != "[object Object]") {
-				return s2;
-			}
-		}
-		var str = "{\n";
-		s += "\t";
-		var hasp = o.hasOwnProperty != null;
-		var k = null;
-		for( k in o ) {
-		if(hasp && !o.hasOwnProperty(k)) {
-			continue;
-		}
-		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
-			continue;
-		}
-		if(str.length != 2) {
-			str += ", \n";
-		}
-		str += s + k + " : " + js_Boot.__string_rec(o[k],s);
-		}
-		s = s.substring(1);
-		str += "\n" + s + "}";
-		return str;
-	case "string":
-		return o;
-	default:
-		return String(o);
-	}
-};
-js_Boot.__interfLoop = function(cc,cl) {
-	if(cc == null) {
-		return false;
-	}
-	if(cc == cl) {
-		return true;
-	}
-	var intf = cc.__interfaces__;
-	if(intf != null) {
-		var _g = 0;
-		var _g1 = intf.length;
-		while(_g < _g1) {
-			var i = _g++;
-			var i1 = intf[i];
-			if(i1 == cl || js_Boot.__interfLoop(i1,cl)) {
-				return true;
-			}
-		}
-	}
-	return js_Boot.__interfLoop(cc.__super__,cl);
-};
-js_Boot.__instanceof = function(o,cl) {
-	if(cl == null) {
-		return false;
-	}
-	switch(cl) {
-	case Array:
-		return ((o) instanceof Array);
-	case Bool:
-		return typeof(o) == "boolean";
-	case Dynamic:
-		return o != null;
-	case Float:
-		return typeof(o) == "number";
-	case Int:
-		if(typeof(o) == "number") {
-			return ((o | 0) === o);
-		} else {
-			return false;
-		}
-		break;
-	case String:
-		return typeof(o) == "string";
-	default:
-		if(o != null) {
-			if(typeof(cl) == "function") {
-				if(js_Boot.__downcastCheck(o,cl)) {
-					return true;
-				}
-			} else if(typeof(cl) == "object" && js_Boot.__isNativeObj(cl)) {
-				if(((o) instanceof cl)) {
-					return true;
-				}
-			}
-		} else {
-			return false;
-		}
-		if(cl == Class ? o.__name__ != null : false) {
-			return true;
-		}
-		if(cl == Enum ? o.__ename__ != null : false) {
-			return true;
-		}
-		return o.__enum__ != null ? $hxEnums[o.__enum__] == cl : false;
-	}
-};
-js_Boot.__downcastCheck = function(o,cl) {
-	if(!((o) instanceof cl)) {
-		if(cl.__isInterface__) {
-			return js_Boot.__interfLoop(js_Boot.getClass(o),cl);
-		} else {
-			return false;
-		}
-	} else {
-		return true;
-	}
-};
-js_Boot.__cast = function(o,t) {
-	if(o == null || js_Boot.__instanceof(o,t)) {
-		return o;
-	} else {
-		throw haxe_Exception.thrown("Cannot cast " + Std.string(o) + " to " + Std.string(t));
-	}
-};
-js_Boot.__nativeClassName = function(o) {
-	var name = js_Boot.__toStr.call(o).slice(8,-1);
-	if(name == "Object" || name == "Function" || name == "Math" || name == "JSON") {
-		return null;
-	}
-	return name;
-};
-js_Boot.__isNativeObj = function(o) {
-	return js_Boot.__nativeClassName(o) != null;
-};
-js_Boot.__resolveNativeClass = function(name) {
-	return $global[name];
-};
-var ai_AIThink = function(id,weights) {
-	this.elo = 1200.0;
-	this.id = id != null ? id : "AI_" + Std.string(Std.random(9999));
-	this.weights = weights != null ? weights : ai_AIThink.copyWeights(ai_AIThink.DEFAULT_WEIGHTS);
-};
-ai_AIThink.__name__ = true;
-ai_AIThink.copyWeights = function(w) {
-	return { damage : w.damage, heal : w.heal, shield : w.shield, poison : w.poison, doubleStar : w.doubleStar, zeroCombo : w.zeroCombo, sixCombo : w.sixCombo, zeroRisk : w.zeroRisk, zeroCountdown : w.zeroCountdown, oppZeroGood : w.oppZeroGood, hpAdvantage : w.hpAdvantage, handQuality : w.handQuality, mageZeroBonus : w.mageZeroBonus, wukongZeroTwoBonus : w.wukongZeroTwoBonus, ninjaAttackBonus : w.ninjaAttackBonus, zhangfeiHealBonus : w.zhangfeiHealBonus, xiaoqiaoHealBonus : w.xiaoqiaoHealBonus, zangshiCakeThreshold : w.zangshiCakeThreshold, zhangfeiModal1Pref : w.zhangfeiModal1Pref, zhangfeiModal3Pref : w.zhangfeiModal3Pref};
-};
-ai_AIThink.mutateWeights = function(base,magnitude) {
-	if(magnitude == null) {
-		magnitude = 0.15;
-	}
-	var perturb = function(v) {
-		var noise = (Math.random() * 2 - 1) * magnitude;
-		var result = v * (1.0 + noise);
-		if(v < 0 && result > 0) {
-			return v * 0.5;
-		}
-		if(v > 0 && result < 0) {
-			return v * 0.5;
-		}
-		return result;
-	};
-	return { damage : perturb(base.damage), heal : perturb(base.heal), shield : perturb(base.shield), poison : perturb(base.poison), doubleStar : perturb(base.doubleStar), zeroCombo : perturb(base.zeroCombo), sixCombo : perturb(base.sixCombo), zeroRisk : perturb(base.zeroRisk), zeroCountdown : perturb(base.zeroCountdown), oppZeroGood : perturb(base.oppZeroGood), hpAdvantage : perturb(base.hpAdvantage), handQuality : perturb(base.handQuality), mageZeroBonus : perturb(base.mageZeroBonus), wukongZeroTwoBonus : perturb(base.wukongZeroTwoBonus), ninjaAttackBonus : perturb(base.ninjaAttackBonus), zhangfeiHealBonus : perturb(base.zhangfeiHealBonus), xiaoqiaoHealBonus : perturb(base.xiaoqiaoHealBonus), zangshiCakeThreshold : Math.max(3,perturb(base.zangshiCakeThreshold)), zhangfeiModal1Pref : perturb(base.zhangfeiModal1Pref), zhangfeiModal3Pref : perturb(base.zhangfeiModal3Pref)};
-};
-ai_AIThink.getWeight = function(name) {
-	return ai_AIThink.getWeightFrom(ai_AIThink._defaultInstance.weights,name);
-};
-ai_AIThink.setWeight = function(name,value) {
-	ai_AIThink.setWeightOn(ai_AIThink._defaultInstance.weights,name,value);
-};
-ai_AIThink.estimateImmediateBenefit = function(actor,opponent,handIdx,oldValue,newValue,w) {
-	var score = 0;
-	var simHands = actor.hands.slice();
-	simHands[handIdx] = newValue;
-	if(newValue == 6 && oldValue != 6) {
-		score += 30 * w.heal;
-	}
-	if(simHands[0] == 0 || simHands[1] == 0) {
-		var otherVal = simHands[0] == 0 ? simHands[1] : simHands[0];
-		score += ai_AIThink.evaluateZeroComboValue(otherVal,w);
-	}
-	if(simHands[0] == simHands[1]) {
-		score += ai_AIThink.estimateDoubleStarValue(simHands[0],w);
-	}
-	return score;
-};
-ai_AIThink.evaluateZeroComboValue = function(otherValue,w) {
-	switch(otherValue) {
-	case 0:
-		return 150 * w.damage;
-	case 2:case 3:
-		return 20 * w.shield;
-	case 4:case 6:
-		return 30 * w.heal;
-	case 7:
-		return 10 * w.damage + 10 * w.poison;
-	case 1:case 5:case 8:case 9:
-		return 40 * w.damage;
-	}
-	return 0;
-};
-ai_AIThink.estimateDoubleStarValue = function(num,w) {
-	switch(num) {
-	case 0:
-		return 150 * w.damage;
-	case 1:
-		return 50;
-	case 2:case 3:
-		return 30 * w.shield;
-	case 4:
-		return 40 * w.damage;
-	case 5:
-		return 30;
-	case 6:
-		return 90 * w.heal;
-	case 7:
-		return 30 * w.damage + 30 * w.poison;
-	case 8:
-		return 60 * w.damage;
-	case 9:
-		return 200 * w.damage;
-	}
-	return w.doubleStar;
-};
-ai_AIThink.evaluateComboPotential = function(actor,newValue,handIdx,w) {
-	var score = 0;
-	var otherValue = actor.hands[1 - handIdx];
-	if(newValue == otherValue) {
-		score += w.doubleStar;
-	} else if(newValue != 0 && (Math.abs(newValue - otherValue) == 1 || Math.abs(newValue - otherValue) == 9)) {
-		score += 10;
-	}
-	if(newValue == 0) {
-		score += w.zeroCombo;
-	}
-	if(otherValue == 6 || newValue == 6) {
-		score += w.sixCombo;
-	}
-	return score;
-};
-ai_AIThink.evaluateRisk = function(actor,handIdx,newValue,w) {
-	var score = 0;
-	return score;
-};
-ai_AIThink.evaluateOpponentThreat = function(actor,opponent,w) {
-	var score = 0;
-	if(opponent.hands[0] == 0 && opponent.hands[1] == 0) {
-		score += 30;
-	}
-	if(opponent.hands[0] == 0 && opponent.zeroTurns0 <= 1) {
-		score += w.oppZeroGood * 0.5;
-	}
-	if(opponent.hands[1] == 0 && opponent.zeroTurns1 <= 1) {
-		score += w.oppZeroGood * 0.5;
-	}
-	var hpDiff = actor.hp - opponent.hp;
-	score += hpDiff * w.hpAdvantage;
-	return score;
-};
-ai_AIThink.evaluateCharacterSpecific = function(actor,opponent,myHandIdx,newValue,w,engine) {
-	var score = 0;
-	var name = actor.name;
-	var otherIdx = 1 - myHandIdx;
-	var otherVal = actor.hands[otherIdx];
-	if(name == "法师" || name == "fashi") {
-		if(newValue == 0) {
-			score += w.mageZeroBonus;
-		}
-	}
-	if(name == "孙悟空" || name == "sunwukong") {
-		if(newValue == 0 && otherVal == 2 || newValue == 2 && otherVal == 0) {
-			score += w.wukongZeroTwoBonus;
-		}
-		if(newValue != 0 && newValue != 2) {
-			score += 5;
-		}
-	}
-	if(name == "忍者" || name == "renzhe") {
-		if(newValue != 0) {
-			var poisonBuff = opponent.getBuff("POISON");
-			var poisonLayers = poisonBuff != null ? poisonBuff.layers : 0;
-			score += w.ninjaAttackBonus + poisonLayers * 3.0;
-		}
-	}
-	if(name == "张飞" || name == "zhangfei") {
-		if(newValue == 4 || newValue == 6) {
-			score += w.zhangfeiHealBonus;
-		}
-		var zf = ((actor) instanceof character_ZhangFei) ? actor : null;
-		if(zf != null) {
-			if(zf.rage >= 20) {
-				score += 20;
-			}
-			if(zf.frenzyTurns > 0) {
-				score += 15;
-			}
-			if(zf.modal == 1) {
-				score += w.zhangfeiModal1Pref;
-			}
-			if(zf.modal == 3 && newValue != 0) {
-				score += w.zhangfeiModal3Pref;
-			}
-		}
-	}
-	if(name == "小乔" || name == "xiaoqiao") {
-		if(newValue == 6) {
-			score += w.xiaoqiaoHealBonus;
-		}
-		if(newValue == 4) {
-			score += w.xiaoqiaoHealBonus * 0.5;
-		}
-	}
-	if(name == "藏师" || name == "zangshi") {
-		var zs = ((actor) instanceof character_ZangShi) ? actor : null;
-		if(zs != null && zs.cakes >= (w.zangshiCakeThreshold | 0)) {
-			if(newValue == 4 || newValue == 6) {
-				score += 8;
-			}
-		}
-	}
-	if(name == "大乔" || name == "daqiao") {
-		if(newValue != 0) {
-			score += 8;
-		}
-		if(actor.hp > 250 && !((actor) instanceof character_DaQiao)) {
-			score += 15;
-		}
-	}
-	return score;
-};
-ai_AIThink.weightsToMap = function(w) {
-	var m = new haxe_ds_StringMap();
-	m.h["damage"] = w.damage;
-	m.h["heal"] = w.heal;
-	m.h["shield"] = w.shield;
-	m.h["poison"] = w.poison;
-	m.h["doubleStar"] = w.doubleStar;
-	m.h["zeroCombo"] = w.zeroCombo;
-	m.h["sixCombo"] = w.sixCombo;
-	m.h["zeroRisk"] = w.zeroRisk;
-	m.h["zeroCountdown"] = w.zeroCountdown;
-	m.h["oppZeroGood"] = w.oppZeroGood;
-	m.h["hpAdvantage"] = w.hpAdvantage;
-	m.h["handQuality"] = w.handQuality;
-	m.h["mageZeroBonus"] = w.mageZeroBonus;
-	m.h["wukongZeroTwoBonus"] = w.wukongZeroTwoBonus;
-	m.h["ninjaAttackBonus"] = w.ninjaAttackBonus;
-	m.h["zhangfeiHealBonus"] = w.zhangfeiHealBonus;
-	m.h["xiaoqiaoHealBonus"] = w.xiaoqiaoHealBonus;
-	return m;
-};
-ai_AIThink.getWeightFrom = function(w,name) {
-	switch(name) {
-	case "damage":
-		return w.damage;
-	case "doubleStar":
-		return w.doubleStar;
-	case "handQuality":
-		return w.handQuality;
-	case "heal":
-		return w.heal;
-	case "hpAdvantage":
-		return w.hpAdvantage;
-	case "mageZeroBonus":
-		return w.mageZeroBonus;
-	case "ninjaAttackBonus":
-		return w.ninjaAttackBonus;
-	case "oppZeroGood":
-		return w.oppZeroGood;
-	case "poison":
-		return w.poison;
-	case "shield":
-		return w.shield;
-	case "sixCombo":
-		return w.sixCombo;
-	case "wukongZeroTwoBonus":
-		return w.wukongZeroTwoBonus;
-	case "xiaoqiaoHealBonus":
-		return w.xiaoqiaoHealBonus;
-	case "zeroCombo":
-		return w.zeroCombo;
-	case "zeroCountdown":
-		return w.zeroCountdown;
-	case "zeroRisk":
-		return w.zeroRisk;
-	case "zhangfeiHealBonus":
-		return w.zhangfeiHealBonus;
-	}
-	return 0.0;
-};
-ai_AIThink.setWeightOn = function(w,name,value) {
-	switch(name) {
-	case "damage":
-		w.damage = value;
-		break;
-	case "doubleStar":
-		w.doubleStar = value;
-		break;
-	case "handQuality":
-		w.handQuality = value;
-		break;
-	case "heal":
-		w.heal = value;
-		break;
-	case "hpAdvantage":
-		w.hpAdvantage = value;
-		break;
-	case "mageZeroBonus":
-		w.mageZeroBonus = value;
-		break;
-	case "ninjaAttackBonus":
-		w.ninjaAttackBonus = value;
-		break;
-	case "oppZeroGood":
-		w.oppZeroGood = value;
-		break;
-	case "poison":
-		w.poison = value;
-		break;
-	case "shield":
-		w.shield = value;
-		break;
-	case "sixCombo":
-		w.sixCombo = value;
-		break;
-	case "wukongZeroTwoBonus":
-		w.wukongZeroTwoBonus = value;
-		break;
-	case "xiaoqiaoHealBonus":
-		w.xiaoqiaoHealBonus = value;
-		break;
-	case "zeroCombo":
-		w.zeroCombo = value;
-		break;
-	case "zeroCountdown":
-		w.zeroCountdown = value;
-		break;
-	case "zeroRisk":
-		w.zeroRisk = value;
-		break;
-	case "zhangfeiHealBonus":
-		w.zhangfeiHealBonus = value;
-		break;
-	}
-};
-ai_AIThink.prototype = {
-	chooseActionWith: function(actor,opponent,engine) {
-		var candidates = [];
-		var _g = 0;
-		while(_g < 2) {
-			var myHandIdx = _g++;
-			var _g1 = 0;
-			while(_g1 < 2) {
-				var targetHandIdx = _g1++;
-				if(opponent.hands[targetHandIdx] == 0) {
-					continue;
-				}
-				if(!actor.isValidTouch(myHandIdx,opponent,targetHandIdx)) {
-					continue;
-				}
-				var score = this.evaluateMoveWith(actor,opponent,myHandIdx,targetHandIdx,engine);
-				candidates.push({ myHandIdx : myHandIdx, targetHandIdx : targetHandIdx, score : score});
-			}
-		}
-		if(candidates.length == 0) {
-			return null;
-		}
-		candidates.sort(function(a,b) {
-			return b.score - a.score | 0;
-		});
-		var topCount = Math.min(3,candidates.length) | 0;
-		var chosen = candidates[Std.random(topCount)];
-		haxe_Log.trace("🧠 [" + this.id + "] " + actor.name + " 选择：手" + chosen.myHandIdx + "→对手手" + chosen.targetHandIdx + "，分数" + (chosen.score | 0),{ fileName : "./ai/AIThink.hx", lineNumber : 156, className : "ai.AIThink", methodName : "chooseActionWith"});
-		return { myHand : chosen.myHandIdx, targetHand : chosen.targetHandIdx};
-	}
-	,evaluateMoveWith: function(actor,opponent,myHandIdx,targetHandIdx,engine) {
-		var w = this.weights;
-		var score = 0;
-		var oldValue = actor.hands[myHandIdx];
-		var newValue = (oldValue + opponent.hands[targetHandIdx]) % 10;
-		score += ai_AIThink.estimateImmediateBenefit(actor,opponent,myHandIdx,oldValue,newValue,w);
-		score += ai_AIThink.evaluateComboPotential(actor,newValue,myHandIdx,w);
-		score += ai_AIThink.evaluateRisk(actor,myHandIdx,newValue,w);
-		score += ai_AIThink.evaluateOpponentThreat(actor,opponent,w);
-		score += ai_AIThink.evaluateCharacterSpecific(actor,opponent,myHandIdx,newValue,w,engine);
-		return score;
-	}
-	,__class__: ai_AIThink
-};
-var ai_PolicyBuffer = function() {
-	this.bufferMaxSize = 2000;
-	this.gamma = 0.95;
-	this.buffer = [];
-};
-ai_PolicyBuffer.__name__ = true;
-ai_PolicyBuffer.prototype = {
-	computeReturns: function() {
-		var T = this.buffer.length;
-		var _g = 0;
-		var _g1 = T;
-		while(_g < _g1) {
-			var t = _g++;
-			var G = 0;
-			var _g2 = 0;
-			var _g3 = T - t;
-			while(_g2 < _g3) {
-				var k = _g2++;
-				G += Math.pow(this.gamma,k) * this.buffer[t + k].reward;
-			}
-			this.buffer[t].return_ = G;
-		}
-	}
-	,computeAdvantages: function(baseline) {
-		var _g = 0;
-		var _g1 = this.buffer.length;
-		while(_g < _g1) {
-			var t = _g++;
-			var v = baseline.predict(this.buffer[t].before);
-			this.buffer[t].advantage = this.buffer[t].return_ - v;
-		}
-	}
-	,clear: function() {
-		this.buffer = [];
-	}
-	,__class__: ai_PolicyBuffer
-};
-var ai_RLValueFunction = function() {
-	var _g = [];
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	_g.push(0.0);
-	this.weights = _g;
-};
-ai_RLValueFunction.__name__ = true;
-ai_RLValueFunction.prototype = {
-	predict: function(state) {
-		var f = this.extractStateFeatures(state);
-		var sum = 0.0;
-		sum += this.weights[0] * f[0];
-		sum += this.weights[1] * f[1];
-		sum += this.weights[2] * f[2];
-		sum += this.weights[3] * f[3];
-		sum += this.weights[4] * f[4];
-		sum += this.weights[5] * f[5];
-		sum += this.weights[6] * f[6];
-		sum += this.weights[7] * f[7];
-		sum += this.weights[8] * f[8];
-		sum += this.weights[9] * f[9];
-		sum += this.weights[10] * f[10];
-		sum += this.weights[11] * f[11];
-		sum += this.weights[12] * f[12];
-		sum += this.weights[13] * f[13];
-		sum += this.weights[14] * f[14];
-		sum += this.weights[15] * f[15];
-		sum += this.weights[16] * f[16];
-		sum += this.weights[17] * f[17];
-		sum += this.weights[18] * f[18];
-		sum += this.weights[19] * f[19];
-		sum += this.weights[20] * f[20];
-		return sum;
-	}
-	,batchUpdate: function(transitions,alpha) {
-		if(alpha == null) {
-			alpha = 0.001;
-		}
-		var n = transitions.length;
-		if(n == 0) {
-			return;
-		}
-		var sumError = 0.0;
-		var _g = 0;
-		var _g1 = n;
-		while(_g < _g1) {
-			var t = _g++;
-			var err = transitions[t].return_ - this.predict(transitions[t].before);
-			sumError += err * err;
-		}
-		var avgError = sumError / n;
-		var scale = Math.min(1.0,avgError / 10.0);
-		var _g = 0;
-		var _g1 = n;
-		while(_g < _g1) {
-			var t = _g++;
-			var err = transitions[t].return_ - this.predict(transitions[t].before);
-			var f = this.extractStateFeatures(transitions[t].before);
-			var _g2 = 0;
-			while(_g2 < 21) {
-				var i = _g2++;
-				this.weights[i] += alpha * scale * err * f[i];
-			}
-		}
-	}
-	,extractStateFeatures: function(state) {
-		var f = [];
-		f.push(1.0);
-		f.push(state.actorHp / 300.0);
-		f.push(state.oppHp / 300.0);
-		f.push(0.0);
-		f.push(0.0);
-		f.push(state.actorHands[0] == state.actorHands[1] ? 1.0 : 0.0);
-		f.push(state.actorHands[0] == 0 || state.actorHands[1] == 0 ? 1.0 : 0.0);
-		f.push(state.actorHands[0] == 6 || state.actorHands[1] == 6 ? 1.0 : 0.0);
-		f.push(state.actorHands[0] == 0 && state.actorZeroTurns[0] <= 1 || state.actorHands[1] == 0 && state.actorZeroTurns[1] <= 1 ? 1.0 : 0.0);
-		f.push(state.actorHands[0] == 0 && state.actorHands[1] == 0 ? 1.0 : 0.0);
-		f.push(state.oppHands[0] == 0 && state.oppZeroTurns[0] <= 1 || state.oppHands[1] == 0 && state.oppZeroTurns[1] <= 1 ? 1.0 : 0.0);
-		f.push((state.actorHp - state.oppHp) / 300.0);
-		f.push((state.actorHands[0] + state.actorHands[1]) / 18.0);
-		f.push(0.0);
-		f.push(0.0);
-		f.push(state.actorPoisonLayers > 0 ? 1.0 : 0.0);
-		f.push(state.actorRage > 0 ? state.actorRage / 24.0 : 0.0);
-		f.push(0.0);
-		f.push(state.actorCakes > 0 ? state.actorCakes / 10.0 : 0.0);
-		f.push(state.actorModal == 1 ? 1.0 : 0.0);
-		f.push(state.actorModal == 3 ? 1.0 : 0.0);
-		return f;
-	}
-	,__class__: ai_RLValueFunction
-};
-var ai_StateCopier = function() { };
-ai_StateCopier.__name__ = true;
-ai_StateCopier.snapshot = function(engine,actorIdx) {
-	var tm = engine.turnManager;
-	var actor = tm.players[actorIdx];
-	var opp = tm.players[1 - actorIdx];
-	return { actorName : actor.name, actorCamp : actor.camp, actorHp : actor.hp, actorHands : actor.hands.slice(), actorZeroTurns : [actor.zeroTurns0,actor.zeroTurns1], actorRage : ai_StateCopier.getRage(actor), actorFrenzy : ai_StateCopier.getFrenzy(actor), actorModal : ai_StateCopier.getModal(actor), actorPoisonLayers : ai_StateCopier.getPoisonLayers(actor), actorCakes : ai_StateCopier.getCakes(actor), oppName : opp.name, oppCamp : opp.camp, oppHp : opp.hp, oppHands : opp.hands.slice(), oppZeroTurns : [opp.zeroTurns0,opp.zeroTurns1], oppPoisonLayers : ai_StateCopier.getPoisonLayers(opp), turnNumber : tm.turnCount, isGameOver : tm.gameOver, winner : tm.winningCamp};
-};
-ai_StateCopier.restorePlayer = function(state,isActor) {
-	var name = isActor ? state.actorName : state.oppName;
-	var camp = isActor ? state.actorCamp : state.oppCamp;
-	var p = character_CharacterRegistry.createCharacter(name,camp);
-	p.hands[0] = isActor ? state.actorHands[0] : state.oppHands[0];
-	p.hands[1] = isActor ? state.actorHands[1] : state.oppHands[1];
-	p.hp = isActor ? state.actorHp : state.oppHp;
-	if(isActor) {
-		p.zeroTurns0 = state.actorZeroTurns[0];
-		p.zeroTurns1 = state.actorZeroTurns[1];
-		ai_StateCopier.setRage(p,state.actorRage);
-		ai_StateCopier.setFrenzy(p,state.actorFrenzy);
-		ai_StateCopier.setModal(p,state.actorModal);
-	} else {
-		p.zeroTurns0 = state.oppZeroTurns[0];
-		p.zeroTurns1 = state.oppZeroTurns[1];
-	}
-	return p;
-};
-ai_StateCopier.getRage = function(p) {
-	if(((p) instanceof character_ZhangFei)) {
-		return p.rage;
-	}
-	return 0;
-};
-ai_StateCopier.getFrenzy = function(p) {
-	if(((p) instanceof character_ZhangFei)) {
-		return p.frenzyTurns;
-	}
-	return 0;
-};
-ai_StateCopier.getModal = function(p) {
-	if(((p) instanceof character_ZhangFei)) {
-		return p.modal;
-	}
-	return 0;
-};
-ai_StateCopier.getPoisonLayers = function(p) {
-	var b = p.getBuff("POISON");
-	if(b != null) {
-		return b.layers;
-	} else {
-		return 0;
-	}
-};
-ai_StateCopier.getCakes = function(p) {
-	if(((p) instanceof character_ZangShi)) {
-		return p.cakes;
-	}
-	return 0;
-};
-ai_StateCopier.setRage = function(p,v) {
-	if(((p) instanceof character_ZhangFei)) {
-		p.rage = v;
-	}
-};
-ai_StateCopier.setFrenzy = function(p,v) {
-	if(((p) instanceof character_ZhangFei)) {
-		p.frenzyTurns = v;
-	}
-};
-ai_StateCopier.setModal = function(p,v) {
-	if(((p) instanceof character_ZhangFei)) {
-		p.modal = v;
-	}
-};
-function ai_AIThink_extractFeatureVector(actor,opponent,myHandIdx,targetHandIdx,engine) {
-	var w = ai_AIThink.DEFAULT_WEIGHTS;
-	var oldValue = actor.hands[myHandIdx];
-	var newValue = (oldValue + opponent.hands[targetHandIdx]) % 10;
-	var simHands = actor.hands.slice();
-	simHands[myHandIdx] = newValue;
-	var otherIdx = 1 - myHandIdx;
-	var otherValue = simHands[otherIdx];
-	var f = [];
-	var dmgBonus = 0.0;
-	if(simHands[0] == 0 || simHands[1] == 0) {
-		var ov = simHands[0] == 0 ? simHands[1] : simHands[0];
-		if(ov == 0) {
-			dmgBonus = 150.0;
-		} else if(ov == 1 || ov == 5 || ov == 8 || ov == 9) {
-			dmgBonus = 40.0;
-		} else if(ov == 2 || ov == 3) {
-			dmgBonus = 20.0;
-		} else if(ov == 4 || ov == 6) {
-			dmgBonus = 0.0;
-		} else if(ov == 7) {
-			dmgBonus = 10.0;
-		}
-	}
-	f.push(dmgBonus / 150.0);
-	var healBonus = 0.0;
-	if(newValue == 6 && oldValue != 6) {
-		healBonus = 30.0;
-	}
-	if(simHands[0] == 6 || simHands[1] == 6) {
-		healBonus = 30.0;
-	}
-	f.push(healBonus / 90.0);
-	var shieldBonus = 0.0;
-	if(simHands[0] == 0 || simHands[1] == 0) {
-		var ov = simHands[0] == 0 ? simHands[1] : simHands[0];
-		if(ov == 2 || ov == 3) {
-			shieldBonus = 20.0;
-		}
-	}
-	f.push(shieldBonus / 30.0);
-	var poisonBonus = 0.0;
-	if(simHands[0] == 0 || simHands[1] == 0) {
-		var ov = simHands[0] == 0 ? simHands[1] : simHands[0];
-		if(ov == 7) {
-			poisonBonus = 10.0;
-		}
-	}
-	f.push(poisonBonus / 30.0);
-	var dsBonus = 0.0;
-	if(simHands[0] == simHands[1]) {
-		switch(simHands[0]) {
-		case 0:
-			dsBonus = 150.0;
-			break;
-		case 1:
-			dsBonus = 50.0;
-			break;
-		case 2:case 3:
-			dsBonus = 30.0;
-			break;
-		case 4:
-			dsBonus = 40.0;
-			break;
-		case 6:
-			dsBonus = 90.0;
-			break;
-		case 7:
-			dsBonus = 60.0;
-			break;
-		case 8:
-			dsBonus = 60.0;
-			break;
-		case 9:
-			dsBonus = 200.0;
-			break;
-		default:
-			dsBonus = 30.0;
-		}
-	}
-	f.push(dsBonus / 200.0);
-	var zcBonus = 0.0;
-	if(newValue == 0) {
-		zcBonus = 25.0;
-	}
-	f.push(zcBonus / 150.0);
-	var scBonus = 0.0;
-	if(otherValue == 6 || newValue == 6) {
-		scBonus = 15.0;
-	}
-	f.push(scBonus / 15.0);
-	f.push(0.0);
-	f.push(0.0);
-	var ozg = 0.0;
-	if(opponent.hands[0] == 0 && opponent.zeroTurns0 <= 1) {
-		ozg += 0.5;
-	}
-	if(opponent.hands[1] == 0 && opponent.zeroTurns1 <= 1) {
-		ozg += 0.5;
-	}
-	f.push(ozg);
-	f.push((actor.hp - opponent.hp) / 300.0);
-	f.push((newValue + otherValue) / 18.0);
-	var mzb = actor.name == "法师" || actor.name == "fashi" ? newValue == 0 ? 15.0 : 0.0 : 0.0;
-	f.push(mzb / 15.0);
-	var wztb = 0.0;
-	if(actor.name == "孙悟空" || actor.name == "sunwukong") {
-		if(newValue == 0 && otherValue == 2 || newValue == 2 && otherValue == 0) {
-			wztb = 30.0;
-		}
-	}
-	f.push(wztb / 30.0);
-	var nab = 0.0;
-	if(actor.name == "忍者" || actor.name == "renzhe") {
-		if(newValue != 0) {
-			var poisonBuff = opponent.getBuff("POISON");
-			var pl = poisonBuff != null ? poisonBuff.layers : 0;
-			nab = 8.0 + pl * 3.0;
-		}
-	}
-	f.push(nab / 30.0);
-	var zhb = 0.0;
-	if(actor.name == "张飞" || actor.name == "zhangfei") {
-		if(newValue == 4 || newValue == 6) {
-			zhb = 10.0;
-		}
-	}
-	f.push(zhb / 20.0);
-	var xhb = 0.0;
-	if(actor.name == "小乔" || actor.name == "xiaoqiao") {
-		if(newValue == 6) {
-			xhb = 15.0;
-		} else if(newValue == 4) {
-			xhb = 7.5;
-		}
-	}
-	f.push(xhb / 15.0);
-	f.push(0.0);
-	var zm1 = 0.0;
-	if(actor.name == "张飞" || actor.name == "zhangfei") {
-		var zf = ((actor) instanceof character_ZhangFei) ? actor : null;
-		if(zf != null && zf.modal == 1) {
-			zm1 = 5.0;
-		}
-	}
-	f.push(zm1 / 10.0);
-	var zm3 = 0.0;
-	if(actor.name == "张飞" || actor.name == "zhangfei") {
-		var zf = ((actor) instanceof character_ZhangFei) ? actor : null;
-		if(zf != null && zf.modal == 3 && newValue != 0) {
-			zm3 = 3.0;
-		}
-	}
-	f.push(zm3 / 10.0);
-	f.push(0.0);
-	return f;
-}
-var ai_BattleLearning = function() {
-	this.gradientClip = 0.20;
-	this.rlLearningRate = 0.005;
-	this.rlEnabled = true;
-	this.valueFunction = new ai_RLValueFunction();
-	this.policyBuffer = new ai_PolicyBuffer();
-	this.pendingBattle = null;
-	this.evolutionLog = [];
-	this.totalBattlesRecorded = 0;
-	this.generationCount = 0;
-	this.challengeDraws = 0;
-	this.challengeWins = 0;
-	this.challengeBattlesPlayed = 0;
-	this.currentChallenger = null;
-	this.challengers = [];
-	this.champion = new ai_AIThink("Champion_Gen0");
-	this._spawnChallengers();
-	this._pickNextChallenger();
-	haxe_Log.trace("[Evolution] 学习系统初始化。冠军：" + this.champion.id + "，挑战者：" + (this.currentChallenger != null ? this.currentChallenger.id : "无"),{ fileName : "./ai/BattleLearning.hx", lineNumber : 71, className : "ai.BattleLearning", methodName : "new"});
-};
-ai_BattleLearning.__name__ = true;
-ai_BattleLearning.prototype = {
-	onBattleStart: function(p1Name,p2Name,p1IsChampion) {
-		this.pendingBattle = { p1Name : p1Name, p2Name : p2Name, p1IsChampion : p1IsChampion, winner : null, turns : 0, events : []};
-	}
-	,recordEvent: function(event) {
-		if(this.pendingBattle != null) {
-			this.pendingBattle.events.push(event);
-		}
-	}
-	,onBattleEnd: function(winner,totalTurns) {
-		if(this.pendingBattle == null) {
-			return;
-		}
-		this.pendingBattle.winner = winner;
-		this.pendingBattle.turns = totalTurns;
-		this.totalBattlesRecorded++;
-		var p1Won = winner == model_Camp.HERO;
-		var p2Won = winner == model_Camp.REBEL;
-		var isDraw = winner == null;
-		var challengerIsP1 = !this.pendingBattle.p1IsChampion;
-		var challengerWon = challengerIsP1 && p1Won || !challengerIsP1 && p2Won;
-		var draw = isDraw;
-		if(challengerWon) {
-			this.challengeWins++;
-		}
-		if(draw) {
-			this.challengeDraws++;
-		}
-		this.challengeBattlesPlayed++;
-		this._updateElo(this.champion,this.currentChallenger,this.championWon(!challengerWon && !draw));
-		this._analyzeEvents(this.pendingBattle.events,challengerWon);
-		this.pendingBattle = null;
-		if(this.challengeBattlesPlayed >= ai_BattleLearning.BATTLES_PER_GENERATION) {
-			this._evaluateGeneration();
-		}
-	}
-	,recordBattle: function(battleNumber,winner,player1,player2,totalTurns,log) {
-		if(this.pendingBattle == null) {
-			this.onBattleStart(player1,player2,true);
-		}
-		this.onBattleEnd(winner,totalTurns);
-	}
-	,_evaluateGeneration: function() {
-		this.generationCount++;
-		var total = this.challengeBattlesPlayed;
-		var winRate = total > 0 ? this.challengeWins / total : 0.0;
-		var drawRate = total > 0 ? this.challengeDraws / total : 0.0;
-		var msg = "[Gen " + this.generationCount + "] " + this.currentChallenger.id + " vs " + this.champion.id + ": " + ("" + this.challengeWins + "W/" + (total - this.challengeWins - this.challengeDraws) + "L/" + this.challengeDraws + "D ") + ("(赢率 " + (winRate * 100 | 0) + "%)");
-		haxe_Log.trace(msg,{ fileName : "./ai/BattleLearning.hx", lineNumber : 162, className : "ai.BattleLearning", methodName : "_evaluateGeneration"});
-		this.evolutionLog.push(msg);
-		if(winRate >= ai_BattleLearning.WIN_THRESHOLD) {
-			var promoMsg = "🎉 [进化] " + this.currentChallenger.id + " 挑战成功！赢率" + (winRate * 100 | 0) + "% > " + (ai_BattleLearning.WIN_THRESHOLD * 100 | 0) + "%，成为新冠军！";
-			haxe_Log.trace(promoMsg,{ fileName : "./ai/BattleLearning.hx", lineNumber : 168, className : "ai.BattleLearning", methodName : "_evaluateGeneration"});
-			this.evolutionLog.push(promoMsg);
-			this.champion = this.currentChallenger;
-			this.champion.id = "Champion_Gen" + this.generationCount;
-			this._syncToDefault();
-		} else {
-			var failMsg = "ℹ️ [进化] " + this.currentChallenger.id + " 挑战失败（" + (winRate * 100 | 0) + "% < " + (ai_BattleLearning.WIN_THRESHOLD * 100 | 0) + "%），冠军保持。";
-			haxe_Log.trace(failMsg,{ fileName : "./ai/BattleLearning.hx", lineNumber : 177, className : "ai.BattleLearning", methodName : "_evaluateGeneration"});
-			this.evolutionLog.push(failMsg);
-		}
-		this._spawnChallengers();
-		this._pickNextChallenger();
-		this.challengeBattlesPlayed = 0;
-		this.challengeWins = 0;
-		this.challengeDraws = 0;
-		this._printCurrentBest();
-	}
-	,_syncToDefault: function() {
-		var w = this.champion.weights;
-		var h = ai_AIThink.weightsToMap(w).h;
-		var key_h = h;
-		var key_keys = Object.keys(h);
-		var key_length = key_keys.length;
-		var key_current = 0;
-		while(key_current < key_length) {
-			var key = key_keys[key_current++];
-			ai_AIThink.setWeight(key,ai_AIThink.getWeightFrom(w,key));
-		}
-		haxe_Log.trace("[进化] 默认 AI 权重已更新为冠军权重（" + this.champion.id + "）",{ fileName : "./ai/BattleLearning.hx", lineNumber : 198, className : "ai.BattleLearning", methodName : "_syncToDefault"});
-	}
-	,_spawnChallengers: function() {
-		this.challengers = [];
-		var _g = 0;
-		var _g1 = ai_BattleLearning.MAX_CHALLENGERS;
-		while(_g < _g1) {
-			var i = _g++;
-			var challenger = new ai_AIThink("Challenger_Gen${generationCount}_${i}",ai_AIThink.mutateWeights(this.champion.weights,ai_BattleLearning.MUTATION_MAGNITUDE));
-			challenger.elo = this.champion.elo;
-			this.challengers.push(challenger);
-		}
-	}
-	,_pickNextChallenger: function() {
-		if(this.challengers.length == 0) {
-			return;
-		}
-		this.challengers.sort(function(a,b) {
-			return b.elo - a.elo | 0;
-		});
-		this.currentChallenger = this.challengers[0];
-	}
-	,_updateElo: function(winner,loser,isWin) {
-		if(winner == null || loser == null) {
-			return;
-		}
-		var expected = 1.0 / (1.0 + Math.pow(10,(loser.elo - winner.elo) / 400.0));
-		var actual = isWin ? 1.0 : 0.5;
-		var delta = ai_BattleLearning.ELO_K * (actual - expected);
-		winner.elo += delta;
-		loser.elo -= delta;
-	}
-	,championWon: function(b) {
-		return b;
-	}
-	,_analyzeEvents: function(events,challengerWon) {
-		if(this.currentChallenger == null) {
-			return;
-		}
-		var w = this.currentChallenger.weights;
-		var doubleStars = 0;
-		var zeroCombos = 0;
-		var totalDamage = 0;
-		var totalHeal = 0;
-		var zeroCrises = 0;
-		var _g = 0;
-		while(_g < events.length) {
-			var e = events[_g];
-			++_g;
-			switch(e.type._hx_index) {
-			case 0:
-				++doubleStars;
-				break;
-			case 1:
-				++zeroCombos;
-				break;
-			case 2:
-				totalDamage += e.value;
-				break;
-			case 3:
-				totalHeal += e.value;
-				break;
-			case 4:
-				++zeroCrises;
-				break;
-			default:
-			}
-		}
-		var signal = challengerWon ? 1.0 : -1.0;
-		var lr = 0.05;
-		if(doubleStars > 1) {
-			this._adjustWeight(w,"doubleStar",signal * lr * doubleStars);
-		}
-		if(zeroCombos > 0) {
-			this._adjustWeight(w,"zeroCombo",signal * lr * zeroCombos);
-		}
-		if(totalDamage > 200 && challengerWon) {
-			this._adjustWeight(w,"damage",signal * lr);
-		}
-	}
-	,_adjustWeight: function(w,name,delta) {
-		var current = ai_AIThink.getWeightFrom(w,name);
-		if(current == 0.0) {
-			return;
-		}
-		var newVal = current + delta;
-		if(current > 0 && newVal < 0) {
-			newVal = current * 0.1;
-		}
-		if(current < 0 && newVal > 0) {
-			newVal = current * 0.1;
-		}
-		ai_AIThink.setWeightOn(w,name,newVal);
-	}
-	,getCurrentAI: function() {
-		if(this.currentChallenger != null) {
-			return this.currentChallenger;
-		} else {
-			return this.champion;
-		}
-	}
-	,getChampion: function() {
-		return this.champion;
-	}
-	,getProgress: function() {
-		return "第 " + this.generationCount + " 代 | 当前挑战者 " + this.challengeBattlesPlayed + "/" + ai_BattleLearning.BATTLES_PER_GENERATION + " 场 " + ("| 冠军Elo " + (this.champion.elo | 0));
-	}
-	,_printCurrentBest: function() {
-		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 296, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╔══════════════════════════════════════════════════════╗",{ fileName : "./ai/BattleLearning.hx", lineNumber : 297, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║        当前最优 AI 权重（" + this.champion.id + "）",{ fileName : "./ai/BattleLearning.hx", lineNumber : 298, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╠══════════════════════════════════════════════════════╣",{ fileName : "./ai/BattleLearning.hx", lineNumber : 299, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		var w = this.champion.weights;
-		haxe_Log.trace("║ damage=" + (w.damage * 100 | 0) / 100 + "  heal=" + (w.heal * 100 | 0) / 100 + "  doubleStar=" + (w.doubleStar * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 301, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║ zeroCombo=" + (w.zeroCombo * 100 | 0) / 100 + "  zeroRisk=" + (w.zeroRisk * 100 | 0) / 100 + "  sixCombo=" + (w.sixCombo * 100 | 0) / 100,{ fileName : "./ai/BattleLearning.hx", lineNumber : 302, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("║ Elo=" + (this.champion.elo | 0) + "  总对局=" + this.totalBattlesRecorded + "  进化代数=" + this.generationCount,{ fileName : "./ai/BattleLearning.hx", lineNumber : 303, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("╚══════════════════════════════════════════════════════╝",{ fileName : "./ai/BattleLearning.hx", lineNumber : 304, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-		haxe_Log.trace("",{ fileName : "./ai/BattleLearning.hx", lineNumber : 305, className : "ai.BattleLearning", methodName : "_printCurrentBest"});
-	}
-	,applyREINFORCE: function() {
-		if(!this.rlEnabled) {
-			return;
-		}
-		if(this.policyBuffer.buffer.length == 0) {
-			return;
-		}
-		this.policyBuffer.computeReturns();
-		this.policyBuffer.computeAdvantages(this.valueFunction);
-		var transitions = this.policyBuffer.buffer;
-		var n = transitions.length;
-		var weightNames = ["damage","heal","shield","poison","doubleStar","zeroCombo","sixCombo","zeroRisk","zeroCountdown","oppZeroGood","hpAdvantage","handQuality","mageZeroBonus","wukongZeroTwoBonus","ninjaAttackBonus","zhangfeiHealBonus","xiaoqiaoHealBonus","zangshiCakeThreshold","zhangfeiModal1Pref","zangfeiModal3Pref"];
-		var _g = [];
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		_g.push(0.0);
-		var gradSums = _g;
-		var validCount = 0;
-		var _g = 0;
-		var _g1 = n;
-		while(_g < _g1) {
-			var t = _g++;
-			var trans = transitions[t];
-			var advantage = trans.advantage;
-			if(Math.abs(advantage) < 1e-4) {
-				continue;
-			}
-			var actor = ai_StateCopier.restorePlayer(trans.before,true);
-			var opp = ai_StateCopier.restorePlayer(trans.before,false);
-			var fv = ai_AIThink_extractFeatureVector(actor,opp,trans.action.myHand,trans.action.targetHand,null);
-			var candidates = [];
-			var _g2 = 0;
-			while(_g2 < 2) {
-				var mi = _g2++;
-				var _g3 = 0;
-				while(_g3 < 2) {
-					var ti = _g3++;
-					if(opp.hands[ti] == 0) {
-						continue;
-					}
-					if(!actor.isValidTouch(mi,opp,ti)) {
-						continue;
-					}
-					var score = this.champion.evaluateMoveWith(actor,opp,mi,ti,null);
-					candidates.push({ myHand : mi, targetHand : ti, score : score});
-				}
-			}
-			if(candidates.length == 0) {
-				continue;
-			}
-			var result = new Array(candidates.length);
-			var _g4 = 0;
-			var _g5 = candidates.length;
-			while(_g4 < _g5) {
-				var i = _g4++;
-				result[i] = candidates[i].score;
-			}
-			var scores = result;
-			var probs = this._softmax(scores,1.0);
-			var chosenIdx = -1;
-			var _g6 = 0;
-			var _g7 = candidates.length;
-			while(_g6 < _g7) {
-				var i1 = _g6++;
-				if(candidates[i1].myHand == trans.action.myHand && candidates[i1].targetHand == trans.action.targetHand) {
-					chosenIdx = i1;
-					break;
-				}
-			}
-			if(chosenIdx < 0) {
-				continue;
-			}
-			var _g8 = 0;
-			while(_g8 < 21) {
-				var i2 = _g8++;
-				var expectedF = 0.0;
-				var _g9 = 0;
-				var _g10 = candidates.length;
-				while(_g9 < _g10) {
-					var j = _g9++;
-					expectedF += probs[j] * fv[i2];
-				}
-				gradSums[i2] += (fv[i2] - expectedF) * advantage;
-			}
-			++validCount;
-		}
-		if(validCount > 0) {
-			var _g = 0;
-			while(_g < 21) {
-				var i = _g++;
-				var grad = gradSums[i] / validCount;
-				var delta = this.rlLearningRate * grad;
-				var currentVal = ai_AIThink.getWeight(weightNames[i]);
-				var maxDelta = Math.abs(currentVal) * this.gradientClip;
-				if(Math.abs(delta) > maxDelta) {
-					delta = delta > 0 ? maxDelta : -maxDelta;
-				}
-				var newVal = currentVal + delta;
-				if(currentVal > 0 && newVal < 0) {
-					newVal = currentVal * 0.1;
-				}
-				if(currentVal < 0 && newVal > 0) {
-					newVal = currentVal * 0.1;
-				}
-				ai_AIThink.setWeight(weightNames[i],newVal);
-			}
-			haxe_Log.trace("[RL] REINFORCE 更新完成，" + validCount + " 个有效样本，" + n + " 个总转换",{ fileName : "./ai/BattleLearning.hx", lineNumber : 408, className : "ai.BattleLearning", methodName : "applyREINFORCE"});
-		}
-		this.valueFunction.batchUpdate(transitions,0.001);
-		this.policyBuffer.clear();
-	}
-	,_softmax: function(scores,temp) {
-		if(scores.length == 0) {
-			return [];
-		}
-		var maxS = scores[0];
-		var _g = 0;
-		while(_g < scores.length) {
-			var s = scores[_g];
-			++_g;
-			if(s > maxS) {
-				maxS = s;
-			}
-		}
-		var result = new Array(scores.length);
-		var _g = 0;
-		var _g1 = scores.length;
-		while(_g < _g1) {
-			var i = _g++;
-			result[i] = Math.exp((scores[i] - maxS) / temp);
-		}
-		var exps = result;
-		var sum = 0.0;
-		var _g = 0;
-		while(_g < exps.length) {
-			var e = exps[_g];
-			++_g;
-			sum += e;
-		}
-		var result = new Array(exps.length);
-		var _g = 0;
-		var _g1 = exps.length;
-		while(_g < _g1) {
-			var i = _g++;
-			result[i] = exps[i] / sum;
-		}
-		return result;
-	}
-	,__class__: ai_BattleLearning
-};
-var ai_BattleEventType = $hxEnums["ai.BattleEventType"] = { __ename__:true,__constructs__:null
-	,DoubleStar: {_hx_name:"DoubleStar",_hx_index:0,__enum__:"ai.BattleEventType",toString:$estr}
-	,ZeroCombo: {_hx_name:"ZeroCombo",_hx_index:1,__enum__:"ai.BattleEventType",toString:$estr}
-	,Damage: {_hx_name:"Damage",_hx_index:2,__enum__:"ai.BattleEventType",toString:$estr}
-	,Heal: {_hx_name:"Heal",_hx_index:3,__enum__:"ai.BattleEventType",toString:$estr}
-	,ZeroCrisis: {_hx_name:"ZeroCrisis",_hx_index:4,__enum__:"ai.BattleEventType",toString:$estr}
-	,Poison: {_hx_name:"Poison",_hx_index:5,__enum__:"ai.BattleEventType",toString:$estr}
-	,Death: {_hx_name:"Death",_hx_index:6,__enum__:"ai.BattleEventType",toString:$estr}
-};
-ai_BattleEventType.__constructs__ = [ai_BattleEventType.DoubleStar,ai_BattleEventType.ZeroCombo,ai_BattleEventType.Damage,ai_BattleEventType.Heal,ai_BattleEventType.ZeroCrisis,ai_BattleEventType.Poison,ai_BattleEventType.Death];
 var model_Buff = function(id,name,layers) {
 	if(layers == null) {
 		layers = 1;
@@ -5331,33 +3392,6 @@ haxe_Log.trace = function(v,infos) {
 		console.log(str);
 	}
 };
-var haxe_Timer = function(time_ms) {
-	var me = this;
-	this.id = setInterval(function() {
-		me.run();
-	},time_ms);
-};
-haxe_Timer.__name__ = true;
-haxe_Timer.delay = function(f,time_ms) {
-	var t = new haxe_Timer(time_ms);
-	t.run = function() {
-		t.stop();
-		f();
-	};
-	return t;
-};
-haxe_Timer.prototype = {
-	stop: function() {
-		if(this.id == null) {
-			return;
-		}
-		clearInterval(this.id);
-		this.id = null;
-	}
-	,run: function() {
-	}
-	,__class__: haxe_Timer
-};
 var haxe_ValueException = function(value,previous,native) {
 	haxe_Exception.call(this,String(value),previous,native);
 	this.value = value;
@@ -5526,6 +3560,214 @@ haxe_iterators_ArrayIterator.prototype = {
 	}
 	,__class__: haxe_iterators_ArrayIterator
 };
+var js_Boot = function() { };
+js_Boot.__name__ = true;
+js_Boot.getClass = function(o) {
+	if(o == null) {
+		return null;
+	} else if(((o) instanceof Array)) {
+		return Array;
+	} else {
+		var cl = o.__class__;
+		if(cl != null) {
+			return cl;
+		}
+		var name = js_Boot.__nativeClassName(o);
+		if(name != null) {
+			return js_Boot.__resolveNativeClass(name);
+		}
+		return null;
+	}
+};
+js_Boot.__string_rec = function(o,s) {
+	if(o == null) {
+		return "null";
+	}
+	if(s.length >= 5) {
+		return "<...>";
+	}
+	var t = typeof(o);
+	if(t == "function" && (o.__name__ || o.__ename__)) {
+		t = "object";
+	}
+	switch(t) {
+	case "function":
+		return "<function>";
+	case "object":
+		if(o.__enum__) {
+			var e = $hxEnums[o.__enum__];
+			var con = e.__constructs__[o._hx_index];
+			var n = con._hx_name;
+			if(con.__params__) {
+				s = s + "\t";
+				return n + "(" + ((function($this) {
+					var $r;
+					var _g = [];
+					{
+						var _g1 = 0;
+						var _g2 = con.__params__;
+						while(true) {
+							if(!(_g1 < _g2.length)) {
+								break;
+							}
+							var p = _g2[_g1];
+							_g1 = _g1 + 1;
+							_g.push(js_Boot.__string_rec(o[p],s));
+						}
+					}
+					$r = _g;
+					return $r;
+				}(this))).join(",") + ")";
+			} else {
+				return n;
+			}
+		}
+		if(((o) instanceof Array)) {
+			var str = "[";
+			s += "\t";
+			var _g = 0;
+			var _g1 = o.length;
+			while(_g < _g1) {
+				var i = _g++;
+				str += (i > 0 ? "," : "") + js_Boot.__string_rec(o[i],s);
+			}
+			str += "]";
+			return str;
+		}
+		var tostr;
+		try {
+			tostr = o.toString;
+		} catch( _g ) {
+			return "???";
+		}
+		if(tostr != null && tostr != Object.toString && typeof(tostr) == "function") {
+			var s2 = o.toString();
+			if(s2 != "[object Object]") {
+				return s2;
+			}
+		}
+		var str = "{\n";
+		s += "\t";
+		var hasp = o.hasOwnProperty != null;
+		var k = null;
+		for( k in o ) {
+		if(hasp && !o.hasOwnProperty(k)) {
+			continue;
+		}
+		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
+			continue;
+		}
+		if(str.length != 2) {
+			str += ", \n";
+		}
+		str += s + k + " : " + js_Boot.__string_rec(o[k],s);
+		}
+		s = s.substring(1);
+		str += "\n" + s + "}";
+		return str;
+	case "string":
+		return o;
+	default:
+		return String(o);
+	}
+};
+js_Boot.__interfLoop = function(cc,cl) {
+	if(cc == null) {
+		return false;
+	}
+	if(cc == cl) {
+		return true;
+	}
+	var intf = cc.__interfaces__;
+	if(intf != null) {
+		var _g = 0;
+		var _g1 = intf.length;
+		while(_g < _g1) {
+			var i = _g++;
+			var i1 = intf[i];
+			if(i1 == cl || js_Boot.__interfLoop(i1,cl)) {
+				return true;
+			}
+		}
+	}
+	return js_Boot.__interfLoop(cc.__super__,cl);
+};
+js_Boot.__instanceof = function(o,cl) {
+	if(cl == null) {
+		return false;
+	}
+	switch(cl) {
+	case Array:
+		return ((o) instanceof Array);
+	case Bool:
+		return typeof(o) == "boolean";
+	case Dynamic:
+		return o != null;
+	case Float:
+		return typeof(o) == "number";
+	case Int:
+		if(typeof(o) == "number") {
+			return ((o | 0) === o);
+		} else {
+			return false;
+		}
+		break;
+	case String:
+		return typeof(o) == "string";
+	default:
+		if(o != null) {
+			if(typeof(cl) == "function") {
+				if(js_Boot.__downcastCheck(o,cl)) {
+					return true;
+				}
+			} else if(typeof(cl) == "object" && js_Boot.__isNativeObj(cl)) {
+				if(((o) instanceof cl)) {
+					return true;
+				}
+			}
+		} else {
+			return false;
+		}
+		if(cl == Class ? o.__name__ != null : false) {
+			return true;
+		}
+		if(cl == Enum ? o.__ename__ != null : false) {
+			return true;
+		}
+		return o.__enum__ != null ? $hxEnums[o.__enum__] == cl : false;
+	}
+};
+js_Boot.__downcastCheck = function(o,cl) {
+	if(!((o) instanceof cl)) {
+		if(cl.__isInterface__) {
+			return js_Boot.__interfLoop(js_Boot.getClass(o),cl);
+		} else {
+			return false;
+		}
+	} else {
+		return true;
+	}
+};
+js_Boot.__cast = function(o,t) {
+	if(o == null || js_Boot.__instanceof(o,t)) {
+		return o;
+	} else {
+		throw haxe_Exception.thrown("Cannot cast " + Std.string(o) + " to " + Std.string(t));
+	}
+};
+js_Boot.__nativeClassName = function(o) {
+	var name = js_Boot.__toStr.call(o).slice(8,-1);
+	if(name == "Object" || name == "Function" || name == "Math" || name == "JSON") {
+		return null;
+	}
+	return name;
+};
+js_Boot.__isNativeObj = function(o) {
+	return js_Boot.__nativeClassName(o) != null;
+};
+js_Boot.__resolveNativeClass = function(name) {
+	return $global[name];
+};
 var model_Camp = $hxEnums["model.Camp"] = { __ename__:true,__constructs__:null
 	,HERO: {_hx_name:"HERO",_hx_index:0,__enum__:"model.Camp",toString:$estr}
 	,REBEL: {_hx_name:"REBEL",_hx_index:1,__enum__:"model.Camp",toString:$estr}
@@ -5559,8 +3801,6 @@ var model_ShieldType = $hxEnums["model.ShieldType"] = { __ename__:true,__constru
 	,TRUE: {_hx_name:"TRUE",_hx_index:3,__enum__:"model.ShieldType",toString:$estr}
 };
 model_ShieldType.__constructs__ = [model_ShieldType.PHYSICAL,model_ShieldType.MAGIC,model_ShieldType.BOTH_PHYSICAL_MAGIC,model_ShieldType.TRUE];
-function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $global.$haxeUID++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = m.bind(o); o.hx__closures__[m.__id__] = f; } return f; }
-$global.$haxeUID |= 0;
 if(typeof(performance) != "undefined" ? typeof(performance.now) == "function" : false) {
 	HxOverrides.now = performance.now.bind(performance);
 }
@@ -5579,13 +3819,6 @@ js_Boot.__toStr = ({ }).toString;
 Main.engine = new GameEngine();
 Main.turnManager = new TurnManager();
 Main.logBuffer = [];
-ai_AIThink.DEFAULT_WEIGHTS = { damage : 3.0, heal : 2.0, shield : 1.5, poison : 1.2, doubleStar : 50.0, zeroCombo : 25.0, sixCombo : 15.0, zeroRisk : 0.0, zeroCountdown : 0.0, oppZeroGood : 20.0, hpAdvantage : 0.5, handQuality : 2.0, mageZeroBonus : 15.0, wukongZeroTwoBonus : 30.0, ninjaAttackBonus : 8.0, zhangfeiHealBonus : 10.0, xiaoqiaoHealBonus : 15.0, zangshiCakeThreshold : 6.0, zhangfeiModal1Pref : 5.0, zhangfeiModal3Pref : 3.0};
-ai_AIThink._defaultInstance = new ai_AIThink("default");
-ai_BattleLearning.BATTLES_PER_GENERATION = 20;
-ai_BattleLearning.WIN_THRESHOLD = 0.58;
-ai_BattleLearning.MUTATION_MAGNITUDE = 0.12;
-ai_BattleLearning.MAX_CHALLENGERS = 3;
-ai_BattleLearning.ELO_K = 32.0;
 buffs_ThunderRageBuff._idCounter = 0;
 character_CharacterRegistry.entries = [];
 character_CharacterRegistry.inited = false;

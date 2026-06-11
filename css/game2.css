@@ -222,7 +222,8 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
     display: flex; 
     align-items: center;        
     justify-content: center;    
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
     border-right: 1px solid #e2e2e2;
 }
 
@@ -231,10 +232,10 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
     height: 100%;
     object-fit: cover;          
     object-position: center;    
-    /* 💡 核心修正：使用 !important 强行覆盖掉 HTML 行内硬编码的 display:none */
     display: block !important; 
     position: relative;
-    z-index: 2; /* 💡 保证图片层级在占位符之上 */
+    z-index: 2;
+    clip-path: inset(0);  /* 图片自身裁剪，不依赖父级overflow:hidden */
 }
 
 .char-avatar-placeholder {
@@ -414,3 +415,24 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 }
 
 
+
+/* ── 联机大厅 & 控制权下拉 ── */
+.ctrl-line { display:none; }
+body.online-mode .ctrl-line { display:inline-flex; align-items:center; gap:4px; margin-left:8px; font-size:12px; color:#555; white-space:nowrap; }
+.ctrl-select { font-size:12px; padding:2px 6px; border:1px solid #d9d9d9; border-radius:4px; background:white; cursor:pointer; }
+.ctrl-select:disabled { background:#f5f5f5; color:#666; cursor:not-allowed; }
+
+/* 角色行：角色选择 + 控制下拉横排 */
+.char-row { display:flex; align-items:center; gap:0; flex-wrap:nowrap; width:100%; }
+body:not(.online-mode) .char-row { display:block; }
+.char-row select:first-child { flex:1; min-width:0; }
+
+.slot-chip {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 12px; border-radius:6px;
+    background:white; border:1.5px solid #d9d9d9;
+    font-size:13px;
+}
+.slot-chip.occupied { border-color:#1890ff; background:#e6f7ff; color:#003a8c; font-weight:600; }
+.slot-chip.host::before { content:"👑 "; }
+.slot-chip.me { box-shadow:0 0 0 2px #faad14; }

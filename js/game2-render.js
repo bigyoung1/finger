@@ -1,8 +1,8 @@
 
 // 角色图片映射（文件名和角色ID对应）
 var _AVATAR_MAP = {
-    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师', '杨大力': '杨大力',
-    '孙悟空': '孙悟空', '忍者': 'Sni忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼'
+    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师',
+    '孙悟空': '孙悟空', '忍者': '忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼'
 };
 var _avatarsInited = false;
 
@@ -122,8 +122,8 @@ function _doRender2() {
         // 自定义按钮（只在当前行动者回合显示）
         var actEl = document.getElementById('actions2v_' + i);
         actEl.innerHTML = '';
-        // 联机时只给本方阵营显示自定义操作按钮（蛋糕/模态切换等）
-        var isMyChar = !ONLINE.active || (campOf(i) === ONLINE.myCamp());
+        // 联机时只给我实际控制的角色显示自定义操作按钮（蛋糕/模态切换等）
+        var isMyChar = !ONLINE.active || (ONLINE.charControl[i] === ONLINE.slotIdx);
         if (i === curIdx && !gameOver && !dead && p.getCustomActions && isMyChar) {
             p.getCustomActions().forEach(function(a) {
                 if (!a.enabled) return;
