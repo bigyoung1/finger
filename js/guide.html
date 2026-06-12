@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>指尖博弈 · 新手指南</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue:    #1890ff;
+    --blue-lt: #e6f7ff;
+    --blue-md: #91d5ff;
+    --red:     #f5222d;
+    --red-lt:  #fff1f0;
+    --green:   #52c41a;
+    --gold:    #fa8c16;
+    --purple:  #722ed1;
+    --ink:     #262626;
+    --sub:     #595959;
+    --border:  #d9d9d9;
+    --bg:      #f0f2f5;
+    --card:    #ffffff;
+    --r:       10px;
+  }
+
+  body {
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    min-width: 320px;
+  }
+
+  /* ── 顶部 ── */
+  header {
+    background: linear-gradient(135deg, #0050b3 0%, #1890ff 60%, #69c0ff 100%);
+    color: white;
+    text-align: center;
+    padding: 36px 20px 28px;
+  }
+  header .yin-yang { font-size: 52px; line-height: 1; margin-bottom: 10px; }
+  header h1 { font-size: 28px; font-weight: 800; letter-spacing: 2px; }
+  header p  { font-size: 14px; opacity: .85; margin-top: 6px; }
+
+  /* ── 导航锚点 ── */
+  nav {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+  }
+  nav a {
+    color: var(--sub);
+    text-decoration: none;
+    padding: 11px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 3px solid transparent;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  nav a:hover { color: var(--blue); border-bottom-color: var(--blue-md); }
+
+  /* ── 主体 ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 28px 16px 60px;
+  }
+
+  /* ── Section 标题 ── */
+  .section-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--blue);
+    margin: 40px 0 16px;
+    padding-left: 14px;
+    border-left: 5px solid var(--blue);
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  /* ── 说明卡 ── */
+  .card {
+    background: var(--card);
+    border-radius: var(--r);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+  .card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── 流程步骤 ── */
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .step-num {
+    width: 28px; height: 28px;
+    background: var(--blue);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .step-body { padding-top: 3px; font-size: 14px; }
+
+  /* ── 示例 chip ── */
+  .ex-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .ex {
+    background: var(--blue-lt);
+    border: 1px solid var(--blue-md);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #003a8c;
+  }
+  .ex.red   { background:#fff1f0; border-color:#ffa39e; color:#a8071a; }
+  .ex.green { background:#f6ffed; border-color:#b7eb8f; color:#237804; }
+  .ex.gold  { background:#fffbe6; border-color:#ffe58f; color:#874d00; }
+  .ex.purple{ background:#f9f0ff; border-color:#d3adf7; color:#531dab; }
+
+  /* ── 组合触发大表格区 ── */
+  .combo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 12px;
+  }
+  .combo-card {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .combo-card .cc-head {
+    background: var(--blue);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 7px 12px;
+  }
+  .combo-card .cc-body {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.7;
+  }
+  .combo-card .cc-body b { color: var(--ink); }
+
+  /* ── 0规则 highlight ── */
+  .highlight-box {
+    background: #fffbe6;
+    border: 1.5px solid #ffe58f;
+    border-radius: var(--r);
+    padding: 16px 20px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  .highlight-box .hl-title {
+    font-weight: 800;
+    font-size: 15px;
+    color: #874d00;
+    margin-bottom: 8px;
+  }
+
+  /* ── 伤害类型徽章 ── */
+  .badge-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .badge {
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .badge.phys   { background:#fff1f0; color:#a8071a; border:1px solid #ffa39e; }
+  .badge.magic  { background:#f9f0ff; color:#531dab; border:1px solid #d3adf7; }
+  .badge.true_d { background:#f0f0f0; color:#262626; border:1px solid #bfbfbf; }
+  .badge.poison { background:#f6ffed; color:#237804; border:1px solid #b7eb8f; }
+
+  /* ── 角色卡 ── */
+  .char-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .char-card {
+    background: white;
+    border-radius: var(--r);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+  .char-card .ch-head {
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ch-icon { font-size: 28px; line-height: 1; }
+  .ch-meta { flex: 1; }
+  .ch-name { font-size: 15px; font-weight: 800; }
+  .ch-tag  {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 4px;
+    margin-top: 2px;
+  }
+  .tag-tank   { background:#e6f7ff; color:#0050b3; }
+  .tag-half   { background:#f6ffed; color:#237804; }
+  .tag-burst  { background:#fff1f0; color:#a8071a; }
+  .tag-queen  { background:#f9f0ff; color:#531dab; }
+  .ch-hp { font-size: 12px; color:var(--sub); margin-top:2px; }
+
+  .char-card .ch-body {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--sub);
+    line-height: 1.75;
+  }
+  .char-card .ch-body li {
+    margin-left: 14px;
+    padding-left: 2px;
+  }
+  .char-card .ch-body b { color: var(--ink); }
+  .char-card .ch-note {
+    background: var(--blue-lt);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #003a8c;
+    margin-top: 8px;
+  }
+
+  /* ── 2v2 规则 ── */
+  .formation-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .formation-card {
+    background: white;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    padding: 16px;
+    font-size: 13px;
+  }
+  .formation-card h4 {
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .formation-card.blue { border-color: var(--blue-md); }
+  .formation-card.red  { border-color: #ffa39e; }
+  .formation-card ul   { margin-left: 16px; color: var(--sub); line-height: 1.8; }
+
+  /* ── 底部 ── */
+  footer {
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: #aaa;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 540px) {
+    .formation-row { grid-template-columns: 1fr; }
+    nav a { padding: 9px 12px; font-size: 12px; }
+    header h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="yin-yang">☯️</div>
+  <h1>指尖博弈 · 新手指南</h1>
+  <p>2v2 回合制策略对战 — 5 分钟读懂，快速上手</p>
+</header>
+
+<nav>
+  <a href="#basics">基础规则</a>
+  <a href="#combos">组合触发</a>
+  <a href="#zero">0 的规则</a>
+  <a href="#damage">伤害类型</a>
+  <a href="#status">状态系统</a>
+  <a href="#chars">角色介绍</a>
+  <a href="#2v2">2v2 规则</a>
+</nav>
+
+<main>
+
+  <!-- ══════════════════════ 基础规则 ══════════════════════ -->
+  <div class="section-title" id="basics">⚡ 基础规则</div>
+
+  <div class="card">
+    <h3>🖐️ 每回合做什么？</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">选自己的一只手（左手或右手）</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">点对方一只手（数字不为 0）</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body"><b>两数相加取余 10</b>，结果更新到<b>自己选的那只手</b></div>
+      </div>
+    </div>
+    <div class="ex-row" style="margin-top:16px">
+      <div class="ex">我左手 3，碰对方右手 5 → <b>3+5=8</b> → 我左手变 8</div>
+      <div class="ex">我右手 7，碰对方左手 6 → <b>7+6=13 → 3</b> → 我右手变 3</div>
+      <div class="ex red">不能碰对方数字为 0 的手</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🎯 触发技能的时机</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      每次行动结束后，系统自动检查你的双手组合，满足条件就立即触发对应效果。
+      同一个效果只在<b>新变出来</b>时触发一次，不会重复计算。
+    </p>
+  </div>
+
+  <!-- ══════════════════════ 组合触发 ══════════════════════ -->
+  <div class="section-title" id="combos">🃏 组合触发</div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3>⭐ 双子星——两手相同</h3>
+    <div class="combo-grid">
+      <div class="combo-card">
+        <div class="cc-head">【1,1】无敌</div>
+        <div class="cc-body">获得 <b>2 回合无敌</b>，免疫物理和法术伤害（真实伤害仍然有效）</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【2,2】/【3,3】护盾</div>
+        <div class="cc-body">获得 <b>30 点物理护盾</b>，持续 3 回合</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【4,4】伤害翻倍</div>
+        <div class="cc-body">下 <b>2 次攻击</b>伤害翻倍</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【5,5】反弹盾</div>
+        <div class="cc-body">获得 <b>2 层反弹盾</b>，将受到的物理伤害反弹回去</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【6,6】大回血</div>
+        <div class="cc-body">直接回复 <b>90 血</b></div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【7,7】毒攻</div>
+        <div class="cc-body"><b>30 物伤</b> + 给对方叠 <b>3 层中毒</b></div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【8,8】额外行动</div>
+        <div class="cc-body">获得 <b>2 次额外行动机会</b></div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【9,9】爆发</div>
+        <div class="cc-body">巨额物理伤害，场上 3 的倍数越多，伤害越高</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【0,0】真实伤害</div>
+        <div class="cc-body">对敌方造成 <b>150 点真实伤害</b>，穿透所有护盾</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>💠 0 组合——有一只手是 0</h3>
+    <div class="combo-grid">
+      <div class="combo-card">
+        <div class="cc-head">【0,1】/【0,5】/【0,8】/【0,9】</div>
+        <div class="cc-body"><b>40 点物理伤害</b></div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【0,2】/【0,3】</div>
+        <div class="cc-body">获得 <b>20 点物理护盾</b>，持续 3 回合</div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【0,4】/【0,6】</div>
+        <div class="cc-body"><b>回复 30 血</b></div>
+      </div>
+      <div class="combo-card">
+        <div class="cc-head">【0,7】</div>
+        <div class="cc-body"><b>10 物伤</b> + 给对方叠 <b>1 层中毒</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>✨ 单手特效——单独变出时触发</h3>
+    <div class="ex-row">
+      <div class="ex green">单手出现 6 → 回复 30 血</div>
+      <div class="ex purple">单手出现 7（忍者专属） → 给对方 1 层中毒</div>
+      <div class="ex blue" style="background:#e6f7ff;color:#003a8c;border-color:#91d5ff">单手出现 2/3（小乔专属） → 获得 20 点护盾</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ 0 的规则 ══════════════════════ -->
+  <div class="section-title" id="zero">⏳ 0 的特殊规则</div>
+
+  <div class="highlight-box">
+    <div class="hl-title">⚠️ 0 有倒计时！</div>
+    一只手变为 0 后，开始 <b>2 回合倒计时</b>。倒计时归零时，<b>必须用那只 0 的手行动</b>（系统强制）。<br>
+    被碰出新数字就解除倒计时。
+  </div>
+
+  <div class="card">
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">⚰️</div>
+        <div class="step-body"><b>双手全为 0 → 立即死亡</b>，要小心同时让两只手都变 0 的情况</div>
+      </div>
+      <div class="step">
+        <div class="step-num">💡</div>
+        <div class="step-body">对方双手全为 0 时，你本回合跳过，但 buff / 护盾 / 中毒照常结算</div>
+      </div>
+      <div class="step">
+        <div class="step-num">🎯</div>
+        <div class="step-body">主动"套 0"是重要战术——让对方被迫在不好的时机出手</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ 伤害类型 ══════════════════════ -->
+  <div class="section-title" id="damage">⚔️ 伤害类型</div>
+
+  <div class="card">
+    <div class="badge-row">
+      <div class="badge phys">🗡️ 物理伤害<br><small style="font-weight:400">可被物理盾抵挡</small></div>
+      <div class="badge magic">✨ 法术伤害<br><small style="font-weight:400">可被法术盾抵挡</small></div>
+      <div class="badge true_d">💀 真实伤害<br><small style="font-weight:400">穿透所有护盾，无敌也无效</small></div>
+      <div class="badge poison">☠️ 毒伤（法术）<br><small style="font-weight:400">中毒每层每回合扣 10</small></div>
+    </div>
+    <p style="margin-top:14px;font-size:13px;color:var(--sub)">
+      护盾也分类型：<b>物理盾</b>只挡物伤，<b>法术盾</b>只挡法伤，<b>物法盾</b>两种都挡，<b>真实盾</b>挡真伤。
+      护盾剩余回合短的优先消耗，每回合流逝一次。
+    </p>
+  </div>
+
+  <!-- ══════════════════════ 状态系统 ══════════════════════ -->
+  <div class="section-title" id="status">💊 状态系统</div>
+
+  <div class="card">
+    <h3>☠️ 中毒</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      每层中毒在<b>回合结束时</b>造成 10 点法术伤害。
+      用 <b>回复（RECOVERY）类回血</b> 可以解毒：每 20 点回血消解 1 层毒。
+    </p>
+  </div>
+  <div class="card">
+    <h3>🛡️ 反弹盾</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      持有反弹盾时，受到物理伤害会将等量伤害<b>反弹给攻击者</b>（反弹不会杀死对方，最多打到 1 血）。
+    </p>
+  </div>
+  <div class="card">
+    <h3>🧊 冰冻</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      下一个自己的行动回合<b>完全跳过</b>，但中毒、护盾、倒计时照常结算。
+    </p>
+  </div>
+  <div class="card">
+    <h3>✨ 无敌</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      免疫物理和法术伤害，<b>真实伤害仍然穿透</b>。
+    </p>
+  </div>
+
+  <!-- ══════════════════════ 角色介绍 ══════════════════════ -->
+  <div class="section-title" id="chars">🎭 角色介绍</div>
+
+  <div class="char-grid">
+
+    <!-- 小乔 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🌸</div>
+        <div class="ch-meta">
+          <div class="ch-name">小乔</div>
+          <span class="ch-tag tag-half">半肉</span>
+          <div class="ch-hp">HP 360</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>物理伤害 × 1.5，回血量 × 1.5</li>
+          <li>打人时，<b>自己也回等量的血</b></li>
+          <li>回血时，<b>对敌人造成等量物伤</b></li>
+          <li>护盾全部升级为物法盾，更厚更耐</li>
+          <li>0 可以多停留 1 回合</li>
+        </ul>
+        <div class="ch-note">💡 攻防一体，打人就是治自己，治自己就是打人</div>
+      </div>
+    </div>
+
+    <!-- 藏师 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🛡️</div>
+        <div class="ch-meta">
+          <div class="ch-name">藏师</div>
+          <span class="ch-tag tag-tank">坦克</span>
+          <div class="ch-hp">HP 660</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>受到物理伤害<b>减半</b>，并将实际扣血<b>反弹一半</b>给攻击者</li>
+          <li>回血量 × 2.5，护盾厚度 × 2</li>
+          <li>获得物理盾时，<b>同时附送一半厚度的法术盾</b></li>
+          <li>攻击、回血、受伤时积累<b>🍓草莓蛋糕</b>，消耗 3 个可造成法伤并回血</li>
+        </ul>
+        <div class="ch-note">💡 打藏师越打越亏，适合扛在前面</div>
+      </div>
+    </div>
+
+    <!-- 法师 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">⚡</div>
+        <div class="ch-meta">
+          <div class="ch-name">法师</div>
+          <span class="ch-tag tag-burst">刺杀</span>
+          <div class="ch-hp">HP 160</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>触发 0 组合攻击时：<b>物伤翻倍 + 额外 45 法伤</b>，并给对方附 1 层<b>雷霆之怒</b></li>
+          <li>带有雷霆之怒的人行动结束时，手上的偶数（2/4/6/8）越多，扣血越多</li>
+          <li>雷霆造成伤害时，<b>法师同等回血</b></li>
+        </ul>
+        <div class="ch-note">💡 血少但爆发极高，让对方手里一直有偶数是胜利关键</div>
+      </div>
+    </div>
+
+    <!-- 孙悟空 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🐒</div>
+        <div class="ch-meta">
+          <div class="ch-name">孙悟空</div>
+          <span class="ch-tag tag-half">半肉</span>
+          <div class="ch-hp">HP 260</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>持续追踪场上最大的<b>物伤值（x）</b>和<b>回血值（y）</b></li>
+          <li>自己造成物伤时额外 +x 伤，回血时额外 +y 血</li>
+          <li>【0,2】大招：<b>70 法伤 + 回 70 血 + 冻结对方</b>，最多连续用 3 次，0 倒计时不消耗</li>
+        </ul>
+        <div class="ch-note">💡 越到中后期越强，x/y 越滚越大</div>
+      </div>
+    </div>
+
+    <!-- 大乔 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🌺</div>
+        <div class="ch-meta">
+          <div class="ch-name">大乔</div>
+          <span class="ch-tag tag-queen">天后</span>
+          <div class="ch-hp">HP 120 / 进化后无上限</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li><b>抢夺全场 50% 的回复型回血</b>（自己的不算）</li>
+          <li>造成物伤时，回复实际伤害的 50%</li>
+          <li>HP 归零时触发<b>复活甲</b>：无敌 2 回合后以 50 血复活（一次）</li>
+          <li>HP 超过 300 后可<b>进化神大乔</b>：物伤 × 1.5，受物伤 -25%</li>
+        </ul>
+        <div class="ch-note">💡 队友回血越多她越强，目标是快速进化</div>
+      </div>
+    </div>
+
+    <!-- 忍者 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🥷</div>
+        <div class="ch-meta">
+          <div class="ch-name">忍者</div>
+          <span class="ch-tag tag-half">半肉</span>
+          <div class="ch-hp">HP 300</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>造成物伤时，<b>额外附带 50% 法伤</b>，并回复法伤的实际扣血量</li>
+          <li>出现 7 时，给对方叠 1 层中毒</li>
+          <li>场上敌方中毒层数越多，<b>忍者获得越高的物法减伤</b>（最高 78%）</li>
+          <li>敌方中毒扣血时，忍者同步回血</li>
+        </ul>
+        <div class="ch-note">💡 叠毒越多越难打死，和毒层共同成长的打法</div>
+      </div>
+    </div>
+
+    <!-- 张飞 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🐗</div>
+        <div class="ch-meta">
+          <div class="ch-name">张飞</div>
+          <span class="ch-tag tag-tank">坦克</span>
+          <div class="ch-hp">HP 560</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>双手差值越大，受物伤免疫越多（如双手差 8 → 免疫 80 物伤）</li>
+          <li>三种模态自由切换：<b>①纯攻击</b> / <b>②打两人</b> / <b>③打人同时回血</b></li>
+          <li>每次行动结束补给 10 血</li>
+          <li>积累 24 怒气进入<b>狂暴</b>：物伤 × 3，免伤翻倍，0 多撑 1 回合</li>
+        </ul>
+        <div class="ch-note">💡 攒怒是核心，狂暴后才是真正的爆发</div>
+      </div>
+    </div>
+
+    <!-- 阴阳师 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">☯️</div>
+        <div class="ch-meta">
+          <div class="ch-name">阴阳师</div>
+          <span class="ch-tag tag-half">半肉</span>
+          <div class="ch-hp">HP 240</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li><b>阴模态</b>：输出 × 3.5，但回血全转成对敌人的伤害</li>
+          <li><b>阳模态</b>：所有伤害转成对自己的回血，回血 × 3.5</li>
+          <li><b>人模态</b>（默认）：1/4 物法免伤，输出 × 0.5，回血 × 1.5</li>
+          <li>切换阴/阳时产生特殊护盾作为缓冲</li>
+        </ul>
+        <div class="ch-note">💡 血多切阴爆发，血少切阳回血，节奏把握是关键</div>
+      </div>
+    </div>
+
+    <!-- 鸦眼 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <div class="ch-icon">🦅</div>
+        <div class="ch-meta">
+          <div class="ch-name">鸦眼</div>
+          <span class="ch-tag tag-burst">刺杀</span>
+          <div class="ch-hp">HP 140</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>主动释放<b>乌鸦诅咒</b>（自扣 40 血）：给对方施加 buff，让所有打到他的伤害都增加，鸦眼同步回血</li>
+          <li>开启<b>灼燃箭</b>：攻击时造成额外法伤（基于双手和差），但攻击后自扣 60 血</li>
+          <li>消耗 6 个乌鸦激活<b>魔王剑</b>：伤害大幅提升，但行动后自扣 150 血</li>
+        </ul>
+        <div class="ch-note">💡 高风险高回报，每次行动都是豪赌</div>
+      </div>
+    </div>
+
+  </div><!-- end char-grid -->
+
+  <!-- ══════════════════════ 2v2 规则 ══════════════════════ -->
+  <div class="section-title" id="2v2">👥 2v2 对战规则</div>
+
+  <div class="card">
+    <h3>🏟️ 行动顺序</h3>
+    <p style="font-size:14px;color:var(--sub);margin-bottom:12px">
+      行动顺序为 <b>1号 → 2号 → 3号 → 4号</b>，循环进行。
+      1号&3号为 HERO 队，2号&4号为 REBEL 队，交替行动。
+      <b>只能碰敌人，不能碰队友。</b>
+    </p>
+  </div>
+
+  <div class="formation-row">
+    <div class="formation-card blue">
+      <h4>👥 双半肉流</h4>
+      <ul>
+        <li>每回合可自由切换<b>抗伤位</b></li>
+        <li>对方只能打到当前抗伤位</li>
+        <li>抗伤位获得额外回血加成和护盾加强</li>
+      </ul>
+    </div>
+    <div class="formation-card red">
+      <h4>⚔️ 坦脆流</h4>
+      <ul>
+        <li>指定一人为<b>坦克</b>，另一人为脆皮</li>
+        <li>脆皮只能打对方坦克</li>
+        <li>坦克可自由选择攻击目标</li>
+        <li>坦克获得永久回血和护盾加强</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🤝 帮抗机制</h3>
+    <p style="font-size:14px;color:var(--sub)">
+      队友即将被一击打死时，弹窗询问你是否<b>帮抗</b>。
+      帮抗后你承受本次全部伤害 × 1.5，但队友完全不受伤。
+      如果帮抗后你也会死，弹窗不出现。倒计时 10 秒，超时视为放弃。
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>💡 开局建议</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">先尝试凑出 <b>0 组合</b>（碰出 0 后立刻利用），收益最稳定</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">注意 <b>0 的倒计时</b>，不要让两只手同时变 0</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">血量低时优先回血（[0,4] / [0,6] / [x,6]），血厚时集中进攻</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">看懂对方的手牌，阻止对方凑双子星或 0 组合</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>指尖博弈 · 新手指南 — 版本随游戏更新</footer>
+
+</body>
+</html>
