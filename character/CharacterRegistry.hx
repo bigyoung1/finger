@@ -53,6 +53,9 @@ class CharacterRegistry {
         register("yayan", "🦅 鸦眼 (输出 140HP)", 140,
             (id, camp) -> new YaYan(id, "鸦眼", camp));
 
+        register("zhaoyun", "🐉 赵云 (半肉 200HP)", 200,
+            (id, camp) -> new ZhaoYun(id, "赵云", camp));
+
         // 后续新角色只在这里 register 一行
     }
 

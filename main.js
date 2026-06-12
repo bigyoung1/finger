@@ -1667,6 +1667,9 @@ character_CharacterRegistry.init = function() {
 	character_CharacterRegistry.register("yayan","🦅 鸦眼 (输出 140HP)",140,function(id,camp) {
 		return new character_YaYan(id,"鸦眼",camp);
 	});
+	character_CharacterRegistry.register("zhaoyun","🐉 赵云 (半肉 200HP)",200,function(id,camp) {
+		return new character_ZhaoYun(id,"赵云",camp);
+	});
 };
 character_CharacterRegistry.register = function(id,displayName,hp,factory) {
 	character_CharacterRegistry.entries.push({ id : id, displayName : displayName, hp : hp, factory : factory});
@@ -3339,6 +3342,104 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		return extras;
 	}
 	,__class__: character_ZhangFei
+});
+var character_ZhaoYun = function(id,name,camp) {
+	this._prevHand1 = 1;
+	this._prevHand0 = 1;
+	this._inZeroCombo = false;
+	this.y = 10;
+	this.x = 20;
+	model_Player.call(this,id,name,200,camp);
+};
+character_ZhaoYun.__name__ = true;
+character_ZhaoYun.__super__ = model_Player;
+character_ZhaoYun.prototype = $extend(model_Player.prototype,{
+	calculateOutputDamage: function(baseAmount,type) {
+		if(type != model_DamageType.PHYSICAL) {
+			return baseAmount;
+		}
+		var merged = baseAmount + this.x;
+		haxe_Log.trace("🐉 [赵云] 物伤合并：base(" + baseAmount + ") + x(" + this.x + ") = " + merged,{ fileName : "./character/ZhaoYun.hx", lineNumber : 51, className : "character.ZhaoYun", methodName : "calculateOutputDamage"});
+		return merged;
+	}
+	,onAnyOutputDamage: function(attacker,target,outputDamage,type,engine) {
+		if(attacker != this) {
+			return;
+		}
+		if(type != model_DamageType.PHYSICAL || outputDamage <= 0) {
+			return;
+		}
+		var newY = Math.max(10,outputDamage / 2) | 0;
+		haxe_Log.trace("🐉 [赵云] 本次物理总输出 " + outputDamage + "，y：" + this.y + " → " + newY + "（输出/2）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 63, className : "character.ZhaoYun", methodName : "onAnyOutputDamage"});
+		this.y = newY;
+	}
+	,calculateFinalHeal: function(baseAmount,type) {
+		var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
+		var total = base + this.y;
+		haxe_Log.trace("🐉 [赵云] 回血合并：" + base + " + y(" + this.y + ") = " + total + "（单段广播）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 73, className : "character.ZhaoYun", methodName : "calculateFinalHeal"});
+		return total;
+	}
+	,onAnyHealHappened: function(healer,amount,type,isFromSkill,engine) {
+		if(healer != this) {
+			return;
+		}
+		if(amount <= 0) {
+			return;
+		}
+		var newX = Math.max(20,amount) | 0;
+		haxe_Log.trace("🐉 [赵云] 本次总回血 " + amount + "，x：" + this.x + " → " + newX + "（总回血量）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 85, className : "character.ZhaoYun", methodName : "onAnyHealHappened"});
+		this.x = newX;
+	}
+	,onEnterZeroComboContext: function() {
+		this._inZeroCombo = true;
+	}
+	,onExitZeroComboContext: function() {
+		this._inZeroCombo = false;
+	}
+	,onAfterTouchResolved: function() {
+		var engine = GameEngine.instance;
+		if(engine == null) {
+			return;
+		}
+		var newVals = [];
+		if(this.hands[0] != this._prevHand0) {
+			newVals.push(this.hands[0]);
+		}
+		if(this.hands[1] != this._prevHand1) {
+			newVals.push(this.hands[1]);
+		}
+		this._prevHand0 = this.hands[0];
+		this._prevHand1 = this.hands[1];
+		if(this._inZeroCombo) {
+			haxe_Log.trace("🐉 赵云单手被动：0组合期间跳过（手值 " + Std.string(newVals) + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 120, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+			return;
+		}
+		var _g = 0;
+		while(_g < newVals.length) {
+			var v = newVals[_g];
+			++_g;
+			if(v == 1 || v == 4) {
+				haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：回复 10+y=" + (10 + this.y) + " 血",{ fileName : "./character/ZhaoYun.hx", lineNumber : 126, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+				engine.applyHeal(this,10,model_HealType.RECOVERY);
+			} else if(v == 5 || v == 8 || v == 9) {
+				var target = engine.findEnemyTarget(this);
+				if(target != null && target.hp > 0) {
+					haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：造成 20+x=" + (20 + this.x) + " 物理伤害给 " + target.name,{ fileName : "./character/ZhaoYun.hx", lineNumber : 131, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+					engine.applyDamage(this,target,20,model_DamageType.PHYSICAL);
+				}
+			}
+		}
+	}
+	,getCustomDisplay: function() {
+		return "🐉 x = <b>" + this.x + "</b>（物伤加成）| y = <b>" + this.y + "</b>（回血加成）";
+	}
+	,getSnapshotExtras: function() {
+		return ["🐉x=" + this.x + "(物伤加成),y=" + this.y + "(回血加成)"];
+	}
+	,canReceiveHelpTank: function() {
+		return true;
+	}
+	,__class__: character_ZhaoYun
 });
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;

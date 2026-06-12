@@ -71,6 +71,22 @@ const server = http.createServer((req, res) => {
                 endpoint = 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
                 headers  = { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey };
                 reqBody  = JSON.stringify({ model:'MiniMax-M1', messages: payload.messages, temperature: payload.temperature||0.35, max_tokens: payload.max_tokens||200 });
+            } else if (provider === 'qianfan') {
+                // 千帆（讯飞）— 兼容 Anthropic Messages 格式
+                const apiKey = process.env.QIANFAN_API_KEY || '5bca12355e6416179ffb18af6aed4b32:OTNjNWFhNjNjNGYyNTAzNDQ4NDg0YjY2';
+                endpoint = 'https://maas-api.cn-huabei-1.xf-yun.com/anthropic/v1/messages';
+                headers  = { 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01' };
+                // Anthropic Messages 格式：system 单独字段，messages 只含 user/assistant
+                const sysMsg = payload.messages.find(m => m.role === 'system');
+                const otherMsgs = payload.messages.filter(m => m.role !== 'system');
+                const bodyObj = {
+                    model: 'xopqwen36v35b',
+                    max_tokens: payload.max_tokens || 200,
+                    temperature: payload.temperature || 0.35,
+                    messages: otherMsgs,
+                };
+                if (sysMsg) bodyObj.system = sysMsg.content;
+                reqBody = JSON.stringify(bodyObj);
             } else {
                 const apiKey = process.env.DEEPSEEK_API_KEY || '';
                 endpoint = 'https://api.deepseek.com/chat/completions';
@@ -85,26 +101,27 @@ const server = http.createServer((req, res) => {
                 const proxyReq = https.request(options, proxyRes => {
                     let buf = '';
                     proxyRes.on('data', c => buf += c);
-                    proxyRes.on('end', () => { res.writeHead(proxyRes.statusCode,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'}); res.end(buf); });
+                    proxyRes.on('end', () => {
+                        // 千帆返回 Anthropic Messages 格式，统一转成 OpenAI choices 格式给前端
+                        if (provider === 'qianfan') {
+                            try {
+                                const parsed = JSON.parse(buf);
+                                // Anthropic格式: { content:[{type:'text',text:'...'}] }
+                                const text = parsed?.content?.[0]?.text || parsed?.error?.message || '';
+                                const normalized = JSON.stringify({ choices:[{ message:{ role:'assistant', content: text } }] });
+                                res.writeHead(200,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'});
+                                res.end(normalized);
+                                return;
+                            } catch(e) { /* fallthrough */ }
+                        }
+                        res.writeHead(proxyRes.statusCode,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'});
+                        res.end(buf);
+                    });
                 });
                 proxyReq.on('error', e => json({error:e.message}, 500));
                 proxyReq.write(reqBody);
                 proxyReq.end();
             } catch(e) { json({error:String(e)}, 500); }
-        });
-        return;
-    }
-
-    // ── /api/skill-update  POST 追加角色攻略 ──
-    if (url === '/api/skill-update' && req.method === 'POST') {
-        body().then(d => {
-            const { name, append } = JSON.parse(d);
-            const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
-            const safe      = path.resolve(skillPath);
-            if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) {
-                res.writeHead(403); res.end(); return;
-            }
-            fs.appendFile(safe, append || '', () => json({ ok: true }));
         });
         return;
     }

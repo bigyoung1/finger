@@ -63,9 +63,9 @@
                 <label><input type="radio" name="heroTank" value="2" onchange="setSetupTank('hero',2)"> 3号位</label>
             </div>
             <label>1号位</label>
-            <div class="char-row"><select id="heroSelect1"></select><span class="ctrl-line" data-char-idx="0">控制：<select id="ctrlSelect0" class="ctrl-select" data-char-idx="0"></select></span></div>
+            <div class="char-row"><select id="heroSelect1"></select><span class="ctrl-line" data-char-idx="0">控制：<select id="ctrlSelect0" class="ctrl-select" data-char-idx="0"></select><select id="aiModel0" class="ai-model-sel" data-char-idx="0" style="display:none;margin-left:4px;padding:2px 4px;border-radius:4px;border:1px solid #fa8c16;font-size:12px;color:#d46b08" onchange="onAiModelChange(0)" title="AI使用的模型"></select></span></div>
             <label>3号位</label>
-            <div class="char-row"><select id="heroSelect3"></select><span class="ctrl-line" data-char-idx="2">控制：<select id="ctrlSelect2" class="ctrl-select" data-char-idx="2"></select></span></div>
+            <div class="char-row"><select id="heroSelect3"></select><span class="ctrl-line" data-char-idx="2">控制：<select id="ctrlSelect2" class="ctrl-select" data-char-idx="2"></select><select id="aiModel2" class="ai-model-sel" data-char-idx="2" style="display:none;margin-left:4px;padding:2px 4px;border-radius:4px;border:1px solid #fa8c16;font-size:12px;color:#d46b08" onchange="onAiModelChange(2)" title="AI使用的模型"></select></span></div>
         </div>
         <div class="setup-team rebel">
             <b style="color:#f5222d">🔴 REBEL 队（2号、4号）</b>
@@ -80,14 +80,32 @@
                 <label><input type="radio" name="rebelTank" value="3" onchange="setSetupTank('rebel',3)"> 4号位</label>
             </div>
             <label>2号位</label>
-            <div class="char-row"><select id="rebelSelect2"></select><span class="ctrl-line" data-char-idx="1">控制：<select id="ctrlSelect1" class="ctrl-select" data-char-idx="1"></select></span></div>
+            <div class="char-row"><select id="rebelSelect2"></select><span class="ctrl-line" data-char-idx="1">控制：<select id="ctrlSelect1" class="ctrl-select" data-char-idx="1"></select><select id="aiModel1" class="ai-model-sel" data-char-idx="1" style="display:none;margin-left:4px;padding:2px 4px;border-radius:4px;border:1px solid #fa8c16;font-size:12px;color:#d46b08" onchange="onAiModelChange(1)" title="AI使用的模型"></select></span></div>
             <label>4号位</label>
-            <div class="char-row"><select id="rebelSelect4"></select><span class="ctrl-line" data-char-idx="3">控制：<select id="ctrlSelect3" class="ctrl-select" data-char-idx="3"></select></span></div>
+            <div class="char-row"><select id="rebelSelect4"></select><span class="ctrl-line" data-char-idx="3">控制：<select id="ctrlSelect3" class="ctrl-select" data-char-idx="3"></select><select id="aiModel3" class="ai-model-sel" data-char-idx="3" style="display:none;margin-left:4px;padding:2px 4px;border-radius:4px;border:1px solid #fa8c16;font-size:12px;color:#d46b08" onchange="onAiModelChange(3)" title="AI使用的模型"></select></span></div>
         </div>
     </div>
     <label style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:14px"><input type="checkbox" id="vsAIToggle"> 🤖 vs AI 对战（AI 控制 REBEL 队）</label>
             <button id="startBtn2">⚔️ 开始 2v2 对战</button>
     <button id="trainBtn" onclick="toggleTraining()" style="margin-left:12px;padding:8px 18px;background:#722ed1;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer">🧠 AI 自战训练</button>
+    <button onclick="document.getElementById('modelConfigPanel').style.display=document.getElementById('modelConfigPanel').style.display==='none'?'block':'none'" style="margin-left:8px;padding:8px 14px;background:#fa8c16;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer">⚙️ 模型配置</button>
+</div>
+
+<!-- 模型配置面板 -->
+<div id="modelConfigPanel" style="display:none;background:#fffbe6;border:1.5px solid #fa8c16;border-radius:10px;padding:14px 18px;margin:8px 0;font-size:13px">
+    <div style="font-weight:700;color:#d46b08;margin-bottom:10px">⚙️ AI 模型配置</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px">角色0 (HERO1)：<select id="modelSel_p0" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+        <label style="display:flex;align-items:center;gap:6px">角色2 (HERO2)：<select id="modelSel_p2" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+        <label style="display:flex;align-items:center;gap:6px">角色1 (REBEL1)：<select id="modelSel_p1" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+        <label style="display:flex;align-items:center;gap:6px">角色3 (REBEL2)：<select id="modelSel_p3" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;padding-top:8px;border-top:1px solid #ffe7ba">
+        <label style="display:flex;align-items:center;gap:6px">自战主力模型：<select id="modelSel_train_main" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+        <label style="display:flex;align-items:center;gap:6px">复盘分析模型：<select id="modelSel_train_reflect" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+        <label style="display:flex;align-items:center;gap:6px">对战复盘模型：<select id="modelSel_reflect" onchange="applyModelConfig()" style="flex:1;padding:3px 6px;border-radius:4px;border:1px solid #ddd"></select></label>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:#888">更改立即生效，下一次 AI 行动时使用新模型</div>
 </div>
 
 <!-- 训练面板 -->
@@ -96,12 +114,12 @@
     <div id="trainStatus" style="color:#555;margin-bottom:8px">点击开始训练</div>
     <div style="display:flex;gap:8px;margin-bottom:6px">
         <div style="flex:1;text-align:center;background:#e6f7ff;border-radius:6px;padding:8px">
-            <div style="font-size:11px;color:#888;margin-bottom:2px">🔵 MiniMax（HERO）</div>
+            <div id="trainLabelMM" style="font-size:11px;color:#888;margin-bottom:2px">🔵 MiniMax（HERO）</div>
             <div id="trainStatMM" style="font-weight:700;color:#1890ff;font-size:15px">W0 L0</div>
             <div id="trainRateMM" style="font-size:10px;color:#aaa">胜率 -</div>
         </div>
         <div style="flex:1;text-align:center;background:#f9f0ff;border-radius:6px;padding:8px">
-            <div style="font-size:11px;color:#888;margin-bottom:2px">🔴 DeepSeek（REBEL）</div>
+            <div id="trainLabelDS" style="font-size:11px;color:#888;margin-bottom:2px">🟢 DeepSeek（REBEL）</div>
             <div id="trainStatDS" style="font-weight:700;color:#722ed1;font-size:15px">W0 L0</div>
             <div id="trainRateDS" style="font-size:10px;color:#aaa">胜率 -</div>
         </div>
@@ -542,6 +560,47 @@ function initCtrlSelects() {
     });
 }
 
+// 每个角色的 AI 模型选择（本地存储，广播时一并发出）
+var AI_CHAR_MODEL = ['minimax', 'minimax', 'deepseek', 'deepseek']; // index = charIdx
+
+function initAiModelSels() {
+    if (typeof AI_PROVIDERS === 'undefined') { setTimeout(initAiModelSels, 200); return; }
+    [0,1,2,3].forEach(function(i) {
+        var sel = document.getElementById('aiModel' + i);
+        if (!sel) return;
+        sel.innerHTML = '';
+        Object.keys(AI_PROVIDERS).forEach(function(prov) {
+            var opt = document.createElement('option');
+            opt.value = prov;
+            opt.textContent = AI_PROVIDERS[prov].label;
+            if (AI_CHAR_MODEL[i] === prov) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        updateAiModelVisibility(i);
+    });
+}
+document.addEventListener('DOMContentLoaded', initAiModelSels);
+
+function updateAiModelVisibility(charIdx) {
+    var ctrlSel  = document.getElementById('ctrlSelect' + charIdx);
+    var modelSel = document.getElementById('aiModel' + charIdx);
+    if (!ctrlSel || !modelSel) return;
+    modelSel.style.display = (ctrlSel.value === 'AI') ? 'inline-block' : 'none';
+}
+
+function onAiModelChange(charIdx) {
+    var sel = document.getElementById('aiModel' + charIdx);
+    if (!sel) return;
+    AI_CHAR_MODEL[charIdx] = sel.value;
+    // 广播给其他联机玩家
+    if (window.NET && NET.roomState) {
+        NET.sendAction({ type: 'aiModelUpdate', charIdx: charIdx, model: sel.value });
+    }
+    // 同步到 AI_MODEL_CONFIG 和 providerMap
+    AI_MODEL_CONFIG['p' + charIdx] = sel.value;
+    if (window.AI && AI.providerMap) AI.providerMap[charIdx] = sel.value;
+}
+
 function rebuildCtrlOptions(sel, currentVal) {
     var slotNames = (NET.roomState && NET.roomState.slotNames) || ['(房主)', '玩家2', '玩家3', '玩家4'];
     var occupied  = (NET.roomState && NET.roomState.slotOccupied) || [true, false, false, false];
@@ -563,6 +622,9 @@ function rebuildCtrlOptions(sel, currentVal) {
     sel.value = String(currentVal);
     // 所有人都可以修改（去掉房主限制）
     sel.disabled = false;
+    // 更新 AI 模型选择器可见性
+    var charIdx = parseInt(sel.dataset.charIdx);
+    if (!isNaN(charIdx)) updateAiModelVisibility(charIdx);
 }
 
 function onCtrlChange(e) {
@@ -570,9 +632,15 @@ function onCtrlChange(e) {
     var charIdx = parseInt(sel.dataset.charIdx);
     var val = sel.value;
     var ctrlVal = val === 'AI' ? 'AI' : parseInt(val);
+    // 更新模型选择器可见性
+    updateAiModelVisibility(charIdx);
     // 所有联机玩家修改后广播给其他人
     if (ONLINE && NET.roomState != null) {
         NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal });
+        // 如果切成 AI，顺便广播当前选的模型
+        if (val === 'AI') {
+            NET.sendAction({ type: 'aiModelUpdate', charIdx: charIdx, model: AI_CHAR_MODEL[charIdx] });
+        }
     }
 }
 
@@ -649,7 +717,18 @@ NET.onRemoteAction = function(payload, fromSlot) {
         var sel = document.getElementById('ctrlSelect' + payload.charIdx);
         if (sel) {
             rebuildCtrlOptions(sel, String(payload.controller));
+            updateAiModelVisibility(payload.charIdx);
         }
+        return;
+    }
+    if (payload.type === 'aiModelUpdate') {
+        var ci = payload.charIdx;
+        AI_CHAR_MODEL[ci] = payload.model;
+        AI_MODEL_CONFIG['p' + ci] = payload.model;
+        if (window.AI && AI.providerMap) AI.providerMap[ci] = payload.model;
+        // 同步 UI
+        var mSel = document.getElementById('aiModel' + ci);
+        if (mSel) { mSel.value = payload.model; updateAiModelVisibility(ci); }
         return;
     }
     _origOnRemoteAction(payload, fromSlot);
@@ -670,7 +749,7 @@ startGame2 = function() {
         ONLINE.active      = true;
         ONLINE.slotIdx     = NET.slotIdx;
         ONLINE.charControl = ctrl.slice();
-        NET.sendAction({ type: 'charConfig', charIds: ids, charControl: ctrl });
+        NET.sendAction({ type: 'charConfig', charIds: ids, charControl: ctrl, aiCharModel: AI_CHAR_MODEL.slice() });
         if (window.AI) AI.refreshControlled();
     }
     _origStartGame2();
@@ -690,7 +769,17 @@ function startOnlineGame(id0, id1, id2, id3) {
     document.getElementById('battleArena2').style.display = 'block';
     render2(); updateTankButtons(); refreshHandStyles2();
     setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
-    if (window.AI) AI.refreshControlled();
+    if (window.AI) {
+        AI.refreshControlled();
+        // 用 AI_CHAR_MODEL 覆盖 providerMap（确保联机模式下各角色用选定模型）
+        if (AI.providerMap) {
+            [0,1,2,3].forEach(function(i) {
+                if (AI.controlled[i] && window.AI_CHAR_MODEL) {
+                    AI.providerMap[i] = AI_CHAR_MODEL[i] || getProviderForSlot(i);
+                }
+            });
+        }
+    }
 }
 </script>
 
@@ -817,10 +906,8 @@ startGame2 = function() {
         AI.controlled = ctrlAI;
         AI.log = [];
         AI.providerMap = {};
-        var k = 0;
         Object.keys(ctrlAI).forEach(function(p) {
-            AI.providerMap[p] = k % 2 === 0 ? 'minimax' : 'deepseek';
-            k++;
+            AI.providerMap[p] = AI_CHAR_MODEL[parseInt(p)] || getProviderForSlot(parseInt(p));
         });
         AI.preloadAllSkills();
         if (!AI.knowledgeCache) AI.loadKnowledge();
@@ -845,5 +932,56 @@ startGame2 = function() {
     updateTankButtons();
 };
 </script>
+
+<script>
+// ── 模型配置面板初始化 + applyModelConfig ──
+(function initModelConfigPanel() {
+    function buildSelects() {
+        if (typeof AI_PROVIDERS === 'undefined') { setTimeout(buildSelects, 200); return; }
+        const keys = ['p0','p1','p2','p3','train_main','train_reflect','reflect'];
+        keys.forEach(function(k) {
+            var sel = document.getElementById('modelSel_' + k);
+            if (!sel) return;
+            sel.innerHTML = '';
+            Object.keys(AI_PROVIDERS).forEach(function(prov) {
+                var opt = document.createElement('option');
+                opt.value = prov;
+                opt.textContent = AI_PROVIDERS[prov].label;
+                if (AI_MODEL_CONFIG[k] === prov) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        });
+    }
+    document.addEventListener('DOMContentLoaded', buildSelects);
+})();
+
+function applyModelConfig() {
+    if (typeof AI_MODEL_CONFIG === 'undefined') return;
+    var keys = ['p0','p1','p2','p3','train_main','train_reflect','reflect'];
+    keys.forEach(function(k) {
+        var sel = document.getElementById('modelSel_' + k);
+        if (sel) AI_MODEL_CONFIG[k] = sel.value;
+    });
+    // 同步当前 AI.providerMap（如果游戏正在运行）
+    if (window.AI && AI.enabled) {
+        [0,1,2,3].forEach(function(i) {
+            AI.providerMap[i] = getProviderForSlot(i);
+        });
+        AI_MODEL_CONFIG.train_reflect && (AI_MODEL_CONFIG.train_reflect = AI_MODEL_CONFIG.train_reflect);
+    }
+    // 更新训练面板标签
+    var mmLabel = document.getElementById('trainLabelMM');
+    var dsLabel = document.getElementById('trainLabelDS');
+    if (mmLabel) {
+        var p = AI_PROVIDERS[AI_MODEL_CONFIG.train_main] || AI_PROVIDERS.minimax;
+        mmLabel.textContent = p.label + '（HERO）';
+    }
+    if (dsLabel) {
+        var p2 = AI_PROVIDERS[AI_MODEL_CONFIG.train_reflect] || AI_PROVIDERS.deepseek;
+        dsLabel.textContent = p2.label + '（复盘）';
+    }
+}
+</script>
+
 </body>
 </html>

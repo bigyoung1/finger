@@ -13,6 +13,32 @@
 //  角色权重系统（从各角色 skill md 的 ## 权重 块解析）
 //  无全局默认权重，每个角色独立
 // ──────────────────────────────────────────────────
+// ──────────────────────────────────────────────────
+//  全局模型配置（可在 UI 中实时切换）
+//  providers: 'minimax' | 'deepseek' | 'qianfan'
+// ──────────────────────────────────────────────────
+var AI_MODEL_CONFIG = {
+    p0: 'minimax',   // HERO 角色0
+    p1: 'deepseek',  // REBEL 角色1
+    p2: 'minimax',   // HERO 角色2
+    p3: 'deepseek',  // REBEL 角色3
+    train_main:   'minimax',   // 自战训练主力
+    train_reflect: 'deepseek', // 自战复盘
+    reflect:       'deepseek', // 玩家对战复盘
+};
+
+// 所有可选 provider
+var AI_PROVIDERS = {
+    minimax:  { label: '🔵 MiniMax',  color: '#1890ff' },
+    deepseek: { label: '🟢 DeepSeek', color: '#52c41a' },
+    qianfan:  { label: '🟠 千帆(讯飞)', color: '#fa8c16' },
+};
+
+// 工具函数：给某个角色 idx 分配 provider（按 AI_MODEL_CONFIG）
+function getProviderForSlot(idx) {
+    return AI_MODEL_CONFIG['p' + idx] || 'minimax';
+}
+
 var AI_BASE_WEIGHTS = {
     // 兜底默认值（只在角色 skill 未定义该 key 时使用）
     star_0:150, star_9:120, star_7:85, star_6:75,
@@ -69,8 +95,8 @@ AI.start = function(aiCamp) {
     AI.providerMap = {};
     const seats = aiCamp === 'rebel' ? [1, 3] : [0, 2];
     seats.forEach(s => { AI.controlled[s] = true; });
-    AI.providerMap[seats[0]] = 'minimax';
-    AI.providerMap[seats[1]] = 'deepseek';
+    AI.providerMap[seats[0]] = getProviderForSlot(seats[0]);
+    AI.providerMap[seats[1]] = getProviderForSlot(seats[1]);
     AI.preloadAllSkills();
     AI.loadKnowledge();
 };
@@ -88,7 +114,7 @@ AI.refreshControlled = function() {
     if (anyAI && !AI.enabled) {
         AI.enabled = true;
         Object.keys(AI.controlled).forEach((p, k) => {
-            AI.providerMap[p] = k % 2 === 0 ? 'minimax' : 'deepseek';
+            AI.providerMap[p] = getProviderForSlot(parseInt(p));
         });
         AI.preloadAllSkills();
         if (!AI.knowledgeCache) AI.loadKnowledge();
@@ -691,7 +717,7 @@ const CHAR_ID_MAP = {
     'fashi':     '法师',   'sunwukong': '孙悟空',
     'daqiao':    '大乔',   'renzhe':    '忍者',
     'zhangfei':  '张飞',   'yinyangshi':'阴阳师',
-    'yayan':     '鸦眼',
+    'yayan':     '鸦眼',   'zhaoyun':   '赵云',
 };
 const CHAR_NAME_MAP = Object.fromEntries(Object.entries(CHAR_ID_MAP).map(([k,v])=>[v,k]));
 
@@ -773,7 +799,7 @@ AI.train.runOneBattle = function(charIds) {
 
         AI.enabled    = true;
         AI.controlled = { 0:true, 1:true, 2:true, 3:true };
-        AI.providerMap = { 0:'minimax', 2:'minimax', 1:'deepseek', 3:'deepseek' };
+        AI.providerMap = { 0:getProviderForSlot(0), 1:getProviderForSlot(1), 2:getProviderForSlot(2), 3:getProviderForSlot(3) };
         AI.log        = [];
 
         document.getElementById('battleArena2').style.display  = 'block';
@@ -851,7 +877,7 @@ AI.train.reflect = async function(winnerCamp, charIds) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                provider: 'deepseek',
+                provider: AI_MODEL_CONFIG.train_reflect,
                 messages: [{
                     role: 'system',
                     content: `你是指尖博弈AI训练师。分析对战，输出严格JSON（无其他文字）：
@@ -967,7 +993,7 @@ AI.reflectBattle = async function(winnerCamp) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                provider: 'deepseek',
+                provider: AI_MODEL_CONFIG.reflect,
                 messages: [{
                     role: 'system',
                     content: `你是指尖博弈复盘师。输出严格JSON：

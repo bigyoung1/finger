@@ -66,6 +66,16 @@ NET.onRemoteAction = function(payload, fromSlot) {
             // 房主发来的角色与控制配置
             ONLINE.active      = true;
             ONLINE.charControl = payload.charControl.slice();
+            // 同步 AI 模型选择（如果房主传了）
+            if (payload.aiCharModel && window.AI_CHAR_MODEL) {
+                payload.aiCharModel.forEach(function(m, i) {
+                    AI_CHAR_MODEL[i] = m;
+                    if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + i] = m;
+                    // 同步 UI
+                    var mSel = document.getElementById('aiModel' + i);
+                    if (mSel) { mSel.value = m; if (typeof updateAiModelVisibility === 'function') updateAiModelVisibility(i); }
+                });
+            }
             startOnlineGame(payload.charIds[0], payload.charIds[1], payload.charIds[2], payload.charIds[3]);
             break;
 
