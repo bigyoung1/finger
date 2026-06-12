@@ -95,6 +95,20 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // ── /api/skill-update  POST 追加角色攻略 ──
+    if (url === '/api/skill-update' && req.method === 'POST') {
+        body().then(d => {
+            const { name, append } = JSON.parse(d);
+            const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
+            const safe      = path.resolve(skillPath);
+            if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) {
+                res.writeHead(403); res.end(); return;
+            }
+            fs.appendFile(safe, append || '', () => json({ ok: true }));
+        });
+        return;
+    }
+
     // ── /api/log  POST 保存训练日志 ──
     if (url === '/api/log' && req.method === 'POST') {
         body().then(d => {

@@ -91,23 +91,25 @@
 </div>
 
 <!-- 训练面板 -->
-<div id="trainPanel" style="display:none;position:fixed;bottom:16px;right:16px;z-index:9999;background:white;border:1.5px solid #722ed1;border-radius:10px;padding:16px;min-width:260px;box-shadow:0 4px 16px rgba(0,0,0,.18);font-size:13px">
+<div id="trainPanel" style="display:none;position:fixed;bottom:16px;right:16px;z-index:9999;background:white;border:1.5px solid #722ed1;border-radius:10px;padding:16px;min-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.18);font-size:13px">
     <div style="font-weight:700;color:#722ed1;margin-bottom:10px">🧠 AI 自战训练</div>
     <div id="trainStatus" style="color:#555;margin-bottom:8px">点击开始训练</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-        <div style="flex:1;text-align:center;background:#e6f7ff;border-radius:6px;padding:6px">
-            <div style="font-size:11px;color:#888">MiniMax</div>
-            <div id="trainStatMM" style="font-weight:700;color:#1890ff">W0 L0</div>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+        <div style="flex:1;text-align:center;background:#e6f7ff;border-radius:6px;padding:8px">
+            <div style="font-size:11px;color:#888;margin-bottom:2px">🔵 MiniMax（HERO）</div>
+            <div id="trainStatMM" style="font-weight:700;color:#1890ff;font-size:15px">W0 L0</div>
+            <div id="trainRateMM" style="font-size:10px;color:#aaa">胜率 -</div>
         </div>
-        <div style="flex:1;text-align:center;background:#f9f0ff;border-radius:6px;padding:6px">
-            <div style="font-size:11px;color:#888">DeepSeek</div>
-            <div id="trainStatDS" style="font-weight:700;color:#722ed1">W0 L0</div>
+        <div style="flex:1;text-align:center;background:#f9f0ff;border-radius:6px;padding:8px">
+            <div style="font-size:11px;color:#888;margin-bottom:2px">🔴 DeepSeek（REBEL）</div>
+            <div id="trainStatDS" style="font-weight:700;color:#722ed1;font-size:15px">W0 L0</div>
+            <div id="trainRateDS" style="font-size:10px;color:#aaa">胜率 -</div>
         </div>
     </div>
-    <div id="trainWeightHints" style="font-size:11px;color:#888;margin-bottom:10px;max-height:60px;overflow:auto"></div>
+    <div id="trainWeightHints" style="font-size:11px;color:#888;margin-bottom:10px;background:#fafafa;border-radius:4px;padding:6px;max-height:60px;overflow:auto"></div>
     <div style="display:flex;gap:8px">
-        <button id="trainStartBtn" onclick="doTrainStart()" style="flex:1;padding:6px;background:#52c41a;color:white;border:none;border-radius:5px;cursor:pointer">▶ 开始</button>
-        <button id="trainStopBtn"  onclick="doTrainStop()"  style="flex:1;padding:6px;background:#f5222d;color:white;border:none;border-radius:5px;cursor:pointer">■ 停止保存</button>
+        <button id="trainStartBtn" onclick="doTrainStart()" style="flex:1;padding:6px;background:#52c41a;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">▶ 开始</button>
+        <button id="trainStopBtn"  onclick="doTrainStop()"  style="flex:1;padding:6px;background:#f5222d;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:600">■ 停止保存</button>
     </div>
 </div>
 
@@ -126,9 +128,11 @@ function doTrainStart() {
     // 注册 UI 更新回调
     AI.train.onUpdate = function() {
         const t = AI.train.getStatusText();
-        document.getElementById('trainStatus').textContent    = t.status;
-        document.getElementById('trainStatMM').textContent   = t.minimax;
-        document.getElementById('trainStatDS').textContent   = t.deepseek;
+        document.getElementById('trainStatus').textContent      = t.status;
+        document.getElementById('trainStatMM').textContent      = t.minimax;
+        document.getElementById('trainStatDS').textContent      = t.deepseek;
+        document.getElementById('trainRateMM').textContent      = t.rateMM;
+        document.getElementById('trainRateDS').textContent      = t.rateDS;
         document.getElementById('trainWeightHints').textContent = t.weights;
     };
 
@@ -796,8 +800,30 @@ var _origStartGame2_formation_ai = startGame2;
 startGame2 = function() {
     var ret = _origStartGame2_formation_ai.apply(this, arguments);
     var vsAI = document.getElementById('vsAIToggle');
+
+    // 检查控制下拉（本地模式下也支持把角色设为 AI）
+    var ctrlAI = {};
+    for (var ci = 0; ci < 4; ci++) {
+        var sel = document.getElementById('ctrlSelect' + ci);
+        if (sel && sel.value === 'AI') ctrlAI[ci] = true;
+    }
+    var hasCtrlAI = Object.keys(ctrlAI).length > 0;
+
     if (vsAI && vsAI.checked) {
         AI.start('rebel');
+    } else if (hasCtrlAI) {
+        // 本地模式控制下拉选了 AI
+        AI.enabled = true;
+        AI.controlled = ctrlAI;
+        AI.log = [];
+        AI.providerMap = {};
+        var k = 0;
+        Object.keys(ctrlAI).forEach(function(p) {
+            AI.providerMap[p] = k % 2 === 0 ? 'minimax' : 'deepseek';
+            k++;
+        });
+        AI.preloadAllSkills();
+        if (!AI.knowledgeCache) AI.loadKnowledge();
     } else {
         AI.stop();
     }

@@ -212,5 +212,11 @@ function endTurn2() {
 
 function endGame2() {
     if (!Main.turnManager || Main.turnManager.players.length < 4) return;
+    // AI 复盘（玩家对战 AI 时）
+    if (window.AI && AI.enabled && !AI.train.running) {
+        const winner    = Main.turnManager.winningCamp;
+        const winnerStr = winner ? (winner._hx_name || String(winner)).toUpperCase() : null;
+        AI.reflectBattle(winnerStr).then(() => AI.saveAllCharWeights());
+    }
     Main.endGameAndDownload();
 }
