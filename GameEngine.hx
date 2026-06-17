@@ -469,7 +469,10 @@ class GameEngine {
 
     private function processBasicEffect(actor:Player, target:Player, dmgTarget:Player, handIdx:Int, oldValue:Int, newValue:Int) {
         if (actor.hands[0] == actor.hands[1]) {
+            // 双子星期间也用 combo 上下文保护，防止单手被动（如赵云）在 onAfterTouchResolved 里额外触发
+            actor.onEnterZeroComboContext();
             triggerDoubleStar(actor, target, dmgTarget, actor.hands[0]);
+            actor.onExitZeroComboContext();
             return;
         }
         if (actor.hands[0] == 0 || actor.hands[1] == 0) {
@@ -501,8 +504,14 @@ class GameEngine {
                 
              
             case 8:
-                trace('🎉 ${actor.name} 凑齐【双八】！获得 2 次再动！');
-                actor.addBuff(new ExtraActionBuff(2));
+                if (actor.bigRound88Used >= 2) {
+                    trace('⚠️ ${actor.name} 凑齐【双八】，但本大回合已触发过 2 次，跳过。');
+                } else {
+                    actor.bigRound88Used++;
+                    trace('🎉 ${actor.name} 凑齐【双八】！获得 1 次再动 + 60 点物法盾！（本大回合第 ${actor.bigRound88Used}/2 次）');
+                    actor.addBuff(new ExtraActionBuff(1));
+                    applyShield(actor, PHYSICAL, 60, 3);
+                }
 
             case 7:
                 trace('🎉 ${actor.name} 凑齐【双七】！30 点物伤 + 3 层中毒！');

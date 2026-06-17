@@ -13,6 +13,7 @@ class Player {
     public var forcedZeroHand:Int = -1;
     public var pendingHealing:Int = 0;
     public var tankFormationBonus:Bool = false; // 坦脆流：该角色是坦克，享受永久加成
+    public var bigRound88Used:Int = 0;           // 当前大回合 [8,8] 已触发次数（每大回合上限2次）
 
     public var shieldList:Array<ShieldInstance> = new Array<ShieldInstance>();
     public var buffList:Array<Buff> = new Array<Buff>();
@@ -128,6 +129,7 @@ class Player {
     public function onAnyTurnStart(actor:Player, engine:GameEngine):Void {}
 
     public function onBigRoundEnd():Void {
+        bigRound88Used = 0; // 每大回合重置 [8,8] 触发计数
         for (b in buffList) b.onBigRoundEnd(this);
         cleanEmptyBuffs();
     }
