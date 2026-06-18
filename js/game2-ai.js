@@ -41,18 +41,18 @@ function getProviderForSlot(idx) {
 
 var AI_BASE_WEIGHTS = {
     // 兜底默认值（只在角色 skill 未定义该 key 时使用）
-    star_0:150, star_9:120, star_7:85, star_6:75,
-    star_1:50, star_4:50, star_5:45, star_8:40,
-    star_2:-25, star_3:-25,
-    zero_combo_atk:95, zero_combo_heal:60,
-    zero_combo_7:40, zero_combo_shield:30,
-    build_zero:60, six_heal:20,
-    give_star_9:-70, give_star_7:-55,
-    give_star_0:-130, give_star_other:-18,
-    give_zero_combo:-45,
+    star_0:400, star_9:420, star_7:150, star_6:175,
+    star_1:100, star_4:150, star_5:165, star_8:140,
+    star_2:25, star_3:25,
+    zero_combo_atk:195, zero_combo_heal:160,
+    zero_combo_7:90, zero_combo_shield:50,
+    build_zero:160, six_heal:80,
+    give_star_9:-370, give_star_7:-155,
+    give_star_0:-330, give_star_other:-180,
+    give_zero_combo:-199,
     kill_bonus:95, path_bonus:35,
-    mage_zero_atk:70, wukong_02:145,
-    ninja_7:35, zhangfei_diff:1.8, daqiao_evolve:40,
+    mage_zero_atk:70, wukong_02:345,
+    ninja_7:135, zhangfei_diff:1.8, daqiao_evolve:40,
 };
 var AI_CHAR_WEIGHTS = {}; // { 角色名: { ...完整权重 } }，从 skill md 解析
 
@@ -137,15 +137,11 @@ AI.preloadAllSkills = async function() {
 AI.saveCharWeights = async function(charName) {
     const w = AI_CHAR_WEIGHTS[charName];
     if (!w) return;
-    // 只保存和基础值不同的 key
-    const diff = {};
-    Object.keys(w).forEach(k => { if (w[k] !== AI_BASE_WEIGHTS[k]) diff[k] = w[k]; });
-    if (Object.keys(diff).length === 0) return;
     try {
         await fetch('/api/skill-weight', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: charName, weights: diff }),
+            body: JSON.stringify({ name: charName, weights: w }),
         });
     } catch(e) { console.warn('[AI] 权重写回失败', charName, e); }
 };
@@ -274,6 +270,25 @@ AI.enumerateLegalActions = function(actorIdx) {
 // ══════════════════════════════════════════════════
 //  AI.score — 打分模块
 // ══════════════════════════════════════════════════
+// ── 阵营级上下文工具函数 ──
+function campStats(actorIdx) {
+    const players = Main.turnManager.players;
+    const camp    = campOf(actorIdx);
+    const mySeats = camp === 'hero' ? [0,2] : [1,3];
+    const enSeats = camp === 'hero' ? [1,3] : [0,2];
+    const myHp = mySeats.reduce((s,i) => s + Math.max(0, players[i]?.hp || 0), 0);
+    const enHp = enSeats.reduce((s,i) => s + Math.max(0, players[i]?.hp || 0), 0);
+    const myPoisoned = mySeats.some(i => {
+        const p = players[i]; if (!p) return false;
+        return (p.buffList||[]).some(b => (b.id==='POISON'||b.name==='毒') && b.layers > 0);
+    });
+    const enemyHas0 = enSeats.some(i => {
+        const p = players[i]; if (!p || p.hp <= 0) return false;
+        return p.hands[0] === 0 || p.hands[1] === 0;
+    });
+    return { myHp, enHp, ratio: enHp > 0 ? myHp / enHp : 99, myPoisoned, enemyHas0 };
+}
+
 AI.score = {};
 
 AI.score.evaluate = function(actorIdx, action) {
@@ -291,7 +306,8 @@ AI.score.heuristic = function(actorIdx, action) {
     const tVal     = target.hands[action.touchHandIdx];
     const newVal   = (myVal + tVal) % 10;
     const otherVal = actor.hands[1 - action.myHand];
-    const hpR      = actor.hp / (actor.maxHp || 1);
+    const ctx      = campStats(actorIdx);
+    const role     = charRole(actor.name);
     let score      = 0;
 
     // ── 双子星（用权重表，低价值双子星为负）──
@@ -307,13 +323,13 @@ AI.score.heuristic = function(actorIdx, action) {
     if (otherVal === 0 && newVal > 0) {
         if ([1,5,8,9].includes(newVal)) score += W.zero_combo_atk;
         else if ([4,6].includes(newVal)) {
-            const healBonus = hpR < 0.5 ? W.zero_combo_heal * 1.3 : W.zero_combo_heal;
+            const healBonus = ctx.ratio < 0.7 ? W.zero_combo_heal * 1.3 : W.zero_combo_heal;
             score += healBonus;
         }
         else if (newVal === 7) score += W.zero_combo_7;
         else if ([2,3].includes(newVal)) score += W.zero_combo_shield;
-        // 法师加算
-        if (actor.name === '法师' && [1,5,8,9].includes(newVal)) score += W.mage_zero_atk;
+        // 输出职业加算（法师/鸦眼/孙悟空等）
+        if (role === 'output' && [1,5,8,9].includes(newVal)) score += W.mage_zero_atk;
     }
 
     // ── 0 倒计时压力（快到了就用，不惩罚持有 0）──
@@ -324,9 +340,9 @@ AI.score.heuristic = function(actorIdx, action) {
 
     // ── [x,6] 单手 6 回血 ──
     if (newVal === 6 && otherVal !== 6) {
-        const healBonus = hpR < 0.4 ? W.six_heal * 2.0 : (hpR < 0.65 ? W.six_heal * 1.2 : W.six_heal * 0.5);
+        const healBonus = ctx.ratio < 0.5 ? W.six_heal * 2.0 : (ctx.ratio < 0.8 ? W.six_heal * 1.2 : W.six_heal * 0.5);
         score += healBonus;
-        if (actor.name === '法师') score -= 30; // 法师不需要回血
+        if (role === 'output') score -= 30; // 输出职业回血收益低
     }
 
     // ── 路径激励：距离高价值双子星差值为 1（布局中间态）──
@@ -353,7 +369,7 @@ AI.score.heuristic = function(actorIdx, action) {
             break;
         case '大乔':
             // 冲进化
-            if (actor.hp > 240 && actor.hp < 310 && otherVal===0 && [1,5,8,9].includes(newVal))
+            if (actor.hp > 340  && [1,5,8,9].includes(newVal))
                 score += W.daqiao_evolve;
             break;
         case '鸦眼':
@@ -362,9 +378,29 @@ AI.score.heuristic = function(actorIdx, action) {
             break;
     }
 
-    // ── 激进/保守调节 ──
-    const tHpR = target.hp / (target.maxHp || 1);
-    if (hpR > 0.7 && tHpR < 0.3) score += 15; // 我血厚对方快死 → 激进
+    // ── 上下文加分：基于阵营血量比、状态动态调节 ──
+    // 激进：我方血量和远超敌方（>2倍）
+    if (ctx.ratio > 2.0) {
+        score += 25;
+    }
+    // 保守/防守：我方血量和远低于敌方（<0.5倍）
+    else if (ctx.ratio < 0.5) {
+        // 提升回复和防御相关权重
+        if (newVal === 6) score += W.six_heal * 0.8;
+        if (otherVal === 0 && [4,6].includes(newVal)) score += W.zero_combo_heal * 0.5;
+        if (newVal === otherVal && newVal === 6) score += W['star_6'] * 0.3;
+    }
+    // 敌方有人持 0（下回合可能攻击）→ 增加造盾权重
+    if (ctx.enemyHas0) {
+        if (newVal === otherVal && [2,3].includes(newVal)) score += 45;
+        if (otherVal === 0 && [2,3].includes(newVal)) score += W.zero_combo_shield * 0.6;
+    }
+    // 我方有人中毒 → 提升所有回血权重（含6/[6,6]和回血组合）
+    if (ctx.myPoisoned) {
+        if (newVal === 6) score += W.six_heal * 1.0;
+        if (newVal === otherVal && newVal === 6) score += W['star_6'] * 0.5;
+        if (otherVal === 0 && [4,6].includes(newVal)) score += W.zero_combo_heal * 0.6;
+    }
 
     return score;
 };
@@ -393,8 +429,8 @@ AI.score.lookahead = function(actorIdx, action) {
         estDmg = Math.max(estDmg, {9:200,0:150,7:40}[newVal] || 0);
     }
     // 角色倍率修正
-    if (actor.name==='小乔') estDmg = Math.floor(estDmg * 1.5);
-    if (actor.name==='法师' && otherVal===0 && [1,5,8,9].includes(newVal)) estDmg += 45;
+    if (actor.name === '小乔') estDmg = Math.floor(estDmg * 1.5); // 小乔物伤×1.5
+    if (charRole(actor.name) === 'output' && otherVal === 0 && [1,5,8,9].includes(newVal)) estDmg += 45; // 输出职业 0 组合追加法伤
 
     const shTotal = (dmgTarget.shieldList||[]).reduce((s,x) => s+(x.amount||0), 0);
     bonus += Math.max(0, estDmg - shTotal) * 0.5;
@@ -441,7 +477,6 @@ AI.decide = {};
 AI.decide.activeSkills = function(actorIdx) {
     const players = Main.turnManager.players;
     const actor   = players[actorIdx];
-    const hpR     = actor.hp / (actor.maxHp || 1);
     const name    = actor.name;
 
     if (name === '鸦眼') {
@@ -459,16 +494,17 @@ AI.decide.activeSkills = function(actorIdx) {
     }
 
     if (name === '张飞') {
-        const enemies = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p.hp > 0);
-        const modal   = actor.modal || 1;
-        // 血量低于45% → 模态3（打人回血）
-        if (hpR < 0.45 && modal !== 3)
+        const enemies   = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p.hp > 0);
+        const modal     = actor.modal || 1;
+        const campRatio = campStats(actorIdx).ratio; // 己方血量和 / 敌方血量和
+        // 阵营血量比低（<0.8）→ 模态3（打人回血）
+        if (campRatio < 0.8 && modal !== 3)
             Main.invokeAction(actorIdx, 'setModal', { modal: 3 });
-        // 2v2 两个敌人都活着 → 模态2（打两人）
-        else if (enemies.length >= 2 && modal !== 2 && hpR >= 0.45)
+        // 2v2 两个敌人都活着且血量健康 → 模态2（打两人）
+        else if (enemies.length >= 2 && modal !== 2 && campRatio >= 0.8)
             Main.invokeAction(actorIdx, 'setModal', { modal: 2 });
         // 默认模态1
-        else if (enemies.length < 2 && hpR >= 0.45 && modal !== 1)
+        else if (enemies.length < 2 && campRatio >= 0.8 && modal !== 1)
             Main.invokeAction(actorIdx, 'setModal', { modal: 1 });
     }
 
@@ -592,46 +628,10 @@ AI.helpTank.decide = function(helperIdx, victimIdx, totalPenalty) {
     const helper   = players[helperIdx];
     const victim   = players[victimIdx];
     if (!helper || helper.hp <= 0) return false;
+    if (!victim || victim.hp <= 0) return false;
 
-    const helperHpR = helper.hp / (helper.maxHp || 1);
-    const camp      = campOf(helperIdx);
-    const formation = G.formation[camp];
-
-    // 帮抗后自己不死（必须满足）
-    if (totalPenalty >= helper.hp) return false;
-
-    // 帮抗后自己剩余血量
-    const helperHpAfter = helper.hp - totalPenalty;
-    const helperHpAfterR = helperHpAfter / (helper.maxHp || 1);
-
-    // ── 坦脆流：坦克几乎永远帮抗脆皮 ──
-    if (formation === 'tank_carry') {
-        const tankIdx = G.tankIdx[camp];
-        if (helperIdx === tankIdx) {
-            // 我是坦克：只要帮完自己还有超过20%血就帮
-            return helperHpAfterR > 0.20;
-        } else {
-            // 我是脆皮：帮完自己还有超过50%血才帮（脆皮别送）
-            return helperHpAfterR > 0.50;
-        }
-    }
-
-    // ── 双半肉：综合评估 ──
-    // 有盾的更应该帮（盾可以吸收一部分帮抗伤害）
-    const helperShield = (helper.shieldList||[]).reduce((s,x) => s+(x.amount||0), 0);
-    const hasShield    = helperShield > 0;
-
-    // 队友剩余价值
-    const victimHpR    = victim.hp / (victim.maxHp || 1);
-
-    // 自己血厚（>55%）或有盾 → 帮
-    if (helperHpR > 0.55 || hasShield) return true;
-
-    // 自己血中等（35-55%）→ 看队友是否值得救（队友血量较高说明没白死）
-    if (helperHpR > 0.35) return victimHpR > 0.40;
-
-    // 自己血少（<35%）→ 不帮，保存自己
-    return false;
+    // 核心规则：只要扛得住就帮（帮完自己不死就帮）
+    return totalPenalty < helper.hp;
 };
 
 // ══════════════════════════════════════════════════
@@ -721,8 +721,26 @@ const CHAR_ID_MAP = {
 };
 const CHAR_NAME_MAP = Object.fromEntries(Object.entries(CHAR_ID_MAP).map(([k,v])=>[v,k]));
 
+// 角色职业映射（用于 AI 决策替代硬编码名字检查）
+const AI_CHAR_ROLE = {
+    '法师': 'output', '鸦眼': 'output', '孙悟空': 'output',
+    '藏师': 'tank',   '张飞': 'tank',
+    // 其余为 semi_tank（半肉），无需显式列出
+};
+function charRole(name) { return AI_CHAR_ROLE[name] || 'semi_tank'; }
+
 // 所有可训练角色 ID（排除杨大力）
 const TRAINABLE_CHARS = Object.keys(CHAR_ID_MAP);
+
+// 角色 HP 映射（用于选角配对检查）
+const AI_CHAR_HP = {
+    '小乔':360, '藏师':660, '法师':160, '孙悟空':260,
+    '大乔':120, '忍者':300, '张飞':560, '阴阳师':240,
+    '鸦眼':140, '赵云':200,
+};
+
+// 脆皮判定：HP < 200 视为脆皮
+function isSquishy(name) { return (AI_CHAR_HP[name] || 350) < 200; }
 
 // 坦克角色
 const TANK_IDS = ['zangshi', 'zhangfei'];
@@ -732,14 +750,37 @@ function decideFormation(charIds) {
     return charIds.some(id => TANK_IDS.includes(id)) ? 'tank_carry' : 'dual_half';
 }
 
-// 随机选 4 个角色（上局用过的不选，实在没得选才允许重复）
+// 检查4人阵容是否合理：脆皮队友HP必须≥220
+function isBalancedTeam(chars) {
+    const names = chars.map(id => CHAR_ID_MAP[id] || id);
+    // HERO: [0,2], REBEL: [1,3]
+    for (const [a, b] of [[0,2],[1,3]]) {
+        if (isSquishy(names[a]) && (AI_CHAR_HP[names[b]] || 350) < 220) return false;
+        if (isSquishy(names[b]) && (AI_CHAR_HP[names[a]] || 350) < 220) return false;
+    }
+    return true;
+}
+
+// 随机选 4 个角色（上局用过的不选，脆皮队友必须≥220HP）
 AI.train.pickChars = function(lastChars) {
     const pool = lastChars
         ? TRAINABLE_CHARS.filter(c => !lastChars.includes(c))
         : TRAINABLE_CHARS;
     const src  = pool.length >= 4 ? pool : TRAINABLE_CHARS;
-    const shuffled = src.slice().sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 4);
+    // 尝试多次抽取，找到合理阵容
+    for (let attempt = 0; attempt < 30; attempt++) {
+        const shuffled = src.slice().sort(() => Math.random() - 0.5);
+        const pick = shuffled.slice(0, 4);
+        if (isBalancedTeam(pick)) return pick;
+    }
+    // 30次都找不到 → 放宽限制，使用全部角色池重试
+    const full = TRAINABLE_CHARS.slice().sort(() => Math.random() - 0.5);
+    for (let attempt = 0; attempt < 30; attempt++) {
+        const pick = full.slice().sort(() => Math.random() - 0.5).slice(0, 4);
+        if (isBalancedTeam(pick)) return pick;
+    }
+    // 实在不行就返回第一次抽取结果
+    return src.slice().sort(() => Math.random() - 0.5).slice(0, 4);
 };
 
 AI.train.start = async function() {

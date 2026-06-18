@@ -76,7 +76,6 @@ const server = http.createServer((req, res) => {
                 const apiKey = process.env.QIANFAN_API_KEY || '5bca12355e6416179ffb18af6aed4b32:OTNjNWFhNjNjNGYyNTAzNDQ4NDg0YjY2';
                 endpoint = 'https://maas-api.cn-huabei-1.xf-yun.com/anthropic/v1/messages';
                 headers  = { 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01' };
-                // Anthropic Messages 格式：system 单独字段，messages 只含 user/assistant
                 const sysMsg = payload.messages.find(m => m.role === 'system');
                 const otherMsgs = payload.messages.filter(m => m.role !== 'system');
                 const bodyObj = {
@@ -122,6 +121,37 @@ const server = http.createServer((req, res) => {
                 proxyReq.write(reqBody);
                 proxyReq.end();
             } catch(e) { json({error:String(e)}, 500); }
+        });
+        return;
+    }
+
+    // ── /api/skill-weight  POST  更新角色 skill md 中的权重块 + 可选追加复盘文本 ──
+    if (url === '/api/skill-weight' && req.method === 'POST') {
+        body().then(d => {
+            const { name, weights, append } = JSON.parse(d);
+            if (!name) { json({ ok: false, error: 'missing name' }, 400); return; }
+            const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
+            const safe = path.resolve(skillPath);
+            if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) {
+                json({ ok: false, error: 'invalid name' }, 403); return;
+            }
+            fs.readFile(safe, 'utf8', (err, content) => {
+                if (err) { json({ ok: false, error: err.message }, 500); return; }
+                // 更新 ## 权重 下的 JSON 块（匹配 ```json ... ``` 之间的一行 JSON）
+                if (weights && Object.keys(weights).length > 0) {
+                    const weightJson = JSON.stringify(weights);
+                    content = content.replace(
+                        /(##\s*权重\s*\n```json\n)[\s\S]*?(\n```)/,
+                        `$1${weightJson}$2`
+                    );
+                }
+                // 可选：追加复盘文本
+                if (append) {
+                    content = content.replace(/\s+$/, '');
+                    content += '\n' + append + '\n';
+                }
+                fs.writeFile(safe, content, 'utf8', () => json({ ok: true }));
+            });
         });
         return;
     }

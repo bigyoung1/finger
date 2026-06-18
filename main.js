@@ -3428,10 +3428,10 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 		while(_g < newVals.length) {
 			var v = newVals[_g];
 			++_g;
-			if(v == 1 || v == 4) {
+			if(v == 8 || v == 4) {
 				haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：回复 10+y=" + (10 + this.y) + " 血",{ fileName : "./character/ZhaoYun.hx", lineNumber : 126, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
 				engine.applyHeal(this,10,model_HealType.RECOVERY);
-			} else if(v == 5 || v == 8 || v == 9) {
+			} else if(v == 5 || v == 1 || v == 9) {
 				var target = engine.findEnemyTarget(this);
 				if(target != null && target.hp > 0) {
 					haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：造成 20+x=" + (20 + this.x) + " 物理伤害给 " + target.name,{ fileName : "./character/ZhaoYun.hx", lineNumber : 131, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});

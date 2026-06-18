@@ -126,6 +126,37 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // ── /api/skill-weight  POST  更新角色 skill md 中的权重块 + 可选追加复盘文本 ──
+    if (url === '/api/skill-weight' && req.method === 'POST') {
+        body().then(d => {
+            const { name, weights, append } = JSON.parse(d);
+            if (!name) { json({ ok: false, error: 'missing name' }, 400); return; }
+            const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
+            const safe = path.resolve(skillPath);
+            if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) {
+                json({ ok: false, error: 'invalid name' }, 403); return;
+            }
+            fs.readFile(safe, 'utf8', (err, content) => {
+                if (err) { json({ ok: false, error: err.message }, 500); return; }
+                // 更新 ## 权重 下的 JSON 块（匹配 ```json ... ``` 之间的一行 JSON）
+                if (weights && Object.keys(weights).length > 0) {
+                    const weightJson = JSON.stringify(weights);
+                    content = content.replace(
+                        /(##\s*权重\s*\n```json\n)[\s\S]*?(\n```)/,
+                        `$1${weightJson}$2`
+                    );
+                }
+                // 可选：追加复盘文本
+                if (append) {
+                    content = content.replace(/\s+$/, '');
+                    content += '\n' + append + '\n';
+                }
+                fs.writeFile(safe, content, 'utf8', () => json({ ok: true }));
+            });
+        });
+        return;
+    }
+
     // ── /api/log  POST 保存训练日志 ──
     if (url === '/api/log' && req.method === 'POST') {
         body().then(d => {

@@ -122,10 +122,10 @@ class ZhaoYun extends Player {
         }
 
         for (v in newVals) {
-            if (v == 1 || v == 4) {
+            if (v == 8 || v == 4) {
                 trace('🐉 赵云单手 [${v}] 被动触发：回复 10+y=${10 + this.y} 血');
                 engine.applyHeal(this, 10, RECOVERY);
-            } else if (v == 5 || v == 8 || v == 9) {
+            } else if (v == 5 || v == 1 || v == 9) {
                 var target = engine.findEnemyTarget(this);
                 if (target != null && target.hp > 0) {
                     trace('🐉 赵云单手 [${v}] 被动触发：造成 20+x=${20 + this.x} 物理伤害给 ${target.name}');
