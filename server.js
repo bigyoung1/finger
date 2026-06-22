@@ -67,7 +67,7 @@ const server = http.createServer((req, res) => {
             let endpoint, headers, reqBody;
 
             if (provider === 'minimax') {
-                const apiKey = process.env.MINIMAX_API_KEY || '';
+                const apiKey = process.env.MINIMAX_API_KEY || 'sk-cp-hQDhqdoZ37_BPo_Dr4U_wWlPtUU4onAprt5oMeg22BZ-Es0jwWqRlpIXQTMSqEbuzUGtjVm2vbh3AKd__7dOfaCdaLPY5OiDsWbJqkE1mJ3WkxV94w_6_TM';
                 endpoint = 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
                 headers  = { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey };
                 reqBody  = JSON.stringify({ model:'MiniMax-M1', messages: payload.messages, temperature: payload.temperature||0.35, max_tokens: payload.max_tokens||200 });
@@ -87,7 +87,7 @@ const server = http.createServer((req, res) => {
                 if (sysMsg) bodyObj.system = sysMsg.content;
                 reqBody = JSON.stringify(bodyObj);
             } else {
-                const apiKey = process.env.DEEPSEEK_API_KEY || '';
+                const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-76c2685331c14d149be64c1d9036f84e';
                 endpoint = 'https://api.deepseek.com/chat/completions';
                 headers  = { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey };
                 reqBody  = JSON.stringify({ model:'deepseek-chat', messages: payload.messages, temperature: payload.temperature||0.35, max_tokens: payload.max_tokens||200 });

@@ -25,11 +25,19 @@ import model.HealType;
  * 防套娃说明：
  *   - _inZeroCombo：0组合期间禁止单手被动触发
  *   - 单手被动的输出/回血会正常更新 y/x（y=输出/2 不会无限增长）
+ *   - x上限80，y上限50：防止 [9,9] 等高基数爆发组合一次性把联动值推到失控范围。
+ *     健康的连续单手/0组合连击节奏（典型7回合 x≈60-65）完全不受上限影响，
+ *     只有踩中 [9,9]/[6,6] 等极端组合时才会被卡住，避免后续输出跟着雪球式失控。
  */
 class ZhaoYun extends Player {
 
     @:keep public var x:Int = 20; // 物伤加成
     @:keep public var y:Int = 10; // 回血加成
+
+    // x/y 上限：防止 [9,9] 等高基数组合一次性把联动值推到失控范围
+    // （健康的连续单手/0组合连击不会触碰到这个上限，只在踩中爆发性组合时生效）
+    private static inline var X_CAP:Int = 120;
+    private static inline var Y_CAP:Int = 120;
 
     // 0组合期间（onEnterZeroComboContext ~ onExitZeroComboContext）禁止单手被动
     private var _inZeroCombo:Bool = false;
@@ -59,8 +67,9 @@ class ZhaoYun extends Player {
     override public function onAnyOutputDamage(attacker:Player, target:Player, outputDamage:Int, type:DamageType, engine:GameEngine):Void {
         if (attacker != this) return;
         if (type != PHYSICAL || outputDamage <= 0) return;
-        var newY = Std.int(Math.max(10, outputDamage / 2));
-        trace('🐉 [赵云] 本次物理总输出 ${outputDamage}，y：${this.y} → ${newY}（输出/2）');
+        var raw  = Std.int(Math.max(10, outputDamage / 2));
+        var newY = Std.int(Math.min(Y_CAP, raw)); // 上限保护：防止高基数伤害把y推到失控范围
+        trace('🐉 [赵云] 本次物理总输出 ${outputDamage}，y：${this.y} → ${newY}（输出/2，上限${Y_CAP}）');
         this.y = newY;
     }
 
@@ -81,8 +90,9 @@ class ZhaoYun extends Player {
     override public function onAnyHealHappened(healer:Player, amount:Int, type:HealType, isFromSkill:Bool, engine:GameEngine):Void {
         if (healer != this) return;
         if (amount <= 0) return;
-        var newX = Std.int(Math.max(20, amount));
-        trace('🐉 [赵云] 本次总回血 ${amount}，x：${this.x} → ${newX}（总回血量）');
+        var raw  = Std.int(Math.max(20, amount));
+        var newX = Std.int(Math.min(X_CAP, raw)); // 上限保护：防止高基数回血把x推到失控范围
+        trace('🐉 [赵云] 本次总回血 ${amount}，x：${this.x} → ${newX}（总回血量，上限${X_CAP}）');
         this.x = newX;
     }
 
