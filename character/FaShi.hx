@@ -6,16 +6,7 @@ import model.DamageType;
 import model.HealType;
 import buffs.ThunderRageBuff;
 
-/**
- * 法师（攻击 | HP 80）
- * (1) 触发"0"组合时：物理伤害翻倍 + 附加最多 45 法术伤害 + 给敌方加 1 层【雷霆之怒】
- *     —— 物伤翻倍是法师的被动倍率（calculateOutputDamage 在 PHYSICAL+from0Combo时触发）
- *     —— 但 [0,x] 组合的物伤都是基础40，所以翻倍变 80；如有双4加成则继续叠加
- *     —— 附加法伤45在 onAfterDealtDamage 钩子里追加打一下（走标准流程）
- * (2) 雷霆之怒 Buff 详见 ThunderRageBuff.hx
- * (3) 雷霆伤害不享受(1)的物伤翻倍 → 在 ThunderRageBuff 内用 applyRawDamage 绕过 calculateOutputDamage
- *     法师补给雷霆造成的实际扣血量 → 在 ThunderRageBuff 内调 applyRawHeal
- */
+
 class FaShi extends Player {
 
     // 标记：当前是否处于"0组合伤害"的施法上下文，用于让 calculateOutputDamage 知道要翻倍

@@ -3,7 +3,9 @@
 // ════════════════════════════════════════════════════════
 
 // ── 帮抗弹窗 ──
-function showHelpTankDialog(helperIdx, victimIdx) {
+// source: 事件模式时传入来源描述（如"反弹盾"/"中毒"/"张飞模态②第二刀"），主线模式为 null/undefined
+// eventRecord: 事件模式时的完整记录 {amount, damageTypeStr, source}，用于展示具体伤害数值
+function showHelpTankDialog(helperIdx, victimIdx, source, eventRecord) {
     // 联机：只对控制 helper 的 slot 显示帮抗弹窗
     if (ONLINE.active && ONLINE.charControl[helperIdx] !== ONLINE.slotIdx) return;
     var players = Main.turnManager.players;
@@ -11,23 +13,29 @@ function showHelpTankDialog(helperIdx, victimIdx) {
 
     var victim = players[victimIdx];
     var helper = players[helperIdx];
-    var log    = Main.engine.lastTouchDamageLog;
 
     var dmgLines = [];
-    var totalPenalty = 0;
-    for (var i = 0; i < log.length; i++) {
-        var rec = log[i];
-        var typeStr = rec.typeName || getDamageTypeName(rec.type);
-        var penalty = Math.ceil(rec.outputAmount * 1.5);
-        totalPenalty += penalty;
-        dmgLines.push(typeStr + ' ' + rec.outputAmount + ' × 1.5 = <b>' + penalty + '</b>');
+
+    if (source && eventRecord) {
+        var sourceLabel = '<span style="color:#fa541c;font-weight:600">[' + source + ']</span> ';
+        var typeStr2 = eventRecord.damageTypeStr === 'PHYSICAL' ? '物理' : (eventRecord.damageTypeStr === 'MAGIC' ? '法术' : '真实');
+        var penalty2 = Math.ceil(eventRecord.amount * 1.5);
+        dmgLines.push(sourceLabel + typeStr2 + ' ' + eventRecord.amount + ' × 1.5 = <b>' + penalty2 + '</b>');
+    } else {
+        var log = Main.engine.lastTouchDamageLog;
+        for (var i = 0; i < log.length; i++) {
+            var rec = log[i];
+            var typeStr = rec.typeName || getDamageTypeName(rec.type);
+            var penalty = Math.ceil(rec.outputAmount * 1.5);
+            dmgLines.push(typeStr + ' ' + rec.outputAmount + ' × 1.5 = <b>' + penalty + '</b>');
+        }
     }
 
     var dialog = document.getElementById('helpTankDialog');
     if (!dialog) { G.helpTankContext = null; G.inputLocked = false; finishTurn2(); return; }
 
     document.getElementById('helpTankMsg').innerHTML =
-        '⚠️ <b>' + victim.name + '</b> 即将阵亡！<br>' +
+        '⚠️ <b>' + victim.name + '</b> 即将阵亡！' + (source ? ('（' + source + '）') : '') + '<br>' +
         '<b>' + helper.name + '</b>，要帮忙承受这次伤害吗？<br>' +
         '<div style="margin:8px 0;padding:8px;background:#fff1f0;border-radius:6px;font-size:12px;line-height:1.8">' +
         dmgLines.join('<br>') +

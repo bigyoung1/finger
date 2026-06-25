@@ -46,7 +46,7 @@ class ZhangFei extends Player {
         var amount = isFrenzied() ? 20 : 10;
         if (this.hp > 0 && GameEngine.instance != null) {
             trace('🐗 张飞行动结束补给 ${amount} 血${isFrenzied() ? "（狂暴翻倍）" : ""}');
-            GameEngine.instance.applyRawHeal(this, amount, SUPPLY, false);
+            GameEngine.instance.applyRawHeal(this, amount, RECOVERY, false);
             // isFromSkill=false 让"回血加怒"事件能触发自己
         }
         // 狂暴回合数 -1
@@ -138,8 +138,12 @@ class ZhangFei extends Player {
                 var originalBase = engine.lastApplyDamageBase;
                 trace('🐗 张飞模态②：对第二目标 ${secondTarget.name} 重新走流程，原始 baseAmount=${originalBase}');
                 _inSecondHit = true;
-                engine.applyDamage(this, secondTarget, originalBase, type);
+                var secondResult = engine.applyDamage(this, secondTarget, originalBase, type);
                 _inSecondHit = false;
+                // 登记帮抗事件：第二刀不在 lastTouchDamageLog 主记录里，需要单独供 JS 层弹窗判定
+                if (secondResult.actualDamage > 0) {
+                    engine.registerHelpTankEvent(secondTarget, this, secondResult.actualDamage, type, "张飞模态②第二刀");
+                }
             } else {
                 trace('🐗 张飞模态②：场上只有一个敌人，不追加。');
             }

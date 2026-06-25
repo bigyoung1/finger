@@ -34,6 +34,59 @@ class GameEngine {
     private var _htVictimShields:Array<ShieldInstance> = [];
     private var _htDamageSnapshot:Array<Dynamic> = [];
 
+    /**
+     * 通用帮抗事件队列：覆盖反弹 / 毒伤 / 模态②第二刀等不走 handleTouch 主线的伤害来源。
+     * 每当一笔独立伤害可能导致死亡，且该伤害不是来自 lastTouchDamageLog 主记录时，
+     * 由触发源（ReflectBuff / PoisonBuff / ZhangFei模态②）自行 push 一条记录到这里。
+     * JS 层每次检测死亡时，优先消费这个队列里"针对当前死者"的记录来算 1.5 倍惩罚；
+     * 队列为空时才回退到旧的 lastTouchDamageLog 逻辑。
+     */
+    @:keep public var pendingHelpTankEvents:Array<Dynamic> = [];
+
+    /**
+     * 供 buff/角色调用：登记一笔可能致死的独立伤害（非 handleTouch 主线）。
+     * JS 层轮询该队列处理帮抗，处理完后会清空。
+     */
+    @:keep public function registerHelpTankEvent(victim:Player, attacker:Player, actualDamage:Int, type:DamageType, source:String):Void {
+        if (victim == null || actualDamage <= 0) return;
+        var typeStr = switch(type) {
+            case PHYSICAL: "PHYSICAL";
+            case MAGIC:    "MAGIC";
+            case TRUE:     "TRUE";
+        };
+        pendingHelpTankEvents.push({
+            victimName: victim.name,
+            attackerName: attacker != null ? attacker.name : null,
+            amount: actualDamage,
+            damageType: type,
+            damageTypeStr: typeStr,
+            source: source
+        });
+        trace('🛡️ [帮抗事件登记] ${victim.name} 受到来自[${source}]的 ${actualDamage} 点${typeStr}伤害，已登记供帮抗判定。');
+    }
+
+    /**
+     * 消费一条针对指定受害者的帮抗事件（按名字匹配，因为事件登记时只存了 name）。
+     * 找到则从队列移除并返回该事件，否则返回 null。
+     */
+    @:keep public function consumeHelpTankEvent(victimName:String):Dynamic {
+        for (i in 0...pendingHelpTankEvents.length) {
+            var e = pendingHelpTankEvents[i];
+            if (e.victimName == victimName) {
+                pendingHelpTankEvents.splice(i, 1);
+                return e;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 清空所有未消费的帮抗事件（回合/大回合结束时调用，避免脏数据残留到下一回合）。
+     */
+    @:keep public function clearHelpTankEvents():Void {
+        pendingHelpTankEvents = [];
+    }
+
     public function new() {
         GameEngine.instance = this;
     }
@@ -635,7 +688,28 @@ class GameEngine {
                 _htDamageSnapshot.push({ type: rec.type, outputAmount: rec.outputAmount });
             }
         }
+        _htIsEventMode = false;
         trace('🛡️ [帮抗快照] 共记录 ${_htDamageSnapshot.length} 笔伤害');
+    }
+
+    // ── 事件模式帮抗（反弹/毒伤/模态②第二刀）专用状态 ──
+    private var _htIsEventMode:Bool = false;
+    private var _htEventAmount:Int = 0;
+    private var _htEventType:DamageType = PHYSICAL;
+
+    /**
+     * 帮抗-步骤1&2（事件模式）：针对反弹/毒伤/模态②第二刀这类"非 handleTouch 主线"伤害。
+     * victim 此刻已经扣完血（甚至已经死亡），这里只记录"应该恢复多少血、用多大基数算1.5倍惩罚"。
+     * 与主线模式不同：不恢复护盾（这类伤害通常不经过护盾消耗判定，或已在 handleIncomingDamage 内处理过），
+     * 只把 victim 的 hp 加回 actualDamage。
+     */
+    @:keep public function snapshotHelpTankVictimFromEvent(victim:Player, actualDamage:Int, type:DamageType):Void {
+        _htVictim = victim;
+        _htVictimHp = (victim != null) ? victim.hp + actualDamage : 0; // 恢复后的目标hp = 当前hp(已扣) + 这笔伤害
+        _htVictimShields = []; // 事件模式不恢复护盾快照（这类伤害不走护盾消耗的常规链路）
+        _htIsEventMode = true;
+        _htEventAmount = actualDamage;
+        _htEventType = type;
     }
 
     /**
@@ -647,12 +721,15 @@ class GameEngine {
     @:keep public function resolveHelpTank(helperIdx:Int):Void {
         if (turnManager == null) return;
 
-        // 1. 恢复 victim 防御快照
+        // 1. 恢复 victim
         if (_htVictim != null) {
             _htVictim.hp = _htVictimHp;
-            _htVictim.shieldList = [];
-            for (s in _htVictimShields) {
-                _htVictim.shieldList.push(new ShieldInstance(s.type, s.amount, s.duration));
+            if (!_htIsEventMode) {
+                // 主线模式：恢复护盾快照
+                _htVictim.shieldList = [];
+                for (s in _htVictimShields) {
+                    _htVictim.shieldList.push(new ShieldInstance(s.type, s.amount, s.duration));
+                }
             }
             trace('🛡️ [帮抗] ${_htVictim.name} 被队友接管伤害，恢复到攻击前状态（HP ${_htVictimHp}）');
         }
@@ -660,25 +737,37 @@ class GameEngine {
         // 2. helper 承受 ×1.5 伤害
         if (helperIdx >= 0 && helperIdx < turnManager.players.length) {
             var helper = turnManager.players[helperIdx];
-            if (helper != null && helper.hp > 0 && _htDamageSnapshot.length > 0) {
-                trace('🛡️ [帮抗开始] ${helper.name} 替队友承受以下伤害 ×1.5：');
-                for (rec in _htDamageSnapshot) {
-                    var penaltyAmt = Math.ceil(rec.outputAmount * 1.5);
-                    var dt:DamageType = rec.type; // 显式标注，避免与 ShieldType 同名值歧义
-                    var typeStr = switch(dt) {
+            if (helper != null && helper.hp > 0) {
+                if (_htIsEventMode) {
+                    var penaltyAmt = Math.ceil(_htEventAmount * 1.5);
+                    var typeStr = switch(_htEventType) {
                         case PHYSICAL: "物理";
                         case MAGIC:    "法术";
                         case TRUE:     "真实";
                     };
-                    trace('   → ${typeStr} ${rec.outputAmount} × 1.5 = ${penaltyAmt}');
-                    // 走 handleIncomingDamage（attacker=null：不触发攻击者副作用，但走 helper 全部防御）
-                    helper.handleIncomingDamage(null, penaltyAmt, dt);
+                    trace('🛡️ [帮抗开始-事件模式] ${helper.name} 替队友承受：${typeStr} ${_htEventAmount} × 1.5 = ${penaltyAmt}');
+                    helper.handleIncomingDamage(null, penaltyAmt, _htEventType);
+                    trace('🛡️ [帮抗结算] ${helper.name} 剩余HP：${helper.hp}');
+                } else if (_htDamageSnapshot.length > 0) {
+                    trace('🛡️ [帮抗开始] ${helper.name} 替队友承受以下伤害 ×1.5：');
+                    for (rec in _htDamageSnapshot) {
+                        var penaltyAmt = Math.ceil(rec.outputAmount * 1.5);
+                        var dt:DamageType = rec.type;
+                        var typeStr = switch(dt) {
+                            case PHYSICAL: "物理";
+                            case MAGIC:    "法术";
+                            case TRUE:     "真实";
+                        };
+                        trace('   → ${typeStr} ${rec.outputAmount} × 1.5 = ${penaltyAmt}');
+                        helper.handleIncomingDamage(null, penaltyAmt, dt);
+                    }
+                    trace('🛡️ [帮抗结算] ${helper.name} 剩余HP：${helper.hp}');
                 }
-                trace('🛡️ [帮抗结算] ${helper.name} 剩余HP：${helper.hp}');
             }
         }
 
         // 清理快照
+        _htIsEventMode = false;
         _htVictim = null;
         _htVictimShields = [];
         _htDamageSnapshot = [];

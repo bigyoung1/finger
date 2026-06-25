@@ -24,6 +24,11 @@ class PoisonBuff extends Buff {
             var result = owner.handleIncomingDamage(null, finalDamage, MAGIC);
             trace('${owner.name} 毒发！理论${finalDamage}（${damage}+乌鸦${crowExtra}） → 实际扣 ${result.actualDamage}！');
 
+            // 登记帮抗事件：毒伤在回合结束触发，不在 handleTouch 主线内，无攻击者
+            if (result.actualDamage > 0 && GameEngine.instance != null) {
+                GameEngine.instance.registerHelpTankEvent(owner, null, result.actualDamage, MAGIC, "中毒");
+            }
+
             // 乌鸦回调（毒伤无攻击者乘算，crowHeal = crowExtra）
             if (crowExtra > 0 && GameEngine.instance != null) {
                 for (b in owner.buffList) {

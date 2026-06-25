@@ -33,8 +33,12 @@ class ReflectBuff extends Buff {
         if (attacker != null && reflectDmg > 0 && engine != null) {
             trace('${owner.name} 触发反伤！反弹 ${reflectDmg} 点物伤给 ${attacker.name}！');
             engine.isReflecting = true;
-            attacker.handleIncomingDamage(owner, reflectDmg, PHYSICAL);
+            var reflectResult = attacker.handleIncomingDamage(owner, reflectDmg, PHYSICAL);
             engine.isReflecting = false;
+            // 登记帮抗事件：反弹可能致死，供 JS 层弹窗判定（之前漏掉这一步导致反弹直接秒人无法帮抗）
+            if (reflectResult.actualDamage > 0) {
+                engine.registerHelpTankEvent(attacker, owner, reflectResult.actualDamage, PHYSICAL, "反弹盾");
+            }
         }
 
         return 0; // 自身免疫本次伤害

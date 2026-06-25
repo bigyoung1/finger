@@ -94,24 +94,40 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
     // 发送操作给对手
     if (!fromRemote) ONLINE.sendAction({ type: "attack", actorIdx: actorIdx, myHand: myHand, touchTargetIdx: touchTargetIdx, touchHandIdx: touchHandIdx, dmgTargetIdx: dmgTargetIdx2 });
 
-    // 濒死检测（主目标）→ 若弹出帮抗窗则回合暂停
-    if (tryHelpTankOrPause(dmgTargetIdx2, fromRemote)) return;
-
-    // 反伤致死检测：攻击者可能被双五/藏师反伤打死，补做帮抗检测
-    // 反伤不在 lastTouchDamageLog 里，传入 0 让帮抗惩罚按实际反伤重算
-    if (actorIdx !== dmgTargetIdx2 && players[actorIdx].hp <= 0) {
-        if (tryHelpTankOrPause(actorIdx, fromRemote, 0)) return;
-    }
+    // 濒死检测：遍历全场死亡角色（覆盖主目标 + 反弹/模态②第二刀等事件伤害）
+    if (checkAllDeathsForHelpTank(fromRemote)) return;
 
     finishTurn2();
 }
 
-// ── 帮抗濒死检测（doAttack2 / executeWukong02 共用）──
+// ── 帮抗濒死检测：遍历全场，谁死了就检测谁 ──
+// 覆盖：主线攻击死亡(lastTouchDamageLog) + 事件模式死亡(反弹/毒伤/模态②第二刀，走 pendingHelpTankEvents)
+// 返回 true 表示已弹出帮抗窗（或在等待远端决定），调用方应 return
+function checkAllDeathsForHelpTank(fromRemote) {
+    var players = Main.turnManager.players;
+    for (var idx = 0; idx < players.length; idx++) {
+        var p = players[idx];
+        if (!p || p.hp > 0) continue; // 只处理刚死亡的
+        if (typeof p.canReceiveHelpTank === 'function' && !p.canReceiveHelpTank()) continue;
+
+        // 先看是否有事件模式记录（反弹/毒伤/模态②第二刀）
+        var ev = Main.engine.consumeHelpTankEvent(p.name);
+        if (ev) {
+            if (tryHelpTankOrPause(idx, fromRemote, undefined, ev)) return true;
+            continue;
+        }
+        // 否则走主线 lastTouchDamageLog 检测（普通攻击致死）
+        if (tryHelpTankOrPause(idx, fromRemote)) return true;
+    }
+    return false;
+}
+
+// ── 帮抗濒死检测（单个角色）──
 // 返回 true 表示已弹出帮抗窗，调用方应 return（回合暂停，等待玩家选择）
-// 返回 false 表示无需帮抗，调用方继续 finishTurn2()
-// penaltyOverride: 反伤/毒死时 log 里没有对应伤害，传入实际死亡伤害量（用于判断帮抗者是否扛得住）
-// penaltyOverride 为 undefined 时按 lastTouchDamageLog 算（普通攻击路径）
-function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride) {
+// 返回 false 表示无需帮抗，调用方继续后续流程
+// penaltyOverride: 显式指定惩罚基数时使用（保留兼容）
+// eventRecord: {amount, damageType, damageTypeStr, source, attackerName} —— 事件模式专用，来自 consumeHelpTankEvent
+function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride, eventRecord) {
     var players = Main.turnManager.players;
     var dmgTarget = players[dmgTargetIdx2];
     if (!dmgTarget || dmgTarget.hp > 0) return false;
@@ -121,9 +137,11 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride) {
 
     var victimCamp = campOf(dmgTargetIdx2);
     var seats = (victimCamp === 'hero') ? [0, 2] : [1, 3];
-    // 计算帮抗惩罚伤害：反伤/毒死时 penaltyOverride=0（帮抗者只要活着就能扛）
+
     var totalPenalty;
-    if (penaltyOverride !== undefined) {
+    if (eventRecord) {
+        totalPenalty = Math.ceil(eventRecord.amount * 1.5);
+    } else if (penaltyOverride !== undefined) {
         totalPenalty = penaltyOverride;
     } else {
         var log = Main.engine.lastTouchDamageLog || [];
@@ -146,19 +164,21 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride) {
     if (ONLINE.active) {
         var helperController = ONLINE.charControl[helperIdx];
         if (helperController !== ONLINE.slotIdx) {
-            // 我不是控制 helper 的玩家 → 等待
             ONLINE.waitingRemoteHelpTank = true;
             G.inputLocked = true;
             setHint2("⏳ 等待帮抗者决定...");
             return true;
         }
-        // 我控制 helper，我弹窗决定
     }
 
-    // 冻结本次伤害快照（防止后续操作清空 lastTouchDamageLog）
-    Main.engine.captureHelpTankDamage();
+    // 冻结快照：事件模式 vs 主线模式
+    if (eventRecord) {
+        Main.engine.snapshotHelpTankVictimFromEvent(dmgTarget, eventRecord.amount, eventRecord.damageType);
+    } else {
+        Main.engine.captureHelpTankDamage();
+    }
     G.inputLocked = true;
-    showHelpTankDialog(helperIdx, dmgTargetIdx2);
+    showHelpTankDialog(helperIdx, dmgTargetIdx2, eventRecord ? eventRecord.source : null, eventRecord);
     return true;
 }
 
@@ -183,11 +203,16 @@ function finishTurn2() {
     Main.turnManager.nextTurn();
 
     // 检测 nextTurn 后新死亡的玩家（毒死、双零等），逐一补做帮抗
+    // 优先用事件队列（毒伤等已登记了真实 ×1.5 惩罚基数），查不到才回退到"只要活着就行"
     if (!Main.turnManager.gameOver) {
         for (var i = 0; i < players.length; i++) {
             if (aliveBeforeNext[i] && players[i].hp <= 0) {
-                // penaltyOverride=0：毒/回合结算无攻击者，帮抗者只要活着就行
-                if (tryHelpTankOrPause(i, false, 0)) return;
+                var ev = Main.engine.consumeHelpTankEvent(players[i].name);
+                if (ev) {
+                    if (tryHelpTankOrPause(i, false, undefined, ev)) return;
+                } else {
+                    if (tryHelpTankOrPause(i, false, 0)) return;
+                }
             }
         }
     }

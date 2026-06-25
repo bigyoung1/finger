@@ -148,6 +148,7 @@ class TurnManager {
                 for (p in players) {
                     if (p.hp > 0) p.onBigRoundEnd();
                 }
+                if (GameEngine.instance != null) GameEngine.instance.clearHelpTankEvents();
                 Main.snapshotState();
             }
 

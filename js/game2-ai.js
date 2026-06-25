@@ -64,9 +64,15 @@ function parseWeightsFromSkill(skillText) {
 }
 
 // 获取角色权重（合并基础值 + 角色专属值）
-function getCharWeights(charName) {
-    if (AI_CHAR_WEIGHTS[charName]) return AI_CHAR_WEIGHTS[charName];
-    return AI_BASE_WEIGHTS;
+// camp 参数可选：AI.evolve 测试时用于临时覆盖单个 key（不影响正式对局/训练）
+function getCharWeights(charName, camp) {
+    const base = AI_CHAR_WEIGHTS[charName] || AI_BASE_WEIGHTS;
+    if (camp && window.AI && AI.evolve && AI.evolve._campOverride && AI.evolve._campOverride[camp]) {
+        const ov = AI.evolve._campOverride[camp];
+        // 浅拷贝一份，避免直接改写 AI_CHAR_WEIGHTS 污染其他阵营/正式对局
+        return Object.assign({}, base, { [ov.weightKey]: ov.value });
+    }
+    return base;
 }
 
 // ──────────────────────────────────────────────────
@@ -216,11 +222,13 @@ AI.takeTurn = async function(actorIdx) {
     // 5. 加载角色技能文档
     const skillDoc = await AI.loadSkill(actor.name);
 
-    // 6. LLM 决策（15% 概率探索）
+    // 6. LLM 决策（15% 概率探索）—— headlessMode 时完全跳过LLM，纯启发式（用于批量统计调参）
     let chosen = top4[0];
     let reason = '启发式';
 
-    if (Math.random() < 0.15 && top4.length > 1) {
+    if (AI.headlessMode) {
+        reason = '启发式(headless)';
+    } else if (Math.random() < 0.15 && top4.length > 1) {
         const pick = 1 + Math.floor(Math.random() * Math.min(2, top4.length - 1));
         chosen = top4[pick];
         reason = `探索(#${pick})`;
@@ -301,7 +309,7 @@ AI.score.heuristic = function(actorIdx, action) {
     const target   = players[action.targetIdx];
     if (!target) return 0;
 
-    const W        = getCharWeights(actor.name); // 使用角色专属权重
+    const W        = getCharWeights(actor.name, campOf(actorIdx)); // 使用角色专属权重（支持evolve测试时按阵营覆盖）
     const myVal    = actor.hands[action.myHand];
     const tVal     = target.hands[action.touchHandIdx];
     const newVal   = (myVal + tVal) % 10;
@@ -409,7 +417,7 @@ AI.score.lookahead = function(actorIdx, action) {
     const players  = Main.turnManager.players;
     const actor    = players[actorIdx];
     const target   = players[action.targetIdx];
-    const W        = getCharWeights(actor.name);
+    const W        = getCharWeights(actor.name, campOf(actorIdx));
     const dmgIdx   = typeof getActualTarget === 'function' ? getActualTarget(action.targetIdx) : action.targetIdx;
     const dmgTarget = players[dmgIdx];
     if (!dmgTarget) return 0;
@@ -849,9 +857,11 @@ AI.train.runOneBattle = function(charIds) {
 
         // 注入帮抗自动决策：覆盖弹窗为 AI 自动判断
         const origShow = window.showHelpTankDialog;
-        window.showHelpTankDialog = function(helperIdx, victimIdx) {
-            const log  = Main.engine.lastTouchDamageLog || [];
-            const pen  = log.reduce((s,l) => s + Math.ceil(l.outputAmount*1.5), 0);
+        window.showHelpTankDialog = function(helperIdx, victimIdx, source, eventRecord) {
+            // 事件模式（反弹/毒伤/模态②第二刀）用 eventRecord.amount，否则用主线 lastTouchDamageLog
+            const pen = eventRecord
+                ? Math.ceil(eventRecord.amount * 1.5)
+                : (Main.engine.lastTouchDamageLog || []).reduce((s,l) => s + Math.ceil(l.outputAmount*1.5), 0);
             const doHelp = AI.helpTank.decide(helperIdx, victimIdx, pen);
             G.inputLocked = false;
             G.helpTankContext = null;
@@ -1020,6 +1030,296 @@ AI.train.getStatusText = function() {
         weights:  `已加载角色: ${Object.keys(AI_CHAR_WEIGHTS).join(', ') || '加载中...'}`,
     };
 };
+
+// ══════════════════════════════════════════════════
+//  AI.evolve — 批量自对弈数值调参（不调用LLM，纯本地统计）
+//
+//  设计目的：
+//    LLM内战(AI.train)负责"战略层"决策好不好（切模态/帮抗/开技能时机），
+//    这部分涉及复杂局面理解，LLM比纯公式聪明，继续保留。
+//    但权重表里的具体数字（star_9该是400还是450？X_CAP该是80还是120？）
+//    这类连续数值问题，靠LLM"读日志猜"不如直接跑几百局看真实胜率准。
+//
+//  用法：
+//    AI.evolve.testWeight('赵云', 'star_9', [300, 400, 500], 60)
+//    → 对"赵云"角色的 star_9 权重，分别设成300/400/500，每个值跑60局镜像对局
+//      （即两边都用赵云+同一个固定对手，只有 star_9 不同），统计胜率，
+//      返回每个候选值对应的胜率，方便挑出统计上更优的数值。
+//
+//  关键设计：
+//    - headlessMode=true，跳过所有 LLM 调用，纯启发式打分选择，速度极快
+//    - 镜像对局：避免阵容随机性干扰，只让被测权重产生差异
+//    - 不渲染DOM（每局跳过 render2，只在必要时调用驱动逻辑前进）
+//    - 跑完后自动恢复 AI_CHAR_WEIGHTS 原值，不污染当前权重状态
+// ══════════════════════════════════════════════════
+AI.evolve = {
+    running: false,
+    log: [],
+};
+
+// 跑一局 headless 对战（无渲染、无LLM、无复盘写文件），返回胜方阵营字符串
+AI.evolve.runHeadlessBattle = function(charIds) {
+    return new Promise(resolve => {
+        if (typeof setupTrace2v2 === 'function') setupTrace2v2();
+        if (typeof clearTankResolver === 'function') clearTankResolver();
+        if (typeof resetAvatars === 'function') resetAvatars();
+        clearInterval(G.stealTimer || 0);
+        G.stealQueue = [];
+        window._stealUsedThisTurn = {};
+        G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+
+        Main.setupGame2v2(charIds[0], charIds[1], charIds[2], charIds[3]);
+
+        const heroFormation  = decideFormation([charIds[0], charIds[2]]);
+        const rebelFormation = decideFormation([charIds[1], charIds[3]]);
+        G.formation = { hero: heroFormation, rebel: rebelFormation };
+        G.tankIdx   = { hero: 0, rebel: 1 };
+        G.tankIdx.hero  = TANK_IDS.includes(charIds[0]) ? 0 : (TANK_IDS.includes(charIds[2]) ? 2 : 0);
+        G.tankIdx.rebel = TANK_IDS.includes(charIds[1]) ? 1 : (TANK_IDS.includes(charIds[3]) ? 3 : 1);
+        if (typeof setupTankResolver === 'function') setupTankResolver();
+
+        AI.enabled     = true;
+        AI.controlled  = { 0:true, 1:true, 2:true, 3:true };
+        AI.headlessMode = true; // 关键：跳过LLM调用，纯启发式
+        AI.log         = [];
+
+        // 帮抗：直接走 AI.helpTank.decide，不弹窗、不渲染
+        const origShow = window.showHelpTankDialog;
+        window.showHelpTankDialog = function(helperIdx, victimIdx, source, eventRecord) {
+            const pen = eventRecord
+                ? Math.ceil(eventRecord.amount * 1.5)
+                : (Main.engine.lastTouchDamageLog || []).reduce((s,l) => s + Math.ceil(l.outputAmount*1.5), 0);
+            const doHelp = AI.helpTank.decide(helperIdx, victimIdx, pen);
+            G.inputLocked = false;
+            G.helpTankContext = null;
+            if (doHelp) Main.engine.resolveHelpTank(helperIdx);
+            finishTurn2(); // 不渲染，直接继续
+        };
+
+        // 防止死循环：最多跑 500 个 AI 回合还没结束就强制判平局退出
+        let safetyCounter = 0;
+        const MAX_TURNS = 500;
+
+        const driveLoop = () => {
+            if (!AI.evolve.running && !AI.evolve._forceOneShot) {
+                window.showHelpTankDialog = origShow;
+                resolve(null); // 被外部中止
+                return;
+            }
+            if (Main.turnManager && Main.turnManager.gameOver) {
+                window.showHelpTankDialog = origShow;
+                AI.headlessMode = false;
+                const winner = Main.turnManager.winningCamp;
+                const winnerStr = winner ? (winner._hx_name || String(winner)).toUpperCase() : null;
+                resolve(winnerStr);
+                return;
+            }
+            safetyCounter++;
+            if (safetyCounter > MAX_TURNS) {
+                window.showHelpTankDialog = origShow;
+                AI.headlessMode = false;
+                resolve('DRAW_TIMEOUT');
+                return;
+            }
+            // 不渲染，直接驱动 AI 思考+行动，思考完后立即排下一轮（用 Promise 链避免堆栈溢出）
+            if (!G.inputLocked && !G.helpTankContext && !G.wukongPending && AI.enabled && !AI.thinkingPromise) {
+                const curIdx = Main.turnManager.currentPlayerIdx;
+                AI.thinkingPromise = AI.takeTurn(curIdx).finally(() => { AI.thinkingPromise = null; });
+            }
+            // 用 setTimeout(0) 让出主线程，避免长时间阻塞页面/浏览器报"脚本无响应"
+            setTimeout(driveLoop, 0);
+        };
+        driveLoop();
+    });
+};
+
+// 临时替换某角色的某个权重 key（跑完后必须用 restoreCharWeight 还原）
+AI.evolve._backup = {};
+AI.evolve.setCharWeight = function(charName, key, value) {
+    if (!AI_CHAR_WEIGHTS[charName]) AI_CHAR_WEIGHTS[charName] = Object.assign({}, AI_BASE_WEIGHTS);
+    if (!(charName in AI.evolve._backup)) AI.evolve._backup[charName] = Object.assign({}, AI_CHAR_WEIGHTS[charName]);
+    AI_CHAR_WEIGHTS[charName][key] = value;
+};
+AI.evolve.restoreCharWeights = function(charName) {
+    if (AI.evolve._backup[charName]) {
+        AI_CHAR_WEIGHTS[charName] = AI.evolve._backup[charName];
+        delete AI.evolve._backup[charName];
+    }
+};
+
+// 临时按"槛位"覆盖某个角色的某个权重——用于让HERO和REBEL两边用同名角色但不同权重对打。
+// 实现方式：在 getCharWeights 查找前，先检查 AI.evolve._campOverride[camp] 是否命中。
+AI.evolve._campOverride = { hero: null, rebel: null }; // { weightKey, value } 或 null
+
+/**
+ * 两两对抗式权重测试：让候选值轮流和"基准值"对打，用真实胜率说话。
+ * 比"打沙包"更准确，因为权重的价值往往体现在"和势均力敌的对手互动时的边际收益"。
+ *
+ * @param charName  角色名（双方都用这个角色，保证除被测权重外完全对称）
+ * @param weightKey 权重key
+ * @param candidates 候选值数组（会依次和 baseline 对打）
+ * @param gamesPerValue 每个候选值跑多少局
+ * @param onProgress 进度回调
+ * @returns { baseline, candidates: [{value, winsVsBaseline, lossesVsBaseline, winRate}], best }
+ */
+AI.evolve.testWeight = async function(charName, weightKey, candidates, gamesPerValue, opponentCharId, onProgress) {
+    if (AI.evolve.running) { console.warn('[Evolve] 已有任务在跑，请先停止'); return null; }
+    AI.evolve.running = true;
+    AI.evolve.log = [];
+
+    const myCharId = CHAR_NAME_MAP[charName];
+    if (!myCharId) { AI.evolve.running = false; throw new Error(`未知角色名: ${charName}`); }
+    const oppId = opponentCharId || myCharId; // 默认对手=自己（同角色对打，只有权重不同）
+
+    const baselineValue = (AI_CHAR_WEIGHTS[charName] || AI_BASE_WEIGHTS)[weightKey];
+    const results = [];
+
+    for (let ci = 0; ci < candidates.length; ci++) {
+        const val = candidates[ci];
+        let wins = 0, losses = 0, draws = 0;
+
+        for (let g = 0; g < gamesPerValue; g++) {
+            if (!AI.evolve.running) break;
+
+            // HERO方([0,2])用候选值，REBEL方([1,3])用基准值 —— 通过 campOverride 让同一个角色名在不同阵营吃不同权重
+            AI.evolve._campOverride.hero  = { weightKey, value: val };
+            AI.evolve._campOverride.rebel = { weightKey, value: baselineValue };
+
+            const charIds = [myCharId, oppId, myCharId, oppId]; // HERO:[候选角色,陪练] REBEL:[基准角色,陪练]
+            const winner = await AI.evolve.runHeadlessBattle(charIds);
+
+            AI.evolve._campOverride.hero  = null;
+            AI.evolve._campOverride.rebel = null;
+
+            if (winner === 'HERO') wins++;
+            else if (winner === 'REBEL') losses++;
+            else draws++;
+
+            if (onProgress) onProgress(ci, g, gamesPerValue);
+        }
+
+        const total = wins + losses + draws;
+        const winRate = total > 0 ? wins / total : 0;
+        results.push({ value: val, wins, losses, draws, winRate });
+        AI.evolve.log.push(`[Evolve] ${charName}.${weightKey}: 候选${val} vs 基准${baselineValue} → ${wins}胜${losses}负${draws}平 (候选胜率${(winRate*100).toFixed(1)}%)`);
+        console.log(AI.evolve.log[AI.evolve.log.length - 1]);
+    }
+
+    AI.evolve.running = false;
+    AI.headlessMode = false;
+
+    const best = results.slice().sort((a,b) => b.winRate - a.winRate)[0];
+    return { baseline: baselineValue, candidates: results, best: best ? best.value : baselineValue };
+};
+
+AI.evolve.stop = function() {
+    AI.evolve.running = false;
+    AI.evolve.autoTuning = false;
+};
+
+// ══════════════════════════════════════════════════
+//  AI.evolve.autoTune — 全自动批量调参
+//  不需要手动选角色/权重/候选值：
+//    1. 自动遍历所有角色 × 所有权重key
+//    2. 每个key自动生成候选值（基准 ±20%、±40%）
+//    3. 胜率显著优于基准（差值超过阈值）才采纳，避免噪音误改
+//    4. 采纳的改动自动写回 skill md（调 AI.saveCharWeights）
+//    5. 跑完输出完整报告
+// ══════════════════════════════════════════════════
+AI.evolve.autoTuning = false;
+AI.evolve.autoTuneLog = [];
+
+// 不参与自动调参的key（非数值型/物理意义特殊，乱调容易产生荒谬结果）
+const EVOLVE_SKIP_KEYS = []; // 目前28个key都是数值型，暂不跳过任何key；如有特殊key可加进来
+
+// 根据基准值生成候选值（±20%、±40%，四舍五入到合理精度）
+function genCandidates(baseline) {
+    if (baseline === 0) return [-5, 5, 10, -10]; // 0值特殊处理，给一个小范围探索
+    const candidates = [
+        baseline,
+        Math.round(baseline * 1.2 * 10) / 10,
+        Math.round(baseline * 0.8 * 10) / 10,
+        Math.round(baseline * 1.4 * 10) / 10,
+        Math.round(baseline * 0.6 * 10) / 10,
+    ];
+    // 去重（避免基准值和某候选值四舍五入后相同）
+    return [...new Set(candidates)];
+}
+
+/**
+ * 全自动批量调参主流程。
+ * @param options.charNames     要测的角色列表（默认全部可训练角色）
+ * @param options.gamesPerValue 每个候选值跑几局（默认20，越多越准但越慢）
+ * @param options.adoptThreshold 候选胜率超过基准胜率多少才采纳（默认0.08，即8个百分点）
+ * @param options.onProgress    进度回调 (text) => void
+ */
+AI.evolve.autoTune = async function(options) {
+    if (AI.evolve.autoTuning) { console.warn('[AutoTune] 已在运行'); return null; }
+    options = options || {};
+    const charNames      = options.charNames || Object.values(CHAR_ID_MAP);
+    const gamesPerValue  = options.gamesPerValue || 20;
+    const adoptThreshold = options.adoptThreshold ?? 0.08;
+    const onProgress     = options.onProgress || function(){};
+
+    AI.evolve.autoTuning  = true;
+    AI.evolve.autoTuneLog = [];
+    const report = []; // { charName, key, baseline, adopted, newValue, winRate }
+
+    // 确保所有角色权重已加载
+    await AI.preloadAllSkills();
+
+    outer:
+    for (const charName of charNames) {
+        const weights = AI_CHAR_WEIGHTS[charName] || Object.assign({}, AI_BASE_WEIGHTS);
+        const keys = Object.keys(weights).filter(k => !EVOLVE_SKIP_KEYS.includes(k));
+
+        for (const key of keys) {
+            if (!AI.evolve.autoTuning) break outer; // 允许中途停止
+
+            const baseline   = weights[key];
+            const candidates = genCandidates(baseline).filter(v => v !== baseline);
+            if (candidates.length === 0) continue;
+
+            onProgress(`🧬 测试 ${charName}.${key}（基准=${baseline}，候选=[${candidates.join(',')}]）`);
+
+            let result;
+            try {
+                result = await AI.evolve.testWeight(charName, key, candidates, gamesPerValue, null,
+                    (ci, g) => onProgress(`${charName}.${key} 候选${candidates[ci]}：第${g+1}/${gamesPerValue}局`));
+            } catch (e) {
+                onProgress(`⚠️ ${charName}.${key} 测试出错：${e.message}`);
+                continue;
+            }
+            if (!result) continue;
+
+            const best = result.candidates.slice().sort((a,b) => b.winRate - a.winRate)[0];
+            // 基准值本身没有显式胜率（它是对照基线，定义为0.5）；候选要明显超过0.5+阈值才采纳
+            const baselineWinRate = 0.5;
+            const adopted = best.winRate >= baselineWinRate + adoptThreshold;
+
+            if (adopted) {
+                AI_CHAR_WEIGHTS[charName][key] = best.value;
+                await AI.saveCharWeights(charName); // 自动写回 skill md
+                onProgress(`✅ 采纳：${charName}.${key} ${baseline} → ${best.value}（胜率${(best.winRate*100).toFixed(1)}%）`);
+            } else {
+                onProgress(`➖ 维持：${charName}.${key} 保持 ${baseline}（最佳候选胜率仅${(best.winRate*100).toFixed(1)}%，未达采纳线）`);
+            }
+
+            report.push({
+                charName, key, baseline,
+                adopted, newValue: adopted ? best.value : baseline,
+                winRate: best.winRate,
+                allCandidates: result.candidates,
+            });
+            AI.evolve.autoTuneLog.push(report[report.length - 1]);
+        }
+    }
+
+    AI.evolve.autoTuning = false;
+    onProgress(`🏁 自动调参完成，共测试 ${report.length} 个权重，采纳 ${report.filter(r=>r.adopted).length} 处改动`);
+    return report;
+};
+
 // ──────────────────────────────────────────────────
 AI.reflectBattle = async function(winnerCamp) {
     if (!AI.enabled || AI.log.length < 3) return;
