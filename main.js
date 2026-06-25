@@ -3226,7 +3226,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		var amount = this.frenzyTurns > 0 ? 20 : 10;
 		if(this.hp > 0 && GameEngine.instance != null) {
 			haxe_Log.trace("🐗 张飞行动结束补给 " + amount + " 血" + (this.frenzyTurns > 0 ? "（狂暴翻倍）" : ""),{ fileName : "./character/ZhangFei.hx", lineNumber : 48, className : "character.ZhangFei", methodName : "onTurnEnd"});
-			GameEngine.instance.applyRawHeal(this,amount,model_HealType.SUPPLY,false);
+			GameEngine.instance.applyRawHeal(this,amount,model_HealType.RECOVERY,false);
 		}
 		if(this.frenzyTurns > 0) {
 			this.frenzyTurns--;
