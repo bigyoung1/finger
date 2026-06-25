@@ -561,9 +561,10 @@ class GameEngine {
                     trace('⚠️ ${actor.name} 凑齐【双八】，但本大回合已触发过 2 次，跳过。');
                 } else {
                     actor.bigRound88Used++;
-                    trace('🎉 ${actor.name} 凑齐【双八】！获得 1 次再动 + 60 点物法盾！（本大回合第 ${actor.bigRound88Used}/2 次）');
-                    actor.addBuff(new ExtraActionBuff(1));
-                    applyShield(actor, PHYSICAL, 60, 3);
+                    trace('🎉 ${actor.name} 凑齐【双八】！获得 1 次再动 + 120 点物法盾！（本大回合第 ${actor.bigRound88Used}/2 次）');
+                    actor.addBuff(new ExtraActionBuff(2));
+                    // 直接给物法盾（不是单纯物理盾），再叠加坦克位/小乔/藏师各自的护盾加成
+                    applyShield(actor, BOTH_PHYSICAL_MAGIC, 120, 3);
                 }
 
             case 7:

@@ -496,35 +496,35 @@ GameEngine.prototype = {
 	,triggerDoubleStar: function(actor,target,dmgTarget,num) {
 		switch(num) {
 		case 0:
-			haxe_Log.trace("💀 " + actor.name + " 凑齐【双零】！对目标造成 150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 599, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("💀 " + actor.name + " 凑齐【双零】！对目标造成 150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 600, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyDamage(actor,dmgTarget,150,model_DamageType.TRUE);
 			break;
 		case 1:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双一】！获得无敌 2 回合！",{ fileName : "GameEngine.hx", lineNumber : 595, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双一】！获得无敌 2 回合！",{ fileName : "GameEngine.hx", lineNumber : 596, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_InvincibleBuff(2));
 			break;
 		case 2:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双二】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 587, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双二】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 588, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,30,3);
 			break;
 		case 3:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双三】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 591, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双三】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 592, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,30,3);
 			break;
 		case 4:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双四】！获得 2 次伤害翻倍！",{ fileName : "GameEngine.hx", lineNumber : 583, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双四】！获得 2 次伤害翻倍！",{ fileName : "GameEngine.hx", lineNumber : 584, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_DamageBoostBuff(2));
 			break;
 		case 5:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双五】！获得 2 层反弹盾！",{ fileName : "GameEngine.hx", lineNumber : 579, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双五】！获得 2 层反弹盾！",{ fileName : "GameEngine.hx", lineNumber : 580, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_ReflectBuff(2));
 			break;
 		case 6:
-			haxe_Log.trace("✨ " + actor.name + " 凑齐【双六】！恢复 90 血！",{ fileName : "GameEngine.hx", lineNumber : 575, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("✨ " + actor.name + " 凑齐【双六】！恢复 90 血！",{ fileName : "GameEngine.hx", lineNumber : 576, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyHeal(actor,90,model_HealType.RECOVERY);
 			break;
 		case 7:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双七】！30 点物伤 + 3 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 570, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双七】！30 点物伤 + 3 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 571, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyDamage(actor,dmgTarget,30,model_DamageType.PHYSICAL);
 			dmgTarget.addBuff(new buffs_PoisonBuff(3));
 			break;
@@ -533,9 +533,9 @@ GameEngine.prototype = {
 				haxe_Log.trace("⚠️ " + actor.name + " 凑齐【双八】，但本大回合已触发过 2 次，跳过。",{ fileName : "GameEngine.hx", lineNumber : 561, className : "GameEngine", methodName : "triggerDoubleStar"});
 			} else {
 				actor.bigRound88Used++;
-				haxe_Log.trace("🎉 " + actor.name + " 凑齐【双八】！获得 1 次再动 + 60 点物法盾！（本大回合第 " + actor.bigRound88Used + "/2 次）",{ fileName : "GameEngine.hx", lineNumber : 564, className : "GameEngine", methodName : "triggerDoubleStar"});
-				actor.addBuff(new buffs_ExtraActionBuff(1));
-				this.applyShield(actor,model_ShieldType.PHYSICAL,60,3);
+				haxe_Log.trace("🎉 " + actor.name + " 凑齐【双八】！获得 1 次再动 + 120 点物法盾！（本大回合第 " + actor.bigRound88Used + "/2 次）",{ fileName : "GameEngine.hx", lineNumber : 564, className : "GameEngine", methodName : "triggerDoubleStar"});
+				actor.addBuff(new buffs_ExtraActionBuff(2));
+				this.applyShield(actor,model_ShieldType.BOTH_PHYSICAL_MAGIC,120,3);
 			}
 			break;
 		case 9:
@@ -547,7 +547,7 @@ GameEngine.prototype = {
 			this.currentComboMultiplier = 1.0;
 			break;
 		default:
-			haxe_Log.trace("ℹ️ " + actor.name + " 凑齐了双 [" + num + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 603, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("ℹ️ " + actor.name + " 凑齐了双 [" + num + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 604, className : "GameEngine", methodName : "triggerDoubleStar"});
 		}
 	}
 	,triggerZeroCombo: function(actor,target,dmgTarget,otherValue) {
@@ -560,32 +560,32 @@ GameEngine.prototype = {
 		}
 		switch(otherValue) {
 		case 0:
-			haxe_Log.trace("💀 " + actor.name + " 触发 [0,0] 绝境！150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 637, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("💀 " + actor.name + " 触发 [0,0] 绝境！150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 638, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyDamage(actor,dmgTarget,150,model_DamageType.TRUE);
 			break;
 		case 2:case 3:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 御守组合：20 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 634, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 御守组合：20 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 635, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,20,3);
 			break;
 		case 4:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,4] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 624, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,4] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 625, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyHeal(actor,30,model_HealType.RECOVERY);
 			break;
 		case 6:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 621, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 622, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyHeal(actor,30,model_HealType.RECOVERY);
 			break;
 		case 7:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,7] 刺客组合：10 物伤 + 1 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 627, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,7] 刺客组合：10 物伤 + 1 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 628, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyDamage(actor,dmgTarget,10,model_DamageType.PHYSICAL);
 			dmgTarget.addBuff(new buffs_PoisonBuff(1));
 			break;
 		case 1:case 5:case 8:case 9:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 破军组合：40 点物伤！",{ fileName : "GameEngine.hx", lineNumber : 631, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 破军组合：40 点物伤！",{ fileName : "GameEngine.hx", lineNumber : 632, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyDamage(actor,dmgTarget,40,model_DamageType.PHYSICAL);
 			break;
 		default:
-			haxe_Log.trace("ℹ️ " + actor.name + " 触发 [0," + otherValue + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 640, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("ℹ️ " + actor.name + " 触发 [0," + otherValue + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 641, className : "GameEngine", methodName : "triggerZeroCombo"});
 		}
 		actor.onExitZeroComboContext();
 	}
@@ -639,7 +639,7 @@ GameEngine.prototype = {
 			}
 		}
 		this._htIsEventMode = false;
-		haxe_Log.trace("🛡️ [帮抗快照] 共记录 " + this._htDamageSnapshot.length + " 笔伤害",{ fileName : "GameEngine.hx", lineNumber : 692, className : "GameEngine", methodName : "captureHelpTankDamage"});
+		haxe_Log.trace("🛡️ [帮抗快照] 共记录 " + this._htDamageSnapshot.length + " 笔伤害",{ fileName : "GameEngine.hx", lineNumber : 693, className : "GameEngine", methodName : "captureHelpTankDamage"});
 	}
 	,snapshotHelpTankVictimFromEvent: function(victim,actualDamage,type) {
 		this._htVictim = victim;
@@ -665,7 +665,7 @@ GameEngine.prototype = {
 					this._htVictim.shieldList.push(new model_ShieldInstance(s.type,s.amount,s.duration));
 				}
 			}
-			haxe_Log.trace("🛡️ [帮抗] " + this._htVictim.name + " 被队友接管伤害，恢复到攻击前状态（HP " + this._htVictimHp + "）",{ fileName : "GameEngine.hx", lineNumber : 734, className : "GameEngine", methodName : "resolveHelpTank"});
+			haxe_Log.trace("🛡️ [帮抗] " + this._htVictim.name + " 被队友接管伤害，恢复到攻击前状态（HP " + this._htVictimHp + "）",{ fileName : "GameEngine.hx", lineNumber : 735, className : "GameEngine", methodName : "resolveHelpTank"});
 		}
 		if(helperIdx >= 0 && helperIdx < this.turnManager.players.length) {
 			var helper = this.turnManager.players[helperIdx];
@@ -684,11 +684,11 @@ GameEngine.prototype = {
 						typeStr = "真实";
 						break;
 					}
-					haxe_Log.trace("🛡️ [帮抗开始-事件模式] " + helper.name + " 替队友承受：" + typeStr + " " + this._htEventAmount + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 748, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗开始-事件模式] " + helper.name + " 替队友承受：" + typeStr + " " + this._htEventAmount + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 749, className : "GameEngine", methodName : "resolveHelpTank"});
 					helper.handleIncomingDamage(null,penaltyAmt,this._htEventType);
-					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 750, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 751, className : "GameEngine", methodName : "resolveHelpTank"});
 				} else if(this._htDamageSnapshot.length > 0) {
-					haxe_Log.trace("🛡️ [帮抗开始] " + helper.name + " 替队友承受以下伤害 ×1.5：",{ fileName : "GameEngine.hx", lineNumber : 752, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗开始] " + helper.name + " 替队友承受以下伤害 ×1.5：",{ fileName : "GameEngine.hx", lineNumber : 753, className : "GameEngine", methodName : "resolveHelpTank"});
 					var _g = 0;
 					var _g1 = this._htDamageSnapshot;
 					while(_g < _g1.length) {
@@ -708,10 +708,10 @@ GameEngine.prototype = {
 							typeStr = "真实";
 							break;
 						}
-						haxe_Log.trace("   → " + typeStr + " " + Std.string(rec.outputAmount) + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 761, className : "GameEngine", methodName : "resolveHelpTank"});
+						haxe_Log.trace("   → " + typeStr + " " + Std.string(rec.outputAmount) + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 762, className : "GameEngine", methodName : "resolveHelpTank"});
 						helper.handleIncomingDamage(null,penaltyAmt,dt);
 					}
-					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 764, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 765, className : "GameEngine", methodName : "resolveHelpTank"});
 				}
 			}
 		}
