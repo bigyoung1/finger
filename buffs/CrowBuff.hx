@@ -44,9 +44,15 @@ class CrowBuff extends Buff {
     /** GameEngine 在算出 finalAmount 后调用：回调鸦眼回血 + 获取乌鸦 */
     public function onTriggered(crowHeal:Int, engine:GameEngine):Void {
         var triggers = 1 + extraTriggers;
-        trace('🦅 乌鸦触发：额外伤害 ${crowHeal}，鸦眼回 ${crowHeal} 血，获得 ${triggers} 只乌鸦');
         if (_yaYan != null) {
             var yaYan = cast(_yaYan, character.YaYan);
+            // 关键修复：鸦眼已经死了就不再回血/积累乌鸦，避免死人被乌鸦buff复活
+            if (yaYan.hp <= 0) {
+                trace('🦅 乌鸦触发：但鸦眼已阵亡，跳过回血与乌鸦积累');
+                extraTriggers = 0;
+                return;
+            }
+            trace('🦅 乌鸦触发：额外伤害 ${crowHeal}，鸦眼回 ${crowHeal} 血，获得 ${triggers} 只乌鸦');
             yaYan.crowCount += triggers;
             engine.applyRawHeal(yaYan, crowHeal, RECOVERY, true);
         }

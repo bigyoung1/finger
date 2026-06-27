@@ -346,6 +346,7 @@ class GameEngine {
      * 标准回血流程
      */
     public function applyHeal(actor:Player, baseAmount:Int, type:HealType):Int {
+        if (actor == null || actor.hp <= 0) return 0; // 死人不回血，避免被各种buff复活
         var finalAmount = actor.calculateFinalHeal(baseAmount, type);
         var actualHeal = doHealing(actor, finalAmount, type);
         actor.onAfterHeal(actualHeal, type, this);
@@ -362,6 +363,7 @@ class GameEngine {
      * 通过 isFromSkill 参数让监听器自行判断是否要计数
      */
     public function applyRawHeal(actor:Player, amount:Int, type:HealType, isFromSkill:Bool = true):Int {
+        if (actor == null || actor.hp <= 0) return 0; // 死人不回血，避免被各种buff复活
         var actualHeal = doHealing(actor, amount, type);
         if (actualHeal > 0) {
             notifyHealEvent(actor, actualHeal, type, isFromSkill);

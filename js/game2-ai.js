@@ -40,19 +40,46 @@ function getProviderForSlot(idx) {
 }
 
 var AI_BASE_WEIGHTS = {
-    // 兜底默认值（只在角色 skill 未定义该 key 时使用）
-    star_0:400, star_9:420, star_7:150, star_6:175,
-    star_1:100, star_4:150, star_5:165, star_8:140,
-    star_2:25, star_3:25,
-    zero_combo_atk:195, zero_combo_heal:160,
-    zero_combo_7:90, zero_combo_shield:50,
-    build_zero:160, six_heal:80,
-    give_star_9:-370, give_star_7:-155,
-    give_star_0:-330, give_star_other:-180,
-    give_zero_combo:-199,
-    kill_bonus:95, path_bonus:35,
-    mage_zero_atk:70, wukong_02:345,
-    ninja_7:135, zhangfei_diff:1.8, daqiao_evolve:40,
+    // ── 双子星权重（按用户优先级：9>0>5>7>6>8>4>2/3）──
+    star_9: 500,  star_0: 480,
+    star_5: 420,  star_7: 380,
+    star_6: 300,  star_8: 270,
+    star_4: 220,
+    star_1: 110,
+    star_2: 15,   star_3: 15,   // 最低价值双子星，AI主动回避但留个正值
+
+    // ── 0组合 ──
+    zero_combo_atk:    340,  // [0,1/5/8/9] 物伤组合，地位接近双子星
+    zero_combo_heal:   240,
+    zero_combo_7:      180,
+    zero_combo_shield: 100,
+
+    // ── 凑0本身（这是用户特别强调的：AI不喜欢拿0是问题）──
+    build_zero: 340,
+
+    // ── 单手6回血 ──
+    six_heal: 130,
+
+    // ── 击杀/路径 ──
+    kill_bonus: 180,
+    path_bonus: 50,
+
+    // ── 帮敌方凑组合的惩罚（大幅加重，AI之前太轻易放给敌方双子星）──
+    give_star_9:     -700,
+    give_star_0:     -650,
+    give_star_7:     -450,
+    give_star_5:     -480,  // 新增：反弹盾给敌方很恶心
+    give_star_6:     -350,  // 新增：90血给敌方
+    give_star_8:     -300,  // 新增：再动+盾给敌方
+    give_star_4:     -250,  // 新增：增伤翻倍给敌方
+    give_star_other: -280,  // 其余双子星兜底（含2/3，凑给敌方收益低惩罚也低）
+    give_zero_combo: -380,  // 帮敌方完成 [0,x]
+    give_build_zero: -180,  // 新增：帮敌方凑出 0（让敌方下回合有0用）
+
+    // ── 角色专属 ──
+    mage_zero_atk: 90,   wukong_02: 380,
+    ninja_7: 180,        zhangfei_diff: 2.0,
+    daqiao_evolve: 50,
 };
 var AI_CHAR_WEIGHTS = {}; // { 角色名: { ...完整权重 } }，从 skill md 解析
 
@@ -449,20 +476,58 @@ AI.score.lookahead = function(actorIdx, action) {
         if ((dmgTarget.maxHp||999) < 200) bonus += 20; // 脆皮优先击杀
     }
 
-    // 我动完后对方双手的危险度（帮对方凑组合 → 惩罚）
-    const tOther  = target.hands[1 - action.touchHandIdx];
-    const tNewVal = (target.hands[action.touchHandIdx] + myVal) % 10; // 对方该手被碰后的值
-    // 注意：我碰对方，变的是我自己的手，对方的手不变。所以这里其实是：对方被碰的手不变，但我们看我动完之后对方两手是否凑成危险组合
-    // 实际上对方被碰后手不变，要看对方另一手配合被碰手是否危险
-    if (tNewVal === tOther && tNewVal > 0) {
-        // 帮对方凑了双子星
-        const penalty = W['give_star_' + tNewVal] !== undefined
-            ? W['give_star_' + tNewVal]
-            : W.give_star_other;
-        bonus += penalty;
+    // ─── 我动完后，对方下回合行动时能凑出多危险的组合？ ───
+    // 关键修复：之前这段写错了——把"对方的手被碰后的值"算成了 (对方手 + 我手) % 10，
+    // 但实际游戏规则是"碰别人，变的是自己的手"，对方的手数值不会因我碰而变化。
+    // 所以这里改为：模拟对方下回合用他的某只手 h_o 碰我的某只非0手 h_m，
+    // 对方的 h_o 会变成 (h_o + h_m) % 10，看这是否凑出双子星 / 0组合 / 完成攻击型0组合。
+    // 取所有对方可能行动里"对对方收益最大"的那一种，作为本次行动的"放给对方"惩罚。
+    //
+    // 注意：因为对方也可能选择碰我方"队友"而非碰我，但这里我们只评估"碰我"这一支线，
+    // 简化模型避免计算量爆炸；这已经能解决"我留个5，对方能轻松凑[7,7]"这种漏算了。
+    const enemySeats = [0,1,2,3].filter(i => i !== actorIdx && campOf(i) !== campOf(actorIdx));
+    var worstPenalty = 0; // 取所有对方角色×对方手×我方动完后手 的最坏情况
+
+    // 我动完后，我自己的双手：被动的那只=newVal，另一只=otherVal
+    const myHandsAfter = [newVal, otherVal];
+
+    for (const eIdx of enemySeats) {
+        const ep = players[eIdx];
+        if (!ep || ep.hp <= 0) continue;
+        for (let eHand = 0; eHand < 2; eHand++) {
+            const eVal = ep.hands[eHand];
+            const eOtherVal = ep.hands[1 - eHand];
+            if (eVal === 0 && eOtherVal === 0) continue;
+            for (let myH = 0; myH < 2; myH++) {
+                if (myHandsAfter[myH] === 0) continue;
+                const eNewVal = (eVal + myHandsAfter[myH]) % 10;
+                var penalty = 0;
+                if (eNewVal === eOtherVal && eNewVal > 0) {
+                    const key = 'give_star_' + eNewVal;
+                    penalty = W[key] !== undefined ? W[key] : W.give_star_other;
+                }
+                if (eNewVal === 0 && eOtherVal > 0) {
+                    penalty = Math.min(penalty, W.give_build_zero !== undefined ? W.give_build_zero : -180);
+                }
+                if (eOtherVal === 0 && eNewVal > 0) {
+                    if ([1,5,8,9].includes(eNewVal)) {
+                        penalty = Math.min(penalty, W.give_zero_combo);
+                    } else {
+                        penalty = Math.min(penalty, Math.floor(W.give_zero_combo * 0.5));
+                    }
+                }
+                if (penalty < worstPenalty) worstPenalty = penalty;
+            }
+        }
     }
-    if (tNewVal === 0 && tOther > 0) bonus += W.give_zero_combo; // 帮对方凑 0
-    if (tOther === 0 && [1,5,8,9].includes(tNewVal)) bonus += W.give_zero_combo; // 帮对方完成攻击 0 组合
+    // 关键：当我这一手本身收益巨大时（凑成0、双子星、击杀），lookahead 惩罚打折
+    // 因为高收益动作意味着我下回合也有强力反制手段，"让出去"的风险其实没那么纯亏。
+    // 否则AI会被lookahead惩罚吓得永远不敢凑0，宁可打无关痛痒的动作。
+    var selfGainHasValue = (newVal === 0 && otherVal > 0)                  // 凑成 0
+                        || (newVal === otherVal && newVal > 0 && [9,7,6,5,8].includes(newVal)) // 高价值双子星
+                        || (estDmg > 0 && dmgTarget && estDmg >= dmgTarget.hp); // 击杀
+    if (selfGainHasValue) worstPenalty = Math.floor(worstPenalty * 0.55);
+    bonus += worstPenalty;
 
     // 路径激励（2 步内能凑高价值双子星 → 加分）
     const nextOther = newVal; // 动完后我的这手 = newVal

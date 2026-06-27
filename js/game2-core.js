@@ -85,6 +85,12 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
     // 攻击前：快照伤害承受者的防御状态（帮抗时恢复用）
     Main.engine.snapshotHelpTankVictim(dmgTarget);
 
+    // 攻击前：记录所有"还活着"的角色（攻击后只对从活变死的角色做帮抗检测，避免对已经死透的反复弹窗）
+    var aliveBefore = [];
+    for (var ai = 0; ai < players.length; ai++) {
+        aliveBefore.push(players[ai] && players[ai].hp > 0);
+    }
+
     // 执行碰手（手指数字变化 + 伤害计算）
     var result = Main.engine.handleTouch(actor, myHand, touchTarget, touchHandIdx, dmgTarget);
     if (typeof result === 'string' && result.indexOf('错误') === 0) {
@@ -94,8 +100,8 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
     // 发送操作给对手
     if (!fromRemote) ONLINE.sendAction({ type: "attack", actorIdx: actorIdx, myHand: myHand, touchTargetIdx: touchTargetIdx, touchHandIdx: touchHandIdx, dmgTargetIdx: dmgTargetIdx2 });
 
-    // 濒死检测：遍历全场死亡角色（覆盖主目标 + 反弹/模态②第二刀等事件伤害）
-    if (checkAllDeathsForHelpTank(fromRemote)) return;
+    // 濒死检测：只看"本次攻击前还活着、攻击后死了"的角色（避免每回合重复对已死透的角色弹窗）
+    if (checkAllDeathsForHelpTank(fromRemote, aliveBefore)) return;
 
     finishTurn2();
 }
@@ -103,11 +109,14 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
 // ── 帮抗濒死检测：遍历全场，谁死了就检测谁 ──
 // 覆盖：主线攻击死亡(lastTouchDamageLog) + 事件模式死亡(反弹/毒伤/模态②第二刀，走 pendingHelpTankEvents)
 // 返回 true 表示已弹出帮抗窗（或在等待远端决定），调用方应 return
-function checkAllDeathsForHelpTank(fromRemote) {
+function checkAllDeathsForHelpTank(fromRemote, aliveBefore) {
     var players = Main.turnManager.players;
     for (var idx = 0; idx < players.length; idx++) {
         var p = players[idx];
-        if (!p || p.hp > 0) continue; // 只处理刚死亡的
+        if (!p || p.hp > 0) continue; // 还活着，不处理
+        // 关键修复：只处理"本次攻击前还活着、攻击后死了"的角色，
+        // 避免对已经死透多回合的角色重复弹"濒死帮抗"窗口
+        if (aliveBefore && !aliveBefore[idx]) continue;
         if (typeof p.canReceiveHelpTank === 'function' && !p.canReceiveHelpTank()) continue;
 
         // 先看是否有事件模式记录（反弹/毒伤/模态②第二刀）
