@@ -345,9 +345,61 @@ AI.score.heuristic = function(actorIdx, action) {
     const role     = charRole(actor.name);
     let score      = 0;
 
+    // ── 自身debuff检测：雷霆之怒 + 中毒 ──
+    const isEven = v => v === 2 || v === 4 || v === 6 || v === 8;
+    const hasThunderRage = (actor.buffList || []).some(b => b.id && b.id.indexOf('THUNDER_RAGE_') === 0 && b.layers > 0);
+    const isSelfPoisoned = (actor.buffList || []).some(b => b.id === 'POISON' && b.layers > 0);
+
+    if (hasThunderRage) {
+        // 身上有雷霆之怒：回合结束时按双手偶数个数触发伤害，能少一个偶数就少吃一次雷霆
+        const evenBefore = (isEven(myVal) ? 1 : 0) + (isEven(otherVal) ? 1 : 0);
+        const evenAfter  = (isEven(newVal) ? 1 : 0) + (isEven(otherVal) ? 1 : 0); // otherVal不变，newVal是动后的myVal手
+        if (evenAfter < evenBefore) score += 60;  // 把偶数变成奇数，少一次雷霆
+        else if (evenAfter > evenBefore) score -= 60; // 反而多了个偶数，更危险
+    }
+
+    if (isSelfPoisoned) {
+        // 自己中毒：解毒类动作（RECOVERY回血）优先级显著提升
+        // 注意：是否"得不偿失"（比如解毒但放给对方[7,7]）已经由下方lookahead的
+        // give_star_7/give_zero_combo惩罚机制兜底，这里只管"我自己想解毒"这一半
+        if (newVal === 6 && otherVal !== 6) score += 70; // 单手6解毒
+        if (otherVal === 0 && [4,6].includes(newVal)) score += 70; // [0,4]/[0,6]解毒
+        if (newVal === otherVal && newVal === 6) score += 50; // [6,6]解毒+回血
+    }
+
     // ── 双子星（用权重表，低价值双子星为负）──
     if (newVal === otherVal && newVal > 0) {
         score += W['star_' + newVal] !== undefined ? W['star_' + newVal] : 15;
+
+        // [8,8] 特别加成：双八触发2次额外行动，凑成[8,8]后双手都是8，
+        // 之后两次额外行动可以反复碰场上"同一个敌方手"（敌方手不会因被碰而改变），
+        // 把8变成 (8+敌方手值v)%10，两次都碰同一个v就能直达更高价值双子星。
+        // 例如敌方场上有手值=1 → 两次碰它，8→9两次 → 凑成[9,9]（真伤/爆发拉满）
+        // 反推表：v=1→[9,9] v=2→[0,0] v=9→[7,7] v=7→[5,5] v=6→[4,4]
+        if (newVal === 8) {
+            // 反推公式：敌方手值v，碰一次后 8+v 的结果 = (8+v)%10
+            // 两次碰同一个v（敌方手不会因被碰而改变，可重复利用）→ 双手都变成这个值，凑成双子星T
+            // T = (8+v)%10，遍历v=1..9（v=0不能碰）覆盖所有可能目标。
+            // 注：[0,0](v=2)是合法的150真伤双子星（"双零即死"是旧规则，已被移除），照常计入。
+            const enemySeatsForChain = [0,1,2,3].filter(i => i !== actorIdx && campOf(i) !== campOf(actorIdx));
+            var bestChainBonus = 0;
+            for (const eIdx of enemySeatsForChain) {
+                const ep = players[eIdx];
+                if (!ep || ep.hp <= 0) continue;
+                for (const v of ep.hands) {
+                    if (v === 0) continue; // 不能碰0手
+                    const targetStar = (8 + v) % 10;
+                    const targetKey = 'star_' + targetStar;
+                    const targetVal = W[targetKey] !== undefined ? W[targetKey] : 15;
+                    // 折扣：用掉了2次行动机会才换来这个值，且要等2回合后才真正打出，打个7折
+                    const chainBonus = Math.floor(targetVal * 0.7);
+                    if (chainBonus > bestChainBonus) bestChainBonus = chainBonus;
+                }
+            }
+            if (bestChainBonus > 0) {
+                score += bestChainBonus;
+            }
+        }
     }
 
     // ── 凑 0 ──
