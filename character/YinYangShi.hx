@@ -314,19 +314,19 @@ class YinYangShi extends Player {
             label: (modal == "yin" ? "✓ " : "") + "☯ 阴",
             color: modal == "yin" ? "#722ed1" : (canSwap ? "#8c8c8c" : "#3d3d3d"),
             enabled: canSwap && modal != "yin",
-            onClickJS: "Main.invokeAction(__IDX__, 'switchModal', {modal:'yin'})"
+            onClickJS: "invokeAction2(__IDX__, 'switchModal', {modal:'yin'})"
         });
         actions.push({
             label: (modal == "yang" ? "✓ " : "") + "☯ 阳",
             color: modal == "yang" ? "#fa8c16" : (canSwap ? "#8c8c8c" : "#3d3d3d"),
             enabled: canSwap && modal != "yang",
-            onClickJS: "Main.invokeAction(__IDX__, 'switchModal', {modal:'yang'})"
+            onClickJS: "invokeAction2(__IDX__, 'switchModal', {modal:'yang'})"
         });
         actions.push({
             label: (modal == "ren" ? "✓ " : "") + "☯ 人",
             color: modal == "ren" ? "#52c41a" : (canSwap ? "#8c8c8c" : "#3d3d3d"),
             enabled: canSwap && modal != "ren",
-            onClickJS: "Main.invokeAction(__IDX__, 'switchModal', {modal:'ren'})"
+            onClickJS: "invokeAction2(__IDX__, 'switchModal', {modal:'ren'})"
         });
         return actions;
     }

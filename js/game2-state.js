@@ -37,6 +37,11 @@ function toggleTank(playerIdx, fromRemote) {
     if (G.formation[camp] === 'tank_carry') return;
     // 联机：必须控制至少一个该阵营角色才能切抗伤位
     if (ONLINE.active && !fromRemote && !ONLINE.iControlAnyOf(camp)) return;
+    // 联机稳定版：非房主只提交请求，不本地切换；等房主广播后再更新。
+    if (ONLINE.active && !fromRemote && !ONLINE.isHost()) {
+        ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });
+        return;
+    }
     G.tankIdx[camp] = playerIdx;
     updateTankButtons();
     if (!fromRemote) ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });

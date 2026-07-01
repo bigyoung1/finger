@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════
 //  指尖博弈 — 联机服务端 (4-slot 版)
-//  职责：房间管理 + WebSocket 消息中转（不跑游戏逻辑）
+//  职责：房间管理 + WebSocket 消息排序/去重 + 房主权威中转（不跑游戏逻辑）
 // ════════════════════════════════════════════════════════
 const http      = require('http');
 const WebSocket = require('ws');
@@ -243,6 +243,41 @@ function broadcast(room, exceptWs, obj) {
     });
 }
 
+function markActionSeen(room, actionId) {
+    if (!room || !actionId) return false;
+    if (!room.seenActions) room.seenActions = new Set();
+    if (!room.seenActionQueue) room.seenActionQueue = [];
+    if (room.seenActions.has(actionId)) return false;
+    room.seenActions.add(actionId);
+    room.seenActionQueue.push(actionId);
+    while (room.seenActionQueue.length > 500) {
+        const old = room.seenActionQueue.shift();
+        room.seenActions.delete(old);
+    }
+    return true;
+}
+
+function nextRoomSeq(room) {
+    room.actionSeq = (room.actionSeq || 0) + 1;
+    return room.actionSeq;
+}
+
+function ensureActionId(ws, msg) {
+    return msg.actionId || (msg.payload && msg.payload._actionId) || `${ws.roomCode || 'room'}:${ws.slotIdx}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getHostSocket(room) {
+    if (!room) return null;
+    const hostSlot = (typeof room.hostSlot === 'number' && room.hostSlot >= 0) ? room.hostSlot : 0;
+    return room.slots[hostSlot] || null;
+}
+
+function decoratePayload(payload, meta) {
+    const copy = Object.assign({}, payload || {});
+    copy._net = Object.assign({}, copy._net || {}, meta || {});
+    return copy;
+}
+
 // 房间状态摘要（slot 占用情况），用于让所有人看到谁在线
 function roomSummary(room) {
     return {
@@ -274,6 +309,9 @@ wss.on('connection', (ws) => {
                     slots:     [ws, null, null, null],
                     slotNames: [msg.name || '玩家1', '', '', ''],
                     hostSlot:  0,
+                    actionSeq: 0,
+                    seenActions: new Set(),
+                    seenActionQueue: [],
                 };
                 ws.roomCode = code;
                 ws.slotIdx  = 0;
@@ -299,7 +337,55 @@ wss.on('connection', (ws) => {
             case 'action': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
-                broadcast(room, ws, { type: 'action', fromSlot: ws.slotIdx, payload: msg.payload });
+                const actionId = ensureActionId(ws, msg);
+                if (!markActionSeen(room, actionId)) {
+                    send(ws, { type: 'actionAck', actionId, duplicate: true });
+                    break;
+                }
+                const seq = nextRoomSeq(room);
+                const payload = decoratePayload(msg.payload, {
+                    actionId,
+                    seq,
+                    fromSlot: ws.slotIdx,
+                    authoritative: ws.slotIdx === room.hostSlot
+                });
+                broadcast(room, ws, { type: 'action', fromSlot: ws.slotIdx, actionId, seq, payload });
+                send(ws, { type: 'actionAck', actionId, seq });
+                break;
+            }
+            case 'actionRequest': {
+                const room = rooms[ws.roomCode];
+                if (!room) break;
+                const host = getHostSocket(room);
+                if (!host) {
+                    send(ws, { type: 'error', msg: '房主不在线，无法执行权威操作；请重新建房。' });
+                    break;
+                }
+                const actionId = ensureActionId(ws, msg);
+                if (!markActionSeen(room, 'req:' + actionId)) {
+                    send(ws, { type: 'actionAck', actionId, duplicate: true, requested: true });
+                    break;
+                }
+                send(host, {
+                    type: 'actionRequest',
+                    fromSlot: ws.slotIdx,
+                    actionId,
+                    payload: decoratePayload(msg.payload, { actionId, requestFromSlot: ws.slotIdx, requested: true })
+                });
+                send(ws, { type: 'actionAck', actionId, requested: true });
+                break;
+            }
+            case 'startRequest': {
+                const room = rooms[ws.roomCode];
+                if (!room) break;
+                const host = getHostSocket(room);
+                if (!host) {
+                    send(ws, { type: 'error', msg: '房主不在线，无法开始游戏；请重新建房。' });
+                    break;
+                }
+                // 非房主点击“开始游戏”时，只把请求转给房主；由房主生成并广播 charConfig，避免多端各自初始化。
+                send(host, { type: 'startRequest', fromSlot: ws.slotIdx });
+                send(ws, { type: 'actionAck', requested: true, startRequest: true });
                 break;
             }
             case 'chat': {
@@ -326,11 +412,16 @@ wss.on('connection', (ws) => {
         room.slotNames[idx] = '';
         // 通知其他人：该 slot 已掉线（让他们把 charControl[i]===idx 的角色改 AI 接管）
         broadcast(room, ws, { type: 'slotLeft', slotIdx: idx });
-        // 如果整个房间空了就清掉
+        // 如果整个房间空了就清掉；否则房主离线时转移给第一个在线 slot
         if (room.slots.every(s => !s)) {
             delete rooms[code];
             console.log(`[房间] ${code} 已关闭`);
         } else {
+            if (idx === room.hostSlot || !room.slots[room.hostSlot]) {
+                room.hostSlot = room.slots.findIndex(s => !!s);
+                broadcast(room, null, { type: 'hostChanged', hostSlot: room.hostSlot });
+                console.log(`[房间] ${code} 房主切换到 slot${room.hostSlot}`);
+            }
             broadcastRoomState(room);
             console.log(`[房间] ${code} slot${idx} 离开`);
         }

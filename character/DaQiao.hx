@@ -220,7 +220,7 @@ class DaQiao extends Player {
                 label: "👑 进化为神大乔",
                 color: "#722ed1",
                 enabled: true,
-                onClickJS: "Main.invokeAction(__IDX__, 'evolve', {})"
+                onClickJS: "invokeAction2(__IDX__, 'evolve', {})"
             });
         }
         return actions;
@@ -257,6 +257,7 @@ class DaQiao extends Player {
     }
 
     override public function onBigRoundEnd():Void {
+        super.onBigRoundEnd();
         _stealCooldown = new Map<String, Bool>();
         trace('🎯 大乔：大回合结束，抢夺冷却全部重置。');
     }

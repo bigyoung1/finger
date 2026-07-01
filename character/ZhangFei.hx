@@ -189,6 +189,7 @@ class ZhangFei extends Player {
      * 大回合结束：怒气计数器重置
      */
     override public function onBigRoundEnd():Void {
+        super.onBigRoundEnd();
         if (rageAddedThisRound > 0) {
             trace('🐗 张飞怒气计数重置（上回合获得 ${rageAddedThisRound}/4 层）');
         }
@@ -242,19 +243,19 @@ class ZhangFei extends Player {
             label: (modal == 1 ? "✓ " : "") + "模态①",
             color: modal == 1 ? "#52c41a" : "#8c8c8c",
             enabled: true,
-            onClickJS: "Main.invokeAction(__IDX__, 'setModal', {modal:1})"
+            onClickJS: "invokeAction2(__IDX__, 'setModal', {modal:1})"
         });
         actions.push({
             label: (modal == 2 ? "✓ " : "") + "模态②(1v1禁用)",
             color: modal == 2 ? "#52c41a" : "#8c8c8c",
             enabled: true,
-            onClickJS: "Main.invokeAction(__IDX__, 'setModal', {modal:2})"
+            onClickJS: "invokeAction2(__IDX__, 'setModal', {modal:2})"
         });
         actions.push({
             label: (modal == 3 ? "✓ " : "") + "模态③",
             color: modal == 3 ? "#52c41a" : "#8c8c8c",
             enabled: true,
-            onClickJS: "Main.invokeAction(__IDX__, 'setModal', {modal:3})"
+            onClickJS: "invokeAction2(__IDX__, 'setModal', {modal:3})"
         });
         // 狂暴按钮
         if (rage >= 24 && !isFrenzied()) {
@@ -262,7 +263,7 @@ class ZhangFei extends Player {
                 label: "🔥 进入狂暴",
                 color: "#ff4d4f",
                 enabled: true,
-                onClickJS: "Main.invokeAction(__IDX__, 'enterFrenzy', {})"
+                onClickJS: "invokeAction2(__IDX__, 'enterFrenzy', {})"
             });
         }
         return actions;

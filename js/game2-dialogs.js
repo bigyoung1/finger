@@ -66,7 +66,13 @@ function onHelpTankConfirm() {
 
     try {
         if (ctx) {
-            // 联机：我是受伤方，通知攻击方
+            // 联机稳定版：非房主只提交选择，不在本地结算；等待房主广播权威结果。
+            if (ONLINE.active && !ONLINE.isHost()) {
+                ONLINE.sendAction({ type: "helpTank", choice: "confirm", helperIdx: ctx.helperIdx });
+                G.inputLocked = true;
+                setHint2('⏳ 已提交帮抗选择，等待房主结算...');
+                return;
+            }
             if (ONLINE.active) ONLINE.sendAction({ type: "helpTank", choice: "confirm", helperIdx: ctx.helperIdx });
             // 全部结算在 Haxe 内完成：恢复 victim + helper 承伤 ×1.5
             Main.engine.resolveHelpTank(ctx.helperIdx);
@@ -89,7 +95,13 @@ function onHelpTankCancel() {
     var ctx = G.helpTankContext;
     G.helpTankContext = null;
     G.inputLocked = false;
-    // 联机：通知攻击方放弃帮抗
+    // 联机稳定版：非房主只提交选择，不在本地推进；等待房主广播权威结果。
+    if (ONLINE.active && ctx && !ONLINE.isHost()) {
+        ONLINE.sendAction({ type: "helpTank", choice: "cancel", helperIdx: ctx.helperIdx });
+        G.inputLocked = true;
+        setHint2('⏳ 已放弃帮抗，等待房主结算...');
+        return;
+    }
     if (ONLINE.active && ctx) ONLINE.sendAction({ type: "helpTank", choice: "cancel", helperIdx: ctx.helperIdx });
     // victim 正常死亡，直接推进回合
     finishTurn2();
@@ -132,8 +144,18 @@ function showWukongTargetDialog(actorIdx) {
 }
 
 function executeWukong02(chosenTargetIdx, fromRemote) {
-    var ctx = G.wukongPending; G.wukongPending = null;
+    var ctx = G.wukongPending;
     if (!ctx) return;
+
+    // 联机稳定版：非房主不本地结算孙悟空[0,2]，只提交选择。
+    if (!fromRemote && ONLINE.active && !ONLINE.isHost()) {
+        ONLINE.sendAction({ type: "wukong02", wukongPending: ctx, chosenTargetIdx: chosenTargetIdx });
+        G.wukongPending = null;
+        setHint2('⏳ 已提交孙悟空[0,2]目标，等待房主结算...');
+        return;
+    }
+
+    G.wukongPending = null;
     var players     = Main.turnManager.players;
     var actor       = players[ctx.actorIdx];
     var touchTarget = players[ctx.clickedTargetIdx];
@@ -215,16 +237,20 @@ function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
     if (window._stealUsedThisTurn[key]) return;
     window._stealUsedThisTurn[key] = true;
 
-    // 联机：大乔不是我方角色时不显示弹窗（对方自己决定）
-    if (ONLINE.active && campOf(daQiaoIdx) !== ONLINE.myCamp()) return;
+    // 联机：只有大乔的控制者能决定是否抢；AI 大乔只由房主自动决策并广播。
+    if (ONLINE.active) {
+        var daQiaoCtrl = ONLINE.charControl[daQiaoIdx];
+        if (daQiaoCtrl !== 'AI' && daQiaoCtrl !== ONLINE.slotIdx) return;
+        if (daQiaoCtrl === 'AI' && !ONLINE.isHost()) return;
+    }
 
     // AI 自战：自动决策（大乔血量 < 进化门槛或者抢了更好就抢）
     const daQiao = Main.turnManager.players[daQiaoIdx];
     if (window.AI && AI.enabled && AI.controlled && AI.controlled[daQiaoIdx]) {
-        // 大乔永远抢——抢血是她的核心机制
+        // 大乔永远抢——抢血是她的核心机制。联机 AI 只允许房主执行并广播。
+        if (ONLINE.active && !ONLINE.isHost()) return;
         clearInterval(G.stealTimer);
-        Main.invokeAction(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal });
-        render2();
+        invokeAction2(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal }, false, { silent: true });
         return;
     }
 
@@ -271,8 +297,12 @@ function _doShowSteal(daQiaoIdx, healerIdx, netHeal) {
     document.getElementById('stealConfirmBtn').onclick = function() {
         clearInterval(G.stealTimer);
         _closeStealOverlay();
-        Main.invokeAction(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal });
-        if (ONLINE.active) ONLINE.sendAction({ type: 'steal', choice: 'confirm', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
+        if (ONLINE.active && !ONLINE.isHost()) {
+            ONLINE.sendAction({ type: 'steal', choice: 'confirm', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
+            setHint2('⏳ 已提交大乔抢血，等待房主结算...');
+            return;
+        }
+        invokeAction2(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal }, false, { silent: true });
         render2();
     };
     document.getElementById('stealCancelBtn').onclick = function() {
@@ -297,7 +327,7 @@ function clearStealCooldownForPlayer(playerIdx) {
 // ── 蛋糕弹窗 ──
 function openCakeDialog(actorIdx, cakesCount) {
     // 联机：只有本方才能操作蛋糕
-    if (ONLINE.active && campOf(actorIdx) !== ONLINE.myCamp()) return;
+    if (ONLINE.active && ONLINE.charControl[actorIdx] !== ONLINE.slotIdx) return;
     G.cakeActorIdx = actorIdx; G.cakeGroups = 1;
     document.getElementById('cakeGroupCount2').textContent = '1';
     // cakesCount 由 getCustomActions 里直接编入，避免读Haxe字段失败
@@ -338,8 +368,12 @@ function _updateCakeHint(maxG) {
 }
 
 function _castCake(targetIdx) {
-    var r = Main.invokeAction(G.cakeActorIdx, 'useCake', { targetIdx: targetIdx, groupCount: G.cakeGroups });
-    if (typeof r === 'string' && r.indexOf('错误') === 0) { alert(r); return; }
+    var r = invokeAction2(G.cakeActorIdx, 'useCake', { targetIdx: targetIdx, groupCount: G.cakeGroups }, false, { silent: true });
+    if (typeof r === 'string' && r.indexOf('错误') === 0) {
+        if (typeof showCardToast2 === 'function') showCardToast2(G.cakeActorIdx, r, true);
+        else if (typeof flashHint2 === 'function') flashHint2(r);
+        return;
+    }
     closeCakeDialog2();
     render2();
 }
@@ -348,7 +382,7 @@ function _castCake(targetIdx) {
 //  鸦眼乌鸦诅咒：选择阵营弹窗
 // ════════════════════════════════════════════════════════
 function showCrowCurseDialog(actorIdx) {
-    if (ONLINE.active && campOf(actorIdx) !== ONLINE.myCamp()) return;
+    if (ONLINE.active && ONLINE.charControl[actorIdx] !== ONLINE.slotIdx) return;
     // 动态创建简单弹窗
     var existing = document.getElementById('crowCurseDialog');
     if (existing) existing.remove();
@@ -372,8 +406,10 @@ function showCrowCurseDialog(actorIdx) {
 function castCrowCurse(actorIdx, camp) {
     var dlg = document.getElementById('crowCurseDialog');
     if (dlg) dlg.remove();
-    var r = Main.invokeAction(actorIdx, 'crowCurseTarget', { camp: camp });
-    if (typeof r === 'string' && r.indexOf('错误') === 0) { alert(r); return; }
-    if (ONLINE.active) ONLINE.sendAction({ type: 'crowCurse', actorIdx: actorIdx, camp: camp });
-    render2();
+    var r = invokeAction2(actorIdx, 'crowCurseTarget', { camp: camp }, false, { silent: true });
+    if (typeof r === 'string' && r.indexOf('错误') === 0) {
+        if (typeof showCardToast2 === 'function') showCardToast2(actorIdx, r, true);
+        else if (typeof flashHint2 === 'function') flashHint2(r);
+        return;
+    }
 }

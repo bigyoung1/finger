@@ -7,8 +7,19 @@ var ONLINE = {
     slotIdx:   -1,                   // 0~3，我是哪个 slot
     charControl: [0, 1, 0, 1],       // charControl[i] = 控制第 i 个角色的 slotIdx，或 'AI'
     waitingRemoteHelpTank: false,
+    _authorityActionId: null,
+    _runningHostRequest: false,
 
-    isHost: function() { return ONLINE.slotIdx === 0; },
+    // 房主权威：所有会改变战斗状态的动作只由房主执行；非房主只发请求。
+    authoritativeTypes: {
+        attack: true, invokeAction: true, wukong02: true, toggleTank: true,
+        helpTank: true, steal: true, cake: true, crowCurse: true
+    },
+
+    isHost: function() {
+        var hostSlot = (NET && NET.roomState && typeof NET.roomState.hostSlot === 'number') ? NET.roomState.hostSlot : 0;
+        return ONLINE.slotIdx === hostSlot;
+    },
 
     // 当前是否轮到我操作（基于 charControl）
     isMyTurn: function() {
@@ -22,9 +33,22 @@ var ONLINE = {
         return ONLINE.charControl[playerIdx] === 'AI';
     },
 
-    // 发送操作
+    // 是否应该路由到房主执行
+    shouldRouteToHost: function(payload) {
+        if (!ONLINE.active || !payload) return false;
+        if (!ONLINE.authoritativeTypes[payload.type]) return false;
+        return !ONLINE.isHost();
+    },
+
+    // 发送操作：战斗动作非房主发请求；房主执行后广播。大厅配置仍直接广播。
     sendAction: function(payload) {
-        if (ONLINE.active) NET.sendAction(payload);
+        if (!ONLINE.active) return null;
+        var actionId = ONLINE._authorityActionId || (payload && payload._actionId) || null;
+        if (ONLINE.shouldRouteToHost(payload)) {
+            if (typeof setHint2 === 'function') setHint2('⏳ 已发送操作，等待房主确认...');
+            return NET.requestAction(payload, { actionId: actionId });
+        }
+        return NET.sendAction(payload, { actionId: actionId });
     },
 
     // 设置某角色的控制方（房主调用）
@@ -59,19 +83,16 @@ var ONLINE = {
     },
 };
 
-// ── 远端消息处理 ──
-NET.onRemoteAction = function(payload, fromSlot) {
+ONLINE.applyAction = function(payload, fromRemote) {
+    if (!payload || !payload.type) return;
     switch (payload.type) {
         case 'charConfig':
-            // 房主发来的角色与控制配置
             ONLINE.active      = true;
             ONLINE.charControl = payload.charControl.slice();
-            // 同步 AI 模型选择（如果房主传了）
             if (payload.aiCharModel && window.AI_CHAR_MODEL) {
                 payload.aiCharModel.forEach(function(m, i) {
                     AI_CHAR_MODEL[i] = m;
                     if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + i] = m;
-                    // 同步 UI
                     var mSel = document.getElementById('aiModel' + i);
                     if (mSel) { mSel.value = m; if (typeof updateAiModelVisibility === 'function') updateAiModelVisibility(i); }
                 });
@@ -80,44 +101,91 @@ NET.onRemoteAction = function(payload, fromSlot) {
             break;
 
         case 'attack':
-            doAttack2(
-                payload.actorIdx, payload.myHand,
-                payload.touchTargetIdx, payload.touchHandIdx,
-                payload.dmgTargetIdx,
-                true
-            );
+            doAttack2(payload.actorIdx, payload.myHand, payload.touchTargetIdx, payload.touchHandIdx, payload.dmgTargetIdx, !!fromRemote);
             break;
 
         case 'wukong02':
             G.wukongPending = payload.wukongPending;
-            executeWukong02(payload.chosenTargetIdx, true);
+            executeWukong02(payload.chosenTargetIdx, !!fromRemote);
             break;
 
         case 'toggleTank':
-            toggleTank(payload.playerIdx, true);
+            toggleTank(payload.playerIdx, !!fromRemote);
             break;
 
         case 'helpTank':
+            if (!fromRemote && ONLINE.active) ONLINE.sendAction(payload);
             ONLINE.waitingRemoteHelpTank = false;
             G.inputLocked = false;
-            if (payload.choice === 'confirm') {
-                Main.engine.resolveHelpTank(payload.helperIdx);
-            }
+            if (payload.choice === 'confirm') Main.engine.resolveHelpTank(payload.helperIdx);
             render2(); refreshHandStyles2(); finishTurn2();
             break;
 
+        case 'invokeAction':
+            invokeAction2(payload.actorIdx, payload.actionName, payload.params || {}, !!fromRemote, { silent: true });
+            break;
+
+        // 兼容旧版消息：之后主动技能都统一走 invokeAction。
         case 'cake':
-            Main.invokeAction(payload.actorIdx, 'useCake', { target: payload.targetIdx, groups: payload.groups });
-            render2(); refreshHandStyles2(); finishTurn2();
+            invokeAction2(payload.actorIdx, 'useCake', {
+                targetIdx: payload.targetIdx,
+                groupCount: payload.groupCount || payload.groups || 1
+            }, !!fromRemote, { silent: true });
+            break;
+
+        case 'crowCurse':
+            invokeAction2(payload.actorIdx, 'crowCurseTarget', { camp: payload.camp || 'enemy' }, !!fromRemote, { silent: true });
             break;
 
         case 'steal':
             if (payload.choice === 'confirm') {
-                Main.invokeAction(payload.daQiaoIdx, 'doSteal', { healerIdx: payload.healerIdx, netHeal: payload.netHeal });
-                render2();
+                invokeAction2(payload.daQiaoIdx, 'doSteal', { healerIdx: payload.healerIdx, netHeal: payload.netHeal }, !!fromRemote, { silent: true });
             }
             break;
     }
+};
+
+ONLINE.runHostRequest = function(payload, fromSlot, actionId) {
+    if (!ONLINE.isHost()) return;
+    ONLINE._runningHostRequest = true;
+    ONLINE._authorityActionId = actionId || (payload && payload._actionId) || null;
+    try {
+        ONLINE.applyAction(payload, false);
+    } finally {
+        ONLINE._authorityActionId = null;
+        ONLINE._runningHostRequest = false;
+    }
+};
+
+// ── 远端消息处理 ──
+NET.onRemoteAction = function(payload, fromSlot, seq, actionId) {
+    ONLINE.applyAction(payload, true);
+};
+
+NET.onActionRequest = function(payload, fromSlot, actionId) {
+    ONLINE.runHostRequest(payload, fromSlot, actionId);
+};
+
+NET.onActionAck = function(msg) {
+    if (window.console && msg && msg.duplicate) console.warn('[NET] duplicate action ignored:', msg.actionId);
+};
+
+NET.onHostChanged = function(hostSlot) {
+    if (ONLINE.active) {
+        setHint2('👑 房主已切换到 Slot' + (hostSlot + 1));
+        if (window.AI && AI.checkAndAct) setTimeout(function(){ AI.checkAndAct(); }, 300);
+    }
+};
+
+// 非房主点击“开始游戏”时，服务端把请求转给房主；房主统一生成 charConfig 并开局。
+NET.onStartRequest = function(fromSlot) {
+    if (!ONLINE.isHost()) return;
+    if (ONLINE.active) return;
+    var name = (NET.roomState && NET.roomState.slotNames && NET.roomState.slotNames[fromSlot]) || ('Slot' + (fromSlot + 1));
+    setOnlineStatus('收到 ' + name + ' 的开始请求，房主正在同步开局...');
+    setTimeout(function() {
+        if (!ONLINE.active && typeof startGame2 === 'function') startGame2();
+    }, 0);
 };
 
 // 房间状态变化（有人加入/离开）
@@ -126,6 +194,7 @@ NET.onRoomState = function(state) {
 };
 
 NET.onRoomCreated = function(code) {
+    ONLINE.slotIdx = NET.slotIdx;
     document.getElementById('roomCodeDisplay').textContent = code;
     var area = document.getElementById('roomCodeArea');
     if (area) area.style.display = 'block';
@@ -136,6 +205,7 @@ NET.onRoomCreated = function(code) {
 };
 
 NET.onRoomJoined = function(code) {
+    ONLINE.slotIdx = NET.slotIdx;
     setOnlineStatus('已加入房间 ' + code + '，等待房主配置并开始...');
     if (document.getElementById('lobbyArea')) {
         document.getElementById('lobbyArea').style.display = 'block';
@@ -166,3 +236,29 @@ function setOnlineStatus(msg) {
     var el = document.getElementById('onlineStatus');
     if (el) el.textContent = msg;
 }
+
+// ── 控制台联机健康检查：netHealth2() ──
+function netHealth2() {
+    var players = (window.Main && Main.turnManager && Main.turnManager.players) || [];
+    var simpleState = [];
+    for (var i = 0; i < players.length; i++) {
+        var p = players[i];
+        if (!p) continue;
+        simpleState.push({ idx:i, name:p.name, hp:p.hp, hands:[p.hands[0], p.hands[1]] });
+    }
+    return {
+        online: !!(window.NET && NET.isOnline),
+        active: !!(window.ONLINE && ONLINE.active),
+        slotIdx: window.NET ? NET.slotIdx : -1,
+        roomCode: window.NET ? NET.roomCode : '',
+        hostSlot: window.NET && NET.roomState ? NET.roomState.hostSlot : null,
+        isHost: !!(window.ONLINE && ONLINE.isHost && ONLINE.isHost()),
+        lastSeq: window.NET ? NET.lastSeq : 0,
+        charControl: window.ONLINE ? ONLINE.charControl.slice() : null,
+        waitingRemoteHelpTank: !!(window.ONLINE && ONLINE.waitingRemoteHelpTank),
+        inputLocked: !!(window.G && G.inputLocked),
+        turn: window.Main && Main.turnManager ? Main.turnManager.currentPlayerIdx : null,
+        players: simpleState
+    };
+}
+window.netHealth2 = netHealth2;

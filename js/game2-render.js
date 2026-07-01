@@ -133,6 +133,10 @@ function _doRender2() {
                 btn.style.cssText = 'margin:3px 3px 0 0;background:' + a.color +
                     ';color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;';
                 var jsCode = a.onClickJS.replace(/__IDX__/g, String(i));
+                // 兼容未重新编译的 main.js：把旧按钮里的 Main.invokeAction(...) 统一导向 invokeAction2(...)，确保联机广播。
+                if (typeof invokeAction2 === 'function') {
+                    jsCode = jsCode.replace(/Main\.invokeAction\(/g, 'invokeAction2(');
+                }
                 btn.onclick = function() { eval(jsCode); };
                 actEl.appendChild(btn);
             });
@@ -270,11 +274,95 @@ function _doRefreshHandStyles2() {
     }
 }
 
-// ── 提示栏 ──
-function _setCardHint(msg, isError) {
-    // per-card-hint 已删除，此函数保留为空操作避免报错
-}
+// ── 角色卡片小提示：非阻塞，不影响游戏进程，3秒自动关闭，可手动关闭 ──
+var _cardToastTimers2 = {};
+var _cardToastLast2 = {};
 
+function showCardToast2(playerIdx, msg, isError, durationMs) {
+    durationMs = durationMs || 3000;
+    msg = String(msg || '');
+    if (!msg) return;
+
+    var card = document.getElementById('card2v_' + playerIdx);
+    if (!card) {
+        if (typeof flashHint2 === 'function' && isError) flashHint2(msg);
+        else if (typeof setHint2 === 'function') setHint2(msg);
+        return;
+    }
+
+    var dedupeKey = playerIdx + '|' + msg;
+    var now = Date.now();
+    if (_cardToastLast2[dedupeKey] && now - _cardToastLast2[dedupeKey] < 1200) return;
+    _cardToastLast2[dedupeKey] = now;
+
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+
+    var old = document.getElementById('cardToast2_' + playerIdx);
+    if (old) old.remove();
+    clearTimeout(_cardToastTimers2[playerIdx]);
+
+    var toast = document.createElement('div');
+    toast.id = 'cardToast2_' + playerIdx;
+    toast.className = 'card-toast2' + (isError ? ' error' : ' info');
+    toast.style.cssText = [
+        'position:absolute',
+        'right:8px',
+        'bottom:8px',
+        'z-index:80',
+        'max-width:calc(100% - 16px)',
+        'display:flex',
+        'align-items:flex-start',
+        'gap:6px',
+        'padding:7px 9px',
+        'border-radius:8px',
+        'font-size:12px',
+        'line-height:1.35',
+        'box-shadow:0 4px 14px rgba(0,0,0,.18)',
+        'background:' + (isError ? '#fff1f0' : '#e6f7ff'),
+        'border:1px solid ' + (isError ? '#ff7875' : '#91d5ff'),
+        'color:' + (isError ? '#a8071a' : '#003a8c'),
+        'pointer-events:auto'
+    ].join(';');
+
+    var text = document.createElement('div');
+    text.textContent = msg;
+    text.style.cssText = 'flex:1;word-break:break-word;';
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '×';
+    close.title = '关闭';
+    close.style.cssText = [
+        'border:none',
+        'background:transparent',
+        'color:inherit',
+        'font-size:14px',
+        'font-weight:bold',
+        'line-height:1',
+        'cursor:pointer',
+        'padding:0 0 0 4px'
+    ].join(';');
+    close.onclick = function(ev) {
+        if (ev) ev.stopPropagation();
+        clearTimeout(_cardToastTimers2[playerIdx]);
+        toast.remove();
+    };
+
+    toast.appendChild(text);
+    toast.appendChild(close);
+    card.appendChild(toast);
+
+    _cardToastTimers2[playerIdx] = setTimeout(function() {
+        var el = document.getElementById('cardToast2_' + playerIdx);
+        if (el) el.remove();
+    }, durationMs);
+}
+window.showCardToast2 = showCardToast2;
+
+// 兼容旧调用名
+function _setCardHint(msg, isError, playerIdx) {
+    showCardToast2(playerIdx == null ? (Main && Main.turnManager ? Main.turnManager.currentPlayerIdx : 0) : playerIdx, msg, isError);
+}
 
 function setHint2(msg) {
     var bar = document.getElementById('hintBar2');

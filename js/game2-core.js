@@ -2,6 +2,55 @@
 //  game2-core.js  两步点击状态机 + 攻击 + 回合推进
 // ════════════════════════════════════════════════════════
 
+// ── 统一角色主动技能入口 ──
+// 任何不属于“普通碰手攻击”的角色主动技能，都走这里：
+// 本地执行 Main.invokeAction；联机时广播给其他客户端；远端重放时不再二次广播。
+function invokeAction2(actorIdx, actionName, params, fromRemote, options) {
+    params = params || {};
+    options = options || {};
+
+    if (typeof Main === 'undefined' || !Main.invokeAction) {
+        var missing = '错误：Main.invokeAction 未就绪';
+        if (!options.silent && typeof showCardToast2 === 'function') showCardToast2(actorIdx, missing, true);
+        else if (!options.silent && typeof flashHint2 === 'function') flashHint2(missing);
+        return missing;
+    }
+
+    // 联机稳定版：非房主不直接改本地状态，只把请求交给房主执行并广播。
+    if (!fromRemote && typeof ONLINE !== 'undefined' && ONLINE.active && !ONLINE.isHost()) {
+        ONLINE.sendAction({
+            type: 'invokeAction',
+            actorIdx: actorIdx,
+            actionName: actionName,
+            params: params
+        });
+        return '已发送操作请求';
+    }
+
+    var result = Main.invokeAction(actorIdx, actionName, params);
+    if (typeof result === 'string' && result.indexOf('错误') === 0) {
+        if (!options.silent && typeof showCardToast2 === 'function') showCardToast2(actorIdx, result, true);
+        else if (!options.silent && typeof flashHint2 === 'function') flashHint2(result);
+        return result;
+    }
+
+    if (!fromRemote && !options.noBroadcast && typeof ONLINE !== 'undefined' && ONLINE.active) {
+        ONLINE.sendAction({
+            type: 'invokeAction',
+            actorIdx: actorIdx,
+            actionName: actionName,
+            params: params
+        });
+    }
+
+    if (!options.noRender) {
+        if (typeof render2 === 'function') render2();
+        if (typeof refreshHandStyles2 === 'function') refreshHandStyles2();
+    }
+    return result;
+}
+window.invokeAction2 = invokeAction2;
+
 function onHandClick2(playerIdx, handIdx) {
     if (!Main.turnManager || Main.turnManager.gameOver) return;
     if (ONLINE.waitingRemoteHelpTank) { flashHint2("⏳ 等待对方决定是否帮抗..."); return; }
@@ -77,9 +126,23 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
         flashHint2('⚠️ 不能碰数字为0的手'); refreshHandStyles2(); return;
     }
 
+    // 联机稳定版：非房主不在本地计算攻击，只把意图发给房主。
+    if (!fromRemote && typeof ONLINE !== 'undefined' && ONLINE.active && !ONLINE.isHost()) {
+        ONLINE.sendAction({
+            type: 'attack',
+            actorIdx: actorIdx,
+            myHand: myHand,
+            touchTargetIdx: touchTargetIdx,
+            touchHandIdx: touchHandIdx,
+            dmgTargetIdx: dmgTargetIdx2
+        });
+        refreshHandStyles2();
+        return;
+    }
+
     // 攻击前：注入乌鸦buff extraTriggers（灼燃箭/魔王剑）
     if (actor.useBurningArrow) {
-        Main.invokeAction(actorIdx, 'injectCrowTriggers', { targetIdx: dmgTargetIdx2 });
+        invokeAction2(actorIdx, 'injectCrowTriggers', { targetIdx: dmgTargetIdx2 }, false, { silent: true, noRender: true, noBroadcast: true });
     }
 
     // 攻击前：快照伤害承受者的防御状态（帮抗时恢复用）
@@ -169,9 +232,35 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride, eventRec
     }
     if (helperIdx < 0) return false;
 
-    // 联机：由控制 helper 的 slot 来弹窗决定（攻击方/无关方都等待）
+    function captureHelpTankSnapshot2() {
+        if (eventRecord) {
+            Main.engine.snapshotHelpTankVictimFromEvent(dmgTarget, eventRecord.amount, eventRecord.damageType);
+        } else {
+            Main.engine.captureHelpTankDamage();
+        }
+    }
+
+    // 联机：由控制 helper 的 slot 来决定。AI 控制的帮抗由房主自动决策并广播，避免所有客户端一起等待一个不存在的弹窗。
     if (ONLINE.active) {
         var helperController = ONLINE.charControl[helperIdx];
+        if (helperController === 'AI') {
+            if (!ONLINE.isHost()) {
+                ONLINE.waitingRemoteHelpTank = true;
+                G.inputLocked = true;
+                setHint2("⏳ 等待房主结算 AI 帮抗...");
+                return true;
+            }
+            captureHelpTankSnapshot2();
+            var doHelp = (window.AI && AI.helpTank && AI.helpTank.decide)
+                ? AI.helpTank.decide(helperIdx, dmgTargetIdx2, totalPenalty)
+                : (totalPenalty < players[helperIdx].hp);
+            ONLINE.sendAction({ type: "helpTank", choice: doHelp ? "confirm" : "cancel", helperIdx: helperIdx });
+            if (doHelp) Main.engine.resolveHelpTank(helperIdx);
+            G.inputLocked = false;
+            G.helpTankContext = null;
+            ONLINE.waitingRemoteHelpTank = false;
+            return false;
+        }
         if (helperController !== ONLINE.slotIdx) {
             ONLINE.waitingRemoteHelpTank = true;
             G.inputLocked = true;
@@ -181,11 +270,7 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride, eventRec
     }
 
     // 冻结快照：事件模式 vs 主线模式
-    if (eventRecord) {
-        Main.engine.snapshotHelpTankVictimFromEvent(dmgTarget, eventRecord.amount, eventRecord.damageType);
-    } else {
-        Main.engine.captureHelpTankDamage();
-    }
+    captureHelpTankSnapshot2();
     G.inputLocked = true;
     showHelpTankDialog(helperIdx, dmgTargetIdx2, eventRecord ? eventRecord.source : null, eventRecord);
     return true;

@@ -9,6 +9,8 @@ var NET = {
     myName:    '',
     isOnline:  false,
     roomState: null,  // 最近一次 roomState 快照
+    lastSeq:   0,     // 最近一次服务端排序号
+    seenActions: {},  // actionId 去重表
 
     connect: function(onOpen) {
         var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -45,8 +47,43 @@ var NET = {
         NET.send({ type: 'join', code: code.toUpperCase(), name: name });
     },
 
-    sendAction: function(payload) {
-        NET.send({ type: 'action', payload: payload });
+    makeActionId: function(prefix) {
+        NET._localActionSeq = (NET._localActionSeq || 0) + 1;
+        return (NET.roomCode || 'local') + ':' + NET.slotIdx + ':' + (prefix || 'a') + ':' + Date.now() + ':' + NET._localActionSeq;
+    },
+
+    markSeen: function(actionId) {
+        if (!actionId) return true;
+        if (NET.seenActions[actionId]) return false;
+        NET.seenActions[actionId] = Date.now();
+        var keys = Object.keys(NET.seenActions);
+        if (keys.length > 800) {
+            keys.sort(function(a,b){ return NET.seenActions[a] - NET.seenActions[b]; });
+            keys.slice(0, keys.length - 500).forEach(function(k){ delete NET.seenActions[k]; });
+        }
+        return true;
+    },
+
+    sendAction: function(payload, opts) {
+        opts = opts || {};
+        payload = payload || {};
+        var actionId = opts.actionId || payload._actionId || NET.makeActionId(payload.type || 'action');
+        payload._actionId = actionId;
+        NET.send({ type: 'action', actionId: actionId, payload: payload });
+        return actionId;
+    },
+
+    requestAction: function(payload, opts) {
+        opts = opts || {};
+        payload = payload || {};
+        var actionId = opts.actionId || payload._actionId || NET.makeActionId('req_' + (payload.type || 'action'));
+        payload._actionId = actionId;
+        NET.send({ type: 'actionRequest', actionId: actionId, payload: payload });
+        return actionId;
+    },
+
+    sendStartRequest: function() {
+        NET.send({ type: 'startRequest' });
     },
 
     sendChat: function(text) {
@@ -82,7 +119,31 @@ var NET = {
                 break;
 
             case 'action':
-                NET.onRemoteAction(msg.payload, msg.fromSlot);
+                if (msg.seq && msg.seq <= NET.lastSeq) {
+                    // 允许重连/乱序时记录，但不因为序号过小重复执行。
+                } else if (msg.seq) {
+                    NET.lastSeq = msg.seq;
+                }
+                if (NET.markSeen(msg.actionId || (msg.payload && msg.payload._actionId))) {
+                    NET.onRemoteAction(msg.payload, msg.fromSlot, msg.seq, msg.actionId);
+                }
+                break;
+
+            case 'actionRequest':
+                NET.onActionRequest(msg.payload, msg.fromSlot, msg.actionId);
+                break;
+
+            case 'actionAck':
+                NET.onActionAck(msg);
+                break;
+
+            case 'hostChanged':
+                if (NET.roomState) NET.roomState.hostSlot = msg.hostSlot;
+                NET.onHostChanged(msg.hostSlot);
+                break;
+
+            case 'startRequest':
+                NET.onStartRequest(msg.fromSlot);
                 break;
 
             case 'chat':
@@ -104,7 +165,11 @@ var NET = {
     onRoomJoined:   function(code) {},
     onRoomState:    function(state) {},
     onSlotLeft:     function(slotIdx) {},
-    onRemoteAction: function(payload, fromSlot) {},
+    onRemoteAction: function(payload, fromSlot, seq, actionId) {},
+    onActionRequest:function(payload, fromSlot, actionId) {},
+    onActionAck:    function(msg) {},
+    onHostChanged:  function(hostSlot) {},
+    onStartRequest: function(fromSlot) {},
     onChat:         function(text, fromSlot) {},
     onRematch:      function() {},
     onDisconnect:   function() {},

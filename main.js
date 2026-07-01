@@ -2240,7 +2240,7 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 	,getCustomActions: function() {
 		var actions = [];
 		if(this.canEvolve()) {
-			actions.push({ label : "👑 进化为神大乔", color : "#722ed1", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'evolve', {})"});
+			actions.push({ label : "👑 进化为神大乔", color : "#722ed1", enabled : true, onClickJS : "invokeAction2(__IDX__, 'evolve', {})"});
 		}
 		return actions;
 	}
@@ -2273,8 +2273,9 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 		}
 	}
 	,onBigRoundEnd: function() {
+		model_Player.prototype.onBigRoundEnd.call(this);
 		this._stealCooldown = new haxe_ds_StringMap();
-		haxe_Log.trace("🎯 大乔：大回合结束，抢夺冷却全部重置。",{ fileName : "./character/DaQiao.hx", lineNumber : 261, className : "character.DaQiao", methodName : "onBigRoundEnd"});
+		haxe_Log.trace("🎯 大乔：大回合结束，抢夺冷却全部重置。",{ fileName : "./character/DaQiao.hx", lineNumber : 262, className : "character.DaQiao", methodName : "onBigRoundEnd"});
 	}
 	,handleAction: function(actionName,params,engine) {
 		if(actionName == "evolve") {
@@ -2736,7 +2737,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 		return s;
 	}
 	,getCustomActions: function() {
-		return [{ label : "🐦 乌鸦诅咒（-40血）", color : "#722ed1", enabled : this.hp > 40, onClickJS : "showCrowCurseDialog(__IDX__); render2();"},{ label : (this.useBurningArrow ? "✓ " : "") + "灼燃箭（-60）", color : this.useBurningArrow ? "#cf1322" : "#595959", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'toggleBurningArrow', {}); render2();"},{ label : (this.useDemonSword ? "✓ " : "") + "魔王剑（6🦅）", color : this.useDemonSword ? "#d4380d" : "#595959", enabled : this.crowCount >= 6 && this.useBurningArrow, onClickJS : "Main.invokeAction(__IDX__, 'toggleDemonSword', {}); render2();"}];
+		return [{ label : "🐦 乌鸦诅咒（-40血）", color : "#722ed1", enabled : this.hp > 40, onClickJS : "showCrowCurseDialog(__IDX__); render2();"},{ label : (this.useBurningArrow ? "✓ " : "") + "灼燃箭（-60）", color : this.useBurningArrow ? "#cf1322" : "#595959", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleBurningArrow', {});"},{ label : (this.useDemonSword ? "✓ " : "") + "魔王剑（6🦅）", color : this.useDemonSword ? "#d4380d" : "#595959", enabled : this.crowCount >= 6 && this.useBurningArrow, onClickJS : "invokeAction2(__IDX__, 'toggleDemonSword', {});"}];
 	}
 	,handleAction: function(actionName,params,engine) {
 		switch(actionName) {
@@ -3067,9 +3068,9 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 	,getCustomActions: function() {
 		var actions = [];
 		var canSwap = !this.hasSwappedThisTurn;
-		actions.push({ label : (this.modal == "yin" ? "✓ " : "") + "☯ 阴", color : this.modal == "yin" ? "#722ed1" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "yin", onClickJS : "Main.invokeAction(__IDX__, 'switchModal', {modal:'yin'})"});
-		actions.push({ label : (this.modal == "yang" ? "✓ " : "") + "☯ 阳", color : this.modal == "yang" ? "#fa8c16" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "yang", onClickJS : "Main.invokeAction(__IDX__, 'switchModal', {modal:'yang'})"});
-		actions.push({ label : (this.modal == "ren" ? "✓ " : "") + "☯ 人", color : this.modal == "ren" ? "#52c41a" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "ren", onClickJS : "Main.invokeAction(__IDX__, 'switchModal', {modal:'ren'})"});
+		actions.push({ label : (this.modal == "yin" ? "✓ " : "") + "☯ 阴", color : this.modal == "yin" ? "#722ed1" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "yin", onClickJS : "invokeAction2(__IDX__, 'switchModal', {modal:'yin'})"});
+		actions.push({ label : (this.modal == "yang" ? "✓ " : "") + "☯ 阳", color : this.modal == "yang" ? "#fa8c16" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "yang", onClickJS : "invokeAction2(__IDX__, 'switchModal', {modal:'yang'})"});
+		actions.push({ label : (this.modal == "ren" ? "✓ " : "") + "☯ 人", color : this.modal == "ren" ? "#52c41a" : canSwap ? "#8c8c8c" : "#3d3d3d", enabled : canSwap && this.modal != "ren", onClickJS : "invokeAction2(__IDX__, 'switchModal', {modal:'ren'})"});
 		return actions;
 	}
 	,getSnapshotExtras: function() {
@@ -3167,8 +3168,9 @@ character_ZangShi.prototype = $extend(model_Player.prototype,{
 		this.gainOneCake("自身造成 " + actualDamage + " 伤害（" + Std.string(type) + "）");
 	}
 	,onBigRoundEnd: function() {
+		model_Player.prototype.onBigRoundEnd.call(this);
 		if(this.cakeEventsThisRound > 0) {
-			haxe_Log.trace("🔄 " + this.name + " 草莓蛋糕计数重置（上回合计 " + this.cakeEventsThisRound + "/8）。",{ fileName : "./character/ZangShi.hx", lineNumber : 137, className : "character.ZangShi", methodName : "onBigRoundEnd"});
+			haxe_Log.trace("🔄 " + this.name + " 草莓蛋糕计数重置（上回合计 " + this.cakeEventsThisRound + "/8）。",{ fileName : "./character/ZangShi.hx", lineNumber : 138, className : "character.ZangShi", methodName : "onBigRoundEnd"});
 		}
 		this.cakeEventsThisRound = 0;
 	}
@@ -3186,7 +3188,7 @@ character_ZangShi.prototype = $extend(model_Player.prototype,{
 		var damage = 10 * groupCount;
 		var supply = 10 * groupCount;
 		this.cakes -= cost;
-		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身补给 " + supply + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 156, className : "character.ZangShi", methodName : "useCake"});
+		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身补给 " + supply + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 157, className : "character.ZangShi", methodName : "useCake"});
 		this._inCakeCast = true;
 		engine.applyDamage(this,target,damage,model_DamageType.MAGIC);
 		engine.applyRawHeal(this,supply,model_HealType.RECOVERY,false);
@@ -3379,8 +3381,9 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		this.tryGainRage("回血");
 	}
 	,onBigRoundEnd: function() {
+		model_Player.prototype.onBigRoundEnd.call(this);
 		if(this.rageAddedThisRound > 0) {
-			haxe_Log.trace("🐗 张飞怒气计数重置（上回合获得 " + this.rageAddedThisRound + "/4 层）",{ fileName : "./character/ZhangFei.hx", lineNumber : 193, className : "character.ZhangFei", methodName : "onBigRoundEnd"});
+			haxe_Log.trace("🐗 张飞怒气计数重置（上回合获得 " + this.rageAddedThisRound + "/4 层）",{ fileName : "./character/ZhangFei.hx", lineNumber : 194, className : "character.ZhangFei", methodName : "onBigRoundEnd"});
 		}
 		this.rageAddedThisRound = 0;
 	}
@@ -3400,7 +3403,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		if(this.hands[1] == 0 && this.zeroTurns1 > 0) {
 			this.zeroTurns1++;
 		}
-		haxe_Log.trace("🐗🔥 张飞进入【狂暴】！消耗 24 怒气，剩 " + this.rage + "。持续 3 回合。0使用回合数升级为3，已有0寿命+1",{ fileName : "./character/ZhangFei.hx", lineNumber : 210, className : "character.ZhangFei", methodName : "enterFrenzy"});
+		haxe_Log.trace("🐗🔥 张飞进入【狂暴】！消耗 24 怒气，剩 " + this.rage + "。持续 3 回合。0使用回合数升级为3，已有0寿命+1",{ fileName : "./character/ZhangFei.hx", lineNumber : 211, className : "character.ZhangFei", methodName : "enterFrenzy"});
 		return "成功进入狂暴";
 	}
 	,setModal: function(m) {
@@ -3408,7 +3411,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 			return "错误：模态值应为 1-3";
 		}
 		this.modal = m;
-		haxe_Log.trace("🐗 张飞切换为模态 " + m,{ fileName : "./character/ZhangFei.hx", lineNumber : 220, className : "character.ZhangFei", methodName : "setModal"});
+		haxe_Log.trace("🐗 张飞切换为模态 " + m,{ fileName : "./character/ZhangFei.hx", lineNumber : 221, className : "character.ZhangFei", methodName : "setModal"});
 		return "切换成功";
 	}
 	,handleAction: function(actionName,params,engine) {
@@ -3429,11 +3432,11 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 	}
 	,getCustomActions: function() {
 		var actions = [];
-		actions.push({ label : (this.modal == 1 ? "✓ " : "") + "模态①", color : this.modal == 1 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'setModal', {modal:1})"});
-		actions.push({ label : (this.modal == 2 ? "✓ " : "") + "模态②(1v1禁用)", color : this.modal == 2 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'setModal', {modal:2})"});
-		actions.push({ label : (this.modal == 3 ? "✓ " : "") + "模态③", color : this.modal == 3 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'setModal', {modal:3})"});
+		actions.push({ label : (this.modal == 1 ? "✓ " : "") + "模态①", color : this.modal == 1 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "invokeAction2(__IDX__, 'setModal', {modal:1})"});
+		actions.push({ label : (this.modal == 2 ? "✓ " : "") + "模态②(1v1禁用)", color : this.modal == 2 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "invokeAction2(__IDX__, 'setModal', {modal:2})"});
+		actions.push({ label : (this.modal == 3 ? "✓ " : "") + "模态③", color : this.modal == 3 ? "#52c41a" : "#8c8c8c", enabled : true, onClickJS : "invokeAction2(__IDX__, 'setModal', {modal:3})"});
 		if(this.rage >= 24 && this.frenzyTurns <= 0) {
-			actions.push({ label : "🔥 进入狂暴", color : "#ff4d4f", enabled : true, onClickJS : "Main.invokeAction(__IDX__, 'enterFrenzy', {})"});
+			actions.push({ label : "🔥 进入狂暴", color : "#ff4d4f", enabled : true, onClickJS : "invokeAction2(__IDX__, 'enterFrenzy', {})"});
 		}
 		return actions;
 	}

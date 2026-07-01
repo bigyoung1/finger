@@ -90,13 +90,13 @@ class YaYan extends Player {
                 label: (useBurningArrow ? '✓ ' : '') + '灼燃箭（-60）',
                 color: useBurningArrow ? '#cf1322' : '#595959',
                 enabled: true,
-                onClickJS: "Main.invokeAction(__IDX__, 'toggleBurningArrow', {}); render2();"
+                onClickJS: "invokeAction2(__IDX__, 'toggleBurningArrow', {});"
             },
             {
                 label: (useDemonSword ? '✓ ' : '') + '魔王剑（6🦅）',
                 color: useDemonSword ? '#d4380d' : '#595959',
                 enabled: crowCount >= 6 && useBurningArrow,
-                onClickJS: "Main.invokeAction(__IDX__, 'toggleDemonSword', {}); render2();"
+                onClickJS: "invokeAction2(__IDX__, 'toggleDemonSword', {});"
             }
         ];
     }

@@ -133,6 +133,7 @@ class ZangShi extends Player {
 
     // ── (4) 大回合结束 → 重置计数 ──
     override public function onBigRoundEnd():Void {
+        super.onBigRoundEnd();
         if (cakeEventsThisRound > 0) {
             trace('🔄 ${this.name} 草莓蛋糕计数重置（上回合计 ${cakeEventsThisRound}/8）。');
         }

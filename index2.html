@@ -501,12 +501,7 @@ function restartGame2() {
     var sd = document.getElementById('stealDialog');
     if (sd && sd.parentNode) sd.parentNode.removeChild(sd);
     // 重置状态
-    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
-    G.wukongPending = null;
-    G.helpTankContext = null;
-    clearInterval(G.helpTankTimer);
-    G.inputLocked = false;
-    G.stealQueue = []; G.cakeActorIdx = -1;
+    resetRuntimeLocks2();
     // 回到设置界面
     document.getElementById('battleArena2').style.display = 'none';
     document.getElementById('setupPanel2').style.display = 'block';
@@ -542,9 +537,7 @@ function restartGame2() {
     // 重置引擎状态
     Main.turnManager.gameOver = true;
     clearTankResolver(); // 清除2v2抗伤位注入
-    G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
-    clearInterval(G.stealTimer);
-    G.stealQueue = [];
+    resetRuntimeLocks2();
     if (typeof resetAvatars === 'function') resetAvatars();
     // 切回设置面板
     document.getElementById('battleArena2').style.display = 'none';
@@ -674,6 +667,28 @@ function getCurrentCharControl() {
     return arr;
 }
 
+// 清理上一局/卡住局残留的输入锁、帮抗等待、AI思考 Promise；新局和返回选角都调用。
+function resetRuntimeLocks2() {
+    if (window.G) {
+        G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+        G.wukongPending = null;
+        G.helpTankContext = null;
+        if (G.helpTankTimer) { clearInterval(G.helpTankTimer); G.helpTankTimer = null; }
+        if (G.stealTimer) { clearInterval(G.stealTimer); G.stealTimer = null; }
+        G.inputLocked = false;
+        G.stealQueue = [];
+        G.cakeActorIdx = -1;
+        G.cakeGroups = 1;
+        G.cakeMaxGroups = 0;
+    }
+    if (window.ONLINE) {
+        ONLINE.waitingRemoteHelpTank = false;
+        ONLINE._authorityActionId = null;
+        ONLINE._runningHostRequest = false;
+    }
+    if (window.AI) AI.thinkingPromise = null;
+}
+
 // 房间状态变化时刷新大厅+控制下拉
 window.renderRoomLobby = function(state) {
     var listEl = document.getElementById('slotList');
@@ -724,7 +739,7 @@ function onlineJoin() {
 
 // ── 处理 ctrlUpdate（任意玩家修改控制下拉后同步给其他人）──
 var _origOnRemoteAction = NET.onRemoteAction;
-NET.onRemoteAction = function(payload, fromSlot) {
+NET.onRemoteAction = function(payload, fromSlot, seq, actionId) {
     if (payload.type === 'ctrlUpdate') {
         // 同步 ONLINE.charControl（游戏中掉线接管也走这里）
         if (window.ONLINE) {
@@ -750,13 +765,21 @@ NET.onRemoteAction = function(payload, fromSlot) {
         if (mSel) { mSel.value = payload.model; updateAiModelVisibility(ci); }
         return;
     }
-    _origOnRemoteAction(payload, fromSlot);
+    _origOnRemoteAction(payload, fromSlot, seq, actionId);
 };
 
 // 房主：开始游戏 → 把角色ID + charControl 同步给所有 slot
 var _origStartGame2 = startGame2;
 startGame2 = function() {
-    if (ONLINE && ONLINE.active === false && NET.slotIdx === 0 && NET.roomState) {
+    var inOnlineRoom = !!(window.NET && NET.isOnline && NET.roomState);
+    if (inOnlineRoom && (!ONLINE || !ONLINE.isHost || !ONLINE.isHost())) {
+        // 访客点击开始：不允许本地私自初始化，转为“请求房主开始”。
+        if (NET.sendStartRequest) NET.sendStartRequest();
+        setOnlineStatus('已请求房主开始游戏，等待同步开局...');
+        return false;
+    }
+
+    if (inOnlineRoom && ONLINE && ONLINE.active === false && ONLINE.isHost()) {
         // 联机模式房主：发配置
         var ids = [
             document.getElementById('heroSelect1').value,
@@ -765,18 +788,23 @@ startGame2 = function() {
             document.getElementById('rebelSelect4').value
         ];
         var ctrl = getCurrentCharControl();
+        resetRuntimeLocks2();
         ONLINE.active      = true;
         ONLINE.slotIdx     = NET.slotIdx;
         ONLINE.charControl = ctrl.slice();
         NET.sendAction({ type: 'charConfig', charIds: ids, charControl: ctrl, aiCharModel: AI_CHAR_MODEL.slice() });
         if (window.AI) AI.refreshControlled();
+    } else {
+        resetRuntimeLocks2();
     }
     _origStartGame2();
+    return true;
 };
 
 // 访客：收到角色配置后开始游戏
 function startOnlineGame(id0, id1, id2, id3) {
     ONLINE.slotIdx = NET.slotIdx;
+    resetRuntimeLocks2();
     setupTrace2v2();
     var lp = document.getElementById('logPanel2');
     if (lp) lp.innerHTML = '';
@@ -907,6 +935,7 @@ function setSetupTank(camp, idx) {
 var _origStartGame2_formation_ai = startGame2;
 startGame2 = function() {
     var ret = _origStartGame2_formation_ai.apply(this, arguments);
+    if (ret === false) return false;
     var vsAI = document.getElementById('vsAIToggle');
 
     // 检查控制下拉（本地模式下也支持把角色设为 AI）
@@ -937,7 +966,8 @@ startGame2 = function() {
 };
 var _origStartGame2_formation = startGame2;
 startGame2 = function() {
-    _origStartGame2_formation();
+    var ret = _origStartGame2_formation();
+    if (ret === false) return false;
     // 写入阵容
     G.formation = { hero: _setupFormation.hero, rebel: _setupFormation.rebel };
     G.tankIdx   = { hero: _setupTankIdx.hero,   rebel: _setupTankIdx.rebel   };

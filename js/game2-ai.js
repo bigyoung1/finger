@@ -213,12 +213,31 @@ AI.loadSkill = async function(name) {
 AI.checkAndAct = function() {
     if (!AI.enabled || AI.thinkingPromise) return;
     if (!Main.turnManager || Main.turnManager.gameOver) return;
-    if (G.inputLocked || G.helpTankContext || G.wukongPending) return;
     const curIdx = Main.turnManager.currentPlayerIdx;
-    const isAI = Object.keys(AI.controlled).length > 0
-        ? !!AI.controlled[curIdx]
-        : campOf(curIdx) === AI.aiCamp;
-    if (!isAI) return;
+    const curActor = Main.turnManager.players && Main.turnManager.players[curIdx];
+
+    // 兜底：如果联机/AI 局因为濒死帮抗或旧状态导致轮到已阵亡角色，房主负责推进到下一个可行动角色。
+    if (curActor && curActor.hp <= 0 && !G.inputLocked && !G.helpTankContext && !G.wukongPending) {
+        if (!window.ONLINE || !ONLINE.active || ONLINE.isHost()) {
+            setTimeout(function(){ if (Main.turnManager && !Main.turnManager.gameOver) finishTurn2(); }, 0);
+        }
+        return;
+    }
+
+    if (G.inputLocked || G.helpTankContext || G.wukongPending) return;
+
+    // 联机时，AI 角色只由房主驱动并广播操作；其他客户端只重放房主消息，避免多端同时思考/同时执行导致状态分叉。
+    let isAI;
+    if (window.ONLINE && ONLINE.active) {
+        isAI = ONLINE.charControl[curIdx] === 'AI';
+        if (!isAI || !ONLINE.isHost()) return;
+    } else {
+        isAI = Object.keys(AI.controlled).length > 0
+            ? !!AI.controlled[curIdx]
+            : campOf(curIdx) === AI.aiCamp;
+        if (!isAI) return;
+    }
+
     AI.thinkingPromise = AI.takeTurn(curIdx).finally(() => { AI.thinkingPromise = null; });
 };
 
@@ -607,15 +626,15 @@ AI.decide.activeSkills = function(actorIdx) {
     if (name === '鸦眼') {
         // 灼燃箭：只要血量够就开启
         if (!actor.useBurningArrow && actor.hp > 70)
-            Main.invokeAction(actorIdx, 'toggleBurningArrow', {});
+            invokeAction2(actorIdx, 'toggleBurningArrow', {});
         // 魔王剑：乌鸦够6且灼燃开启且血量充足
         if (actor.useBurningArrow && actor.crowCount >= 6 && actor.hp > 180 && !actor.useDemonSword)
-            Main.invokeAction(actorIdx, 'toggleDemonSword', {});
+            invokeAction2(actorIdx, 'toggleDemonSword', {});
         // 乌鸦诅咒：敌方没有乌鸦buff时主动施加（走 invokeAction 而非弹窗，因为自战时弹窗无人点）
         const enemies = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p.hp > 0);
         const enemyHasCrow = enemies.some(p => (p.buffList||[]).some(b=>b.id==='CROW'&&b.layers>0));
         if (!enemyHasCrow && actor.hp > 50)
-            Main.invokeAction(actorIdx, 'crowCurseTarget', { camp: 'enemy' });
+            invokeAction2(actorIdx, 'crowCurseTarget', { camp: 'enemy' });
     }
 
     if (name === '张飞') {
@@ -624,13 +643,13 @@ AI.decide.activeSkills = function(actorIdx) {
         const campRatio = campStats(actorIdx).ratio; // 己方血量和 / 敌方血量和
         // 阵营血量比低（<0.8）→ 模态3（打人回血）
         if (campRatio < 0.8 && modal !== 3)
-            Main.invokeAction(actorIdx, 'setModal', { modal: 3 });
+            invokeAction2(actorIdx, 'setModal', { modal: 3 });
         // 2v2 两个敌人都活着且血量健康 → 模态2（打两人）
         else if (enemies.length >= 2 && modal !== 2 && campRatio >= 0.8)
-            Main.invokeAction(actorIdx, 'setModal', { modal: 2 });
+            invokeAction2(actorIdx, 'setModal', { modal: 2 });
         // 默认模态1
         else if (enemies.length < 2 && campRatio >= 0.8 && modal !== 1)
-            Main.invokeAction(actorIdx, 'setModal', { modal: 1 });
+            invokeAction2(actorIdx, 'setModal', { modal: 1 });
     }
 
     if (name === '阴阳师') {
@@ -652,13 +671,13 @@ AI.decide.activeSkills = function(actorIdx) {
         // ── 攻略第7条：有好组合时直接用阴/阳，不切人 ──
         if (hasAttackCombo) {
             // 有攻击组合 → 阴最大化
-            if (modal !== 'yin') Main.invokeAction(actorIdx, 'switchModal', { modal: 'yin' });
+            if (modal !== 'yin') invokeAction2(actorIdx, 'switchModal', { modal: 'yin' });
         } else if (hasHealCombo && !winning) {
             // 有回血组合且落后 → 阳最大化
-            if (modal !== 'yang') Main.invokeAction(actorIdx, 'switchModal', { modal: 'yang' });
+            if (modal !== 'yang') invokeAction2(actorIdx, 'switchModal', { modal: 'yang' });
         } else if (hasHealCombo && winning) {
             // 有回血组合且占优 → 阴（回血变打伤，攻略第5点）
-            if (modal !== 'yin') Main.invokeAction(actorIdx, 'switchModal', { modal: 'yin' });
+            if (modal !== 'yin') invokeAction2(actorIdx, 'switchModal', { modal: 'yin' });
         }
         // ── 无好组合时：执行刷盾循环（攻略第3/4点）──
         else {
@@ -666,10 +685,10 @@ AI.decide.activeSkills = function(actorIdx) {
                 // 人模态且无好组合 → 切阴/阳白嫖护盾
                 // 占优切阴，落后切阳
                 const target = winning ? 'yin' : 'yang';
-                Main.invokeAction(actorIdx, 'switchModal', { modal: target });
+                invokeAction2(actorIdx, 'switchModal', { modal: target });
             } else {
                 // 已在阴/阳且无好组合 → 切回人（回护盾血量 + 获得免伤）
-                Main.invokeAction(actorIdx, 'switchModal', { modal: 'ren' });
+                invokeAction2(actorIdx, 'switchModal', { modal: 'ren' });
             }
         }
     }
@@ -685,7 +704,7 @@ AI.decide.activeSkills = function(actorIdx) {
                 .sort((a, b) => a.p.hp - b.p.hp);
             if (enemies.length > 0) {
                 const groups = Math.floor(cakes / 3);
-                Main.invokeAction(actorIdx, 'useCake', {
+                invokeAction2(actorIdx, 'useCake', {
                     targetIdx: enemies[0].i,
                     groupCount: groups,
                 });
@@ -694,8 +713,16 @@ AI.decide.activeSkills = function(actorIdx) {
     }
 
     // 大乔进化
-    if (name === '大乔' && actor.hp > 300 && !actor.evolved) {
-        Main.invokeAction(actorIdx, 'evolve', {});
+    // 旧判断用了不存在的 actor.evolved，导致大乔已进化/复活甲已用后，
+    // 只要血量再次超过300，AI就会反复调用 evolve 并刷出“错误：不满足进化条件”。
+    // 这里以 Haxe 暴露的 canEvolve() 为准；没有该方法时再走保守 fallback。
+    if (name === '大乔') {
+        const canEvolve = (typeof actor.canEvolve === 'function')
+            ? actor.canEvolve()
+            : (actor.hp > 300 && !actor.isGodForm && !actor.hasRevived);
+        if (canEvolve) {
+            invokeAction2(actorIdx, 'evolve', {}, false, { silent: true });
+        }
     }
 };
 
@@ -753,9 +780,9 @@ AI.helpTank.decide = function(helperIdx, victimIdx, totalPenalty) {
     const helper   = players[helperIdx];
     const victim   = players[victimIdx];
     if (!helper || helper.hp <= 0) return false;
-    if (!victim || victim.hp <= 0) return false;
+    if (!victim) return false;
 
-    // 核心规则：只要扛得住就帮（帮完自己不死就帮）
+    // 核心规则：只要扛得住就帮（victim 此时通常已经 hp<=0，不能因此直接拒绝）
     return totalPenalty < helper.hp;
 };
 
