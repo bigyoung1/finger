@@ -467,7 +467,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 o.value = opt.id; o.textContent = opt.displayName;
                 sel.appendChild(o);
             });
+            if (!sel.dataset.setupSyncBound) {
+                sel.dataset.setupSyncBound = '1';
+                sel.addEventListener('change', function(){ broadcastLobbyConfig2('charSelect'); });
+            }
         });
+        if (window.NET && NET.roomState && NET.roomState.lobbyConfig) {
+            setTimeout(function(){ applyLobbyConfig2(NET.roomState.lobbyConfig); }, 0);
+        }
 
         // 劫持 Haxe trace —— main.js 加载后 haxe.Log 已挂载，直接覆盖
         // Main.hx 的 main() 会在 DOMContentLoaded 之前被调用并设置自己的 trace，
@@ -604,9 +611,10 @@ function onAiModelChange(charIdx) {
     var sel = document.getElementById('aiModel' + charIdx);
     if (!sel) return;
     AI_CHAR_MODEL[charIdx] = sel.value;
-    // 广播给其他联机玩家
+    // 广播给其他联机玩家：旧 aiModelUpdate 保留兼容，新大厅配置同步负责让新加入玩家也拿到完整状态。
     if (window.NET && NET.roomState) {
         NET.sendAction({ type: 'aiModelUpdate', charIdx: charIdx, model: sel.value });
+        broadcastLobbyConfig2('aiModel');
     }
     // 同步到 AI_MODEL_CONFIG 和 providerMap
     AI_MODEL_CONFIG['p' + charIdx] = sel.value;
@@ -646,13 +654,16 @@ function onCtrlChange(e) {
     var ctrlVal = val === 'AI' ? 'AI' : parseInt(val);
     // 更新模型选择器可见性
     updateAiModelVisibility(charIdx);
-    // 所有联机玩家修改后广播给其他人
+    if (window.ONLINE) ONLINE.charControl[charIdx] = ctrlVal;
+    if (window.AI && AI.refreshControlled) AI.refreshControlled();
+    // 所有联机玩家修改后广播给其他人；同时同步完整大厅配置，避免新加入/不同窗口选角分叉。
     if (ONLINE && NET.roomState != null) {
         NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal });
         // 如果切成 AI，顺便广播当前选的模型
         if (val === 'AI') {
             NET.sendAction({ type: 'aiModelUpdate', charIdx: charIdx, model: AI_CHAR_MODEL[charIdx] });
         }
+        broadcastLobbyConfig2('ctrl');
     }
 }
 
@@ -665,6 +676,97 @@ function getCurrentCharControl() {
         arr.push(v === 'AI' ? 'AI' : parseInt(v));
     }
     return arr;
+}
+
+
+function getCurrentCharIds2() {
+    return [
+        document.getElementById('heroSelect1')  ? document.getElementById('heroSelect1').value  : 'xiaoqiao',
+        document.getElementById('rebelSelect2') ? document.getElementById('rebelSelect2').value : 'xiaoqiao',
+        document.getElementById('heroSelect3')  ? document.getElementById('heroSelect3').value  : 'xiaoqiao',
+        document.getElementById('rebelSelect4') ? document.getElementById('rebelSelect4').value : 'xiaoqiao'
+    ];
+}
+
+function collectLobbyConfig2() {
+    return {
+        charIds: getCurrentCharIds2(),
+        charControl: getCurrentCharControl(),
+        aiCharModel: (window.AI_CHAR_MODEL || ['minimax','minimax','deepseek','deepseek']).slice(),
+        formation: Object.assign({}, window._setupFormation || { hero: 'dual_half', rebel: 'dual_half' }),
+        tankIdx: Object.assign({}, window._setupTankIdx || { hero: 0, rebel: 1 })
+    };
+}
+
+function updateSetupFormationUi2() {
+    ['hero', 'rebel'].forEach(function(camp) {
+        var type = (_setupFormation && _setupFormation[camp]) || 'dual_half';
+        var prefix = camp === 'hero' ? 'hero' : 'rebel';
+        var dual = document.getElementById(prefix + 'FormDualHalf');
+        var tank = document.getElementById(prefix + 'FormTankCarry');
+        var who  = document.getElementById(prefix + 'TankWho');
+        if (dual) dual.className = 'formation-btn' + (type === 'dual_half' ? ' active' : '');
+        if (tank) tank.className = 'formation-btn' + (type === 'tank_carry' ? ' active' : '');
+        if (who)  who.style.display = type === 'tank_carry' ? 'flex' : 'none';
+        var idx = _setupTankIdx && typeof _setupTankIdx[camp] !== 'undefined' ? _setupTankIdx[camp] : (camp === 'hero' ? 0 : 1);
+        var radios = document.querySelectorAll('input[name="' + camp + 'Tank"]');
+        radios.forEach(function(r){ r.checked = parseInt(r.value) === parseInt(idx); });
+    });
+}
+
+function applyLobbyConfig2(config) {
+    if (!config) return;
+    window._applyingLobbyConfig2 = true;
+    try {
+        var ids = config.charIds || [];
+        var map = [ ['heroSelect1',0], ['rebelSelect2',1], ['heroSelect3',2], ['rebelSelect4',3] ];
+        map.forEach(function(pair) {
+            var sel = document.getElementById(pair[0]);
+            var val = ids[pair[1]];
+            if (sel && val) sel.value = val;
+        });
+
+        if (config.aiCharModel && window.AI_CHAR_MODEL) {
+            config.aiCharModel.forEach(function(m, i) {
+                if (!m) return;
+                AI_CHAR_MODEL[i] = m;
+                if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + i] = m;
+                if (window.AI && AI.providerMap) AI.providerMap[i] = m;
+                var mSel = document.getElementById('aiModel' + i);
+                if (mSel) mSel.value = m;
+            });
+        }
+
+        if (config.charControl && window.ONLINE) {
+            ONLINE.charControl = config.charControl.slice();
+            for (var i = 0; i < 4; i++) {
+                var csel = document.getElementById('ctrlSelect' + i);
+                if (csel) {
+                    rebuildCtrlOptions(csel, String(config.charControl[i]));
+                    updateAiModelVisibility(i);
+                }
+            }
+            if (window.AI && AI.refreshControlled) AI.refreshControlled();
+        }
+
+        if (config.formation) {
+            _setupFormation.hero = config.formation.hero || _setupFormation.hero;
+            _setupFormation.rebel = config.formation.rebel || _setupFormation.rebel;
+        }
+        if (config.tankIdx) {
+            if (typeof config.tankIdx.hero !== 'undefined') _setupTankIdx.hero = parseInt(config.tankIdx.hero);
+            if (typeof config.tankIdx.rebel !== 'undefined') _setupTankIdx.rebel = parseInt(config.tankIdx.rebel);
+        }
+        if (typeof updateSetupFormationUi2 === 'function') updateSetupFormationUi2();
+    } finally {
+        window._applyingLobbyConfig2 = false;
+    }
+}
+
+function broadcastLobbyConfig2(reason) {
+    if (window._applyingLobbyConfig2) return;
+    if (!window.NET || !NET.isOnline || !NET.roomState || !NET.sendLobbyUpdate) return;
+    NET.sendLobbyUpdate(collectLobbyConfig2());
 }
 
 // 清理上一局/卡住局残留的输入锁、帮抗等待、AI思考 Promise；新局和返回选角都调用。
@@ -715,6 +817,7 @@ window.renderRoomLobby = function(state) {
         rebuildCtrlOptions(sel, cur);
         sel.disabled = false; // 确保所有人都可以改
     });
+    if (state.lobbyConfig) applyLobbyConfig2(state.lobbyConfig);
 };
 
 function onlineCreate() {
@@ -768,57 +871,64 @@ NET.onRemoteAction = function(payload, fromSlot, seq, actionId) {
     _origOnRemoteAction(payload, fromSlot, seq, actionId);
 };
 
-// 房主：开始游戏 → 把角色ID + charControl 同步给所有 slot
+// 联机开局：房主统一发送 startGameConfig，所有客户端（包括房主）收到同一份配置后再初始化。
 var _origStartGame2 = startGame2;
 startGame2 = function() {
     var inOnlineRoom = !!(window.NET && NET.isOnline && NET.roomState);
-    if (inOnlineRoom && (!ONLINE || !ONLINE.isHost || !ONLINE.isHost())) {
-        // 访客点击开始：不允许本地私自初始化，转为“请求房主开始”。
-        if (NET.sendStartRequest) NET.sendStartRequest();
-        setOnlineStatus('已请求房主开始游戏，等待同步开局...');
+    if (inOnlineRoom) {
+        if (!ONLINE || !ONLINE.isHost || !ONLINE.isHost()) {
+            // 访客点击开始：不允许本地私自初始化，转为“请求房主开始”。
+            if (NET.sendStartRequest) NET.sendStartRequest();
+            setOnlineStatus('已请求房主开始游戏，等待房主同步开局...');
+            return false;
+        }
+        // 房主也不再本地先开局，而是走服务端广播回来的 startGameConfig，保证 A/B/C/D 同步进入。
+        var config = collectLobbyConfig2();
+        resetRuntimeLocks2();
+        if (NET.sendStartGameConfig) NET.sendStartGameConfig(config);
+        setOnlineStatus('正在同步开局配置...');
         return false;
     }
 
-    if (inOnlineRoom && ONLINE && ONLINE.active === false && ONLINE.isHost()) {
-        // 联机模式房主：发配置
-        var ids = [
-            document.getElementById('heroSelect1').value,
-            document.getElementById('rebelSelect2').value,
-            document.getElementById('heroSelect3').value,
-            document.getElementById('rebelSelect4').value
-        ];
-        var ctrl = getCurrentCharControl();
-        resetRuntimeLocks2();
-        ONLINE.active      = true;
-        ONLINE.slotIdx     = NET.slotIdx;
-        ONLINE.charControl = ctrl.slice();
-        NET.sendAction({ type: 'charConfig', charIds: ids, charControl: ctrl, aiCharModel: AI_CHAR_MODEL.slice() });
-        if (window.AI) AI.refreshControlled();
-    } else {
-        resetRuntimeLocks2();
-    }
+    resetRuntimeLocks2();
     _origStartGame2();
     return true;
 };
 
-// 访客：收到角色配置后开始游戏
-function startOnlineGame(id0, id1, id2, id3) {
+// 收到联机开局配置后开始游戏（所有客户端，包括房主，都走这里）
+function startOnlineGame(configOrId0, id1, id2, id3) {
+    var config = (typeof configOrId0 === 'object') ? configOrId0 : {
+        charIds: [configOrId0, id1, id2, id3],
+        charControl: getCurrentCharControl(),
+        aiCharModel: AI_CHAR_MODEL.slice(),
+        formation: Object.assign({}, _setupFormation),
+        tankIdx: Object.assign({}, _setupTankIdx)
+    };
+    applyLobbyConfig2(config);
+    var ids = config.charIds || getCurrentCharIds2();
+    ONLINE.active = true;
     ONLINE.slotIdx = NET.slotIdx;
+    ONLINE.charControl = (config.charControl || getCurrentCharControl()).slice();
     resetRuntimeLocks2();
     setupTrace2v2();
     var lp = document.getElementById('logPanel2');
     if (lp) lp.innerHTML = '';
-    Main.setupGame2v2(id0, id1, id2, id3);
-    G.tankIdx = { hero: 0, rebel: 1 };
+    Main.setupGame2v2(ids[0], ids[1], ids[2], ids[3]);
+    G.formation = Object.assign({ hero: 'dual_half', rebel: 'dual_half' }, config.formation || {});
+    G.tankIdx   = Object.assign({ hero: 0, rebel: 1 }, config.tankIdx || {});
+    G.tankTarget = { hero: 'carry', rebel: 'carry' };
     setupTankResolver();
     G.step = 0; G.myHandIdx = -1; G.myPlayerIdx = -1;
+    ['hero', 'rebel'].forEach(function(camp) {
+        if (G.formation[camp] === 'tank_carry') Main.engine.applyTankFormationBuff(G.tankIdx[camp]);
+    });
     document.getElementById('setupPanel2').style.display = 'none';
     document.getElementById('battleArena2').style.display = 'block';
     render2(); updateTankButtons(); refreshHandStyles2();
+    setOnlineStatus('联机对战已开始');
     setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
     if (window.AI) {
         AI.refreshControlled();
-        // 用 AI_CHAR_MODEL 覆盖 providerMap（确保联机模式下各角色用选定模型）
         if (AI.providerMap) {
             [0,1,2,3].forEach(function(i) {
                 if (AI.controlled[i] && window.AI_CHAR_MODEL) {
@@ -828,6 +938,22 @@ function startOnlineGame(id0, id1, id2, id3) {
         }
     }
 }
+
+NET.onLobbyUpdate = function(config, fromSlot, seq) {
+    if (config) {
+        if (!NET.roomState) NET.roomState = {};
+        NET.roomState.lobbyConfig = config;
+        applyLobbyConfig2(config);
+    }
+};
+
+NET.onStartGameConfig = function(config, fromSlot, seq) {
+    if (!config) return;
+    if (!NET.roomState) NET.roomState = {};
+    NET.roomState.gameConfig = config;
+    NET.roomState.lobbyConfig = config;
+    startOnlineGame(config);
+};
 </script>
 
 <script>
@@ -921,14 +1047,14 @@ var _setupTankIdx   = { hero: 0, rebel: 1 };
 
 function setFormation(camp, type) {
     _setupFormation[camp] = type;
-    var prefix = camp === 'hero' ? 'hero' : 'rebel';
-    document.getElementById(prefix + 'FormDualHalf').className = 'formation-btn' + (type==='dual_half' ? ' active' : '');
-    document.getElementById(prefix + 'FormTankCarry').className = 'formation-btn' + (type==='tank_carry' ? ' active' : '');
-    document.getElementById(prefix + 'TankWho').style.display = type==='tank_carry' ? 'flex' : 'none';
+    if (typeof updateSetupFormationUi2 === 'function') updateSetupFormationUi2();
+    if (typeof broadcastLobbyConfig2 === 'function') broadcastLobbyConfig2('formation');
 }
 
 function setSetupTank(camp, idx) {
-    _setupTankIdx[camp] = idx;
+    _setupTankIdx[camp] = parseInt(idx);
+    if (typeof updateSetupFormationUi2 === 'function') updateSetupFormationUi2();
+    if (typeof broadcastLobbyConfig2 === 'function') broadcastLobbyConfig2('tank');
 }
 
 // 覆盖 startGame2，游戏开始时把阵容设置写入 G，并给坦克施加加成

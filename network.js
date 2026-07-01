@@ -86,6 +86,14 @@ var NET = {
         NET.send({ type: 'startRequest' });
     },
 
+    sendLobbyUpdate: function(config) {
+        NET.send({ type: 'lobbyUpdate', config: config || {} });
+    },
+
+    sendStartGameConfig: function(config) {
+        NET.send({ type: 'startGameConfig', config: config || {} });
+    },
+
     sendChat: function(text) {
         NET.send({ type: 'chat', text: text });
     },
@@ -96,7 +104,7 @@ var NET = {
             case 'created':
                 NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
                 NET.onRoomCreated(msg.code);
                 NET.onRoomState(NET.roomState);
                 break;
@@ -104,18 +112,33 @@ var NET = {
             case 'joined':
                 NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
                 NET.onRoomJoined(msg.code);
                 NET.onRoomState(NET.roomState);
                 break;
 
             case 'roomState':
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot };
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
                 NET.onRoomState(NET.roomState);
                 break;
 
             case 'slotLeft':
                 NET.onSlotLeft(msg.slotIdx);
+                break;
+
+            case 'lobbyUpdate':
+                if (msg.seq && msg.seq > NET.lastSeq) NET.lastSeq = msg.seq;
+                if (!NET.roomState) NET.roomState = {};
+                NET.roomState.lobbyConfig = msg.config || null;
+                NET.onLobbyUpdate(msg.config || {}, msg.fromSlot, msg.seq);
+                break;
+
+            case 'startGameConfig':
+                if (msg.seq && msg.seq > NET.lastSeq) NET.lastSeq = msg.seq;
+                if (!NET.roomState) NET.roomState = {};
+                NET.roomState.gameConfig = msg.config || null;
+                NET.roomState.lobbyConfig = msg.config || NET.roomState.lobbyConfig || null;
+                NET.onStartGameConfig(msg.config || {}, msg.fromSlot, msg.seq);
                 break;
 
             case 'action':
@@ -170,6 +193,8 @@ var NET = {
     onActionAck:    function(msg) {},
     onHostChanged:  function(hostSlot) {},
     onStartRequest: function(fromSlot) {},
+    onLobbyUpdate:  function(config, fromSlot, seq) {},
+    onStartGameConfig: function(config, fromSlot, seq) {},
     onChat:         function(text, fromSlot) {},
     onRematch:      function() {},
     onDisconnect:   function() {},

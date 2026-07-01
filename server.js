@@ -243,6 +243,14 @@ function broadcast(room, exceptWs, obj) {
     });
 }
 
+// 广播给房间内所有人（包括发送者）。用于大厅配置和开局配置，避免房主/访客各自本地初始化导致分叉。
+function broadcastAll(room, obj) {
+    if (!room) return;
+    room.slots.forEach(ws => {
+        if (ws) send(ws, obj);
+    });
+}
+
 function markActionSeen(room, actionId) {
     if (!room || !actionId) return false;
     if (!room.seenActions) room.seenActions = new Set();
@@ -284,6 +292,8 @@ function roomSummary(room) {
         slotNames: room.slotNames.slice(),
         slotOccupied: room.slots.map(s => !!s),
         hostSlot: room.hostSlot,
+        lobbyConfig: room.lobbyConfig || null,
+        gameConfig: room.gameConfig || null,
     };
 }
 
@@ -312,6 +322,8 @@ wss.on('connection', (ws) => {
                     actionSeq: 0,
                     seenActions: new Set(),
                     seenActionQueue: [],
+                    lobbyConfig: null,
+                    gameConfig: null,
                 };
                 ws.roomCode = code;
                 ws.slotIdx  = 0;
@@ -332,6 +344,29 @@ wss.on('connection', (ws) => {
                 send(ws, { type: 'joined', code: msg.code, slotIdx: emptyIdx, ...roomSummary(room) });
                 broadcastRoomState(room);
                 console.log(`[房间] ${msg.code} slot${emptyIdx} 加入 (${msg.name})`);
+                break;
+            }
+            case 'lobbyUpdate': {
+                const room = rooms[ws.roomCode];
+                if (!room) break;
+                room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, msg.config || {});
+                const seq = nextRoomSeq(room);
+                broadcastAll(room, { type: 'lobbyUpdate', fromSlot: ws.slotIdx, seq, config: room.lobbyConfig });
+                break;
+            }
+            case 'startGameConfig': {
+                const room = rooms[ws.roomCode];
+                if (!room) break;
+                if (ws.slotIdx !== room.hostSlot) {
+                    send(ws, { type: 'error', msg: '只有房主可以同步开局；已向房主请求开始。' });
+                    const host = getHostSocket(room);
+                    if (host) send(host, { type: 'startRequest', fromSlot: ws.slotIdx });
+                    break;
+                }
+                room.gameConfig = msg.config || room.lobbyConfig || {};
+                room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, room.gameConfig || {});
+                const seq = nextRoomSeq(room);
+                broadcastAll(room, { type: 'startGameConfig', fromSlot: ws.slotIdx, seq, config: room.gameConfig });
                 break;
             }
             case 'action': {
