@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: ai_system
+title: AI 策略决策与离线学习系统
+scope:
+    - ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: web_client
+    - path: game_engine
+    - path: static_assets
+    - path: game_models

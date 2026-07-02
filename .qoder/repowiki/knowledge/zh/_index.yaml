@@ -1,0 +1,203 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+exported_at: "2026-06-18T08:38:45Z"
+modules:
+    "":
+        dir_name: 指尖博弈：AI驱动的战斗模拟平台
+        title: 指尖博弈：AI驱动的战斗模拟平台
+        scope:
+            - PROJECT_ONBOARDING.md
+            - package.json
+            - package-lock.json
+            - build.hxml
+            - index.html
+            - index2.html
+            - guide.html
+            - main.js
+            - network.js
+            - server.js
+            - tune_weights.py
+            - .claude\settings.local.json
+            - ai\knowledge.md
+            - ai\preTrain.js
+            - ai\skills\大乔.md
+            - ai\skills\孙悟空.md
+            - ai\skills\小乔.md
+            - ai\skills\张飞.md
+            - ai\skills\忍者.md
+            - ai\skills\法师.md
+            - ai\skills\藏师.md
+            - ai\skills\赵云.md
+            - ai\skills\阴阳师.md
+            - ai\skills\鸦眼.md
+            - ai\weights.json
+            - bin\main.js
+            - buffs\CrowBuff.hx
+            - buffs\DamageBoostBuff.hx
+            - buffs\ExtraActionBuff.hx
+            - buffs\FrozenBuff.hx
+            - buffs\InvincibleBuff.hx
+            - buffs\PoisonBuff.hx
+            - buffs\ReflectBuff.hx
+            - buffs\ThunderRageBuff.hx
+            - character\CharacterRegistry.hx
+            - character\DaQiao.hx
+            - character\FaShi.hx
+            - character\Player.hx
+            - character\RenZhe.hx
+            - character\SunWuKong.hx
+            - character\XiaoQiao.hx
+            - character\YaYan.hx
+            - character\Yangdali.hx
+            - character\YinYangShi.hx
+            - character\ZangShi.hx
+            - character\ZhangFei.hx
+            - character\ZhaoYun.hx
+            - css\game2.css
+            - image\1.jpg
+            - image\9635ba1c-3c62-4df0-a2d2-8245ae7b216a.jpg
+            - image\Snipaste_2026-06-05_22-56-31.png
+            - image\大乔.png
+            - image\孙悟空.png
+            - image\小乔.png
+            - image\小乔1.png
+            - image\张飞.png
+            - image\忍者.png
+            - image\杨大力.png
+            - image\法师.png
+            - image\背景图片.png
+            - image\藏师.png
+            - image\赵云.png
+            - image\阴阳师.png
+            - image\鸦眼.png
+            - js\game2-ai.js
+            - js\game2-core.js
+            - js\game2-dialogs.js
+            - js\game2-online.js
+            - js\game2-render.js
+            - js\game2-state.js
+            - js\game2-vfx.js
+            - js\game2.css
+            - js\guide.html
+            - js\server.js
+            - log\log_大乔_vs_藏师_vs_忍者_vs_法师_2026-06-07_18-17-44.txt
+            - log\log_大乔_vs_藏师_vs_阴阳师_vs_法师_2026-06-07_18-38-54.txt
+            - log\log_小乔_vs_张飞_vs_阴阳师_vs_大乔_2026-06-06_12-12-44.txt
+            - log\log_小乔_vs_忍者_vs_法师_vs_孙悟空_2026-06-06_11-49-30.txt
+            - log\log_法师_vs_孙悟空_vs_藏师_vs_小乔_2026-06-06_22-40-49.txt
+            - log\log_藏师_vs_小乔_vs_法师_vs_大乔_2026-06-06_14-06-57.txt
+            - log\log_藏师_vs_小乔_vs_法师_vs_阴阳师_2026-06-06_13-26-23.txt
+            - log\train_0_REBEL_2026-06-12T07-11.txt
+            - log\train_0_draw_2026-06-12T06-56.txt
+            - log\train_10_REBEL_2026-06-12T06-29.txt
+            - log\train_11_HERO_2026-06-12T06-31.txt
+            - log\train_12_REBEL_2026-06-12T06-36.txt
+            - log\train_13_HERO_2026-06-12T06-38.txt
+            - log\train_14_HERO_2026-06-12T06-43.txt
+            - log\train_1_REBEL_2026-06-12T06-58.txt
+            - log\train_1_REBEL_2026-06-12T07-14.txt
+            - log\train_21_HERO_2026-06-11T14-48.txt
+            - log\train_2_HERO_2026-06-12T07-05.txt
+            - log\train_4_REBEL_2026-06-12T06-20.txt
+            - log\train_5_REBEL_2026-06-12T06-23.txt
+            - log\train_6_REBEL_2026-06-12T06-24.txt
+            - log\train_7_REBEL_2026-06-12T06-25.txt
+            - log\train_8_HERO_2026-06-12T06-27.txt
+            - log\train_9_HERO_2026-06-12T06-29.txt
+            - model\Buff.hx
+            - model\Camp.hx
+            - model\DamageType.hx
+            - model\HealType.hx
+            - model\Player.hx
+            - model\ShieldInstance.hx
+            - model\ShieldType.hx
+            - music1\28133884754-1-192.mp3
+            - music1\29802627981-1-192.mp3
+            - music1\【明日方舟空想花庭】画面有亿点抽象，钢琴弹得很爽——主界面曲《不存在的乐园》.mp3
+            - music1\塞壬唱片-MSR - 尽波澜.mp3
+            - music1\塞壬唱片-MSR,Alan Day,Jason Walsh - Operation Pyrite.mp3
+            - music1\塞壬唱片-MSR,Alan Day,Obadiah Brown-Beach - Stainless Heart.mp3
+            - music1\塞壬唱片-MSR,BaoUner - Абсолю́тный нуль температу́ры (absolute zero).mp3
+            - music1\塞壬唱片-MSR,DJ Okawari,澤田かおり - Everything's Alright.mp3
+            - music1\塞壬唱片-MSR,Melissa Kaplan - Keep the torch.mp3
+            - music1\塞壬唱片-MSR,Obadiah Brown-Beach - 故乡的风.mp3
+            - music1\塞壬唱片-MSR,Obadiah Brown-Beach,Forts - Eternal Flame.mp3
+            - music1\塞壬唱片-MSR,Substantial,X. ARI - Renegade.mp3
+            - music1\塞壬唱片-MSR,Uyanga Bold - Operation Cinder.mp3
+            - music1\塞壬唱片-MSR,W&W - Operation Barrenland (W&W Soundtrack Mix).mp3
+            - music1\塞壬唱片-MSR,タイナカ彩智 - 秋绪.mp3
+            - music1\塞壬唱片-MSR,横山克 - 春弦.mp3
+            - music1\塞壬唱片-MSR,陈雪燃 - Operation Blade.mp3
+            - music1\梶浦由記,伊東恵里 - Sis puella magica!.mp3
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    ai_system:
+        dir_name: AI 策略决策与离线学习系统
+        title: AI 策略决策与离线学习系统
+        scope:
+            - ai/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_client
+            - path: game_engine
+            - path: static_assets
+            - path: game_models
+    game_engine:
+        dir_name: 指尖战斗核心引擎与角色系统
+        title: 指尖战斗核心引擎与角色系统
+        scope:
+            - GameEngine.hx
+            - TurnManager.hx
+            - Main.hx
+            - buffs/
+            - character/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: game_models
+            - path: ai_system
+            - path: web_client
+    game_models:
+        dir_name: 游戏核心数据模型与战斗实体
+        title: 游戏核心数据模型与战斗实体
+        scope:
+            - model/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: game_engine
+            - path: web_client
+            - path: ai_system
+    static_assets:
+        dir_name: 游戏静态资源与对战日志归档
+        title: 游戏静态资源与对战日志归档
+        scope:
+            - css/
+            - log/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: web_client
+            - path: ai_system
+    web_client:
+        dir_name: 指尖博弈游戏客户端与联机服务
+        title: 指尖博弈游戏客户端与联机服务
+        scope:
+            - js/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: ai_system
+            - path: static_assets
+            - path: game_models
+            - path: game_engine

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: web_client
+title: 指尖博弈游戏客户端与联机服务
+scope:
+    - js/
+source_files: []
+depends_on: []
+related_to:
+    - path: ai_system
+    - path: static_assets
+    - path: game_models
+    - path: game_engine

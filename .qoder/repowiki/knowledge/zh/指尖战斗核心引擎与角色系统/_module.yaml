@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: game_engine
+title: 指尖战斗核心引擎与角色系统
+scope:
+    - GameEngine.hx
+    - TurnManager.hx
+    - Main.hx
+    - buffs/
+    - character/
+source_files: []
+depends_on: []
+related_to:
+    - path: game_models
+    - path: ai_system
+    - path: web_client

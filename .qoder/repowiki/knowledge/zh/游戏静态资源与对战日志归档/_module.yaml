@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: static_assets
+title: 游戏静态资源与对战日志归档
+scope:
+    - css/
+    - log/
+source_files: []
+depends_on: []
+related_to:
+    - path: web_client
+    - path: ai_system

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: game_models
+title: 游戏核心数据模型与战斗实体
+scope:
+    - model/
+source_files: []
+depends_on: []
+related_to:
+    - path: game_engine
+    - path: web_client
+    - path: ai_system
