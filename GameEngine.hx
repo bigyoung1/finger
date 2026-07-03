@@ -579,7 +579,7 @@ class GameEngine {
                 var mult = Math.pow(1.5, count);
                 trace('💥 ${actor.name} 凑齐【双九】！场上有 ${count} 个3的倍数(不含0)，基础60×1.5^${count}=${Std.int(60*mult)}（乌鸦+20会先加再乘）');
                 currentComboMultiplier = mult;
-                applyDamage(actor, dmgTarget, 60, PHYSICAL);
+                applyDamage(actor, dmgTarget, 50, PHYSICAL);
                 currentComboMultiplier = 1.0;
                 
              
@@ -657,7 +657,7 @@ class GameEngine {
                 dmgTarget.addBuff(new PoisonBuff(1));
             case 1 | 5 | 8 | 9:
                 trace('✨ ${actor.name} 触发 [0,${otherValue}] 破军组合：40 点物伤！');
-                applyDamage(actor, dmgTarget, 40, PHYSICAL);
+                applyDamage(actor, dmgTarget, 50, PHYSICAL);
             case 2 | 3:
                 trace('✨ ${actor.name} 触发 [0,${otherValue}] 御守组合：20 点物法盾，3 回合！');
                 applyShield(actor, PHYSICAL, 20, 3);

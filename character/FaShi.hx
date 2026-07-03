@@ -48,7 +48,7 @@ class FaShi extends Player {
         // 1. 追加 45 法伤（走标准伤害流程，会被法盾/物法盾抵挡）
         trace('⚡ 法师【0组合·追加】对 ${target.name} 造成 45 点法术伤害！');
         _inZeroCombo = false;
-        engine.applyDamage(this, target, 45, MAGIC);
+        engine.applyDamage(this, target, 50, MAGIC);
         _inZeroCombo = true;
 
         // 2. 附加 1 层雷霆之怒

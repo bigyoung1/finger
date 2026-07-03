@@ -18,13 +18,13 @@
 //  providers: 'minimax' | 'deepseek' | 'qianfan'
 // ──────────────────────────────────────────────────
 var AI_MODEL_CONFIG = {
-    p0: 'qianfan',   // HERO 角色0
-    p1: 'qianfan',   // REBEL 角色1
-    p2: 'qianfan',   // HERO 角色2
-    p3: 'qianfan',   // REBEL 角色3
-    train_main:    'qianfan',  // 自战训练主力
-    train_reflect: 'qianfan',  // 自战复盘
-    reflect:       'qianfan',  // 玩家对战复盘
+    p0: 'deepseek',   // HERO 角色0
+    p1: 'deepseek',   // REBEL 角色1
+    p2: 'deepseek',   // HERO 角色2
+    p3: 'deepseek',   // REBEL 角色3
+    train_main:    'deepseek',  // 自战训练主力
+    train_reflect: 'deepseek',  // 自战复盘
+    reflect:       'deepseek',  // 玩家对战复盘
 };
 
 // 所有可选 provider
