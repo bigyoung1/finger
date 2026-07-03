@@ -318,6 +318,7 @@ function finishTurn2() {
     updateTankButtons();
     if (!Main.turnManager.gameOver) {
         setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+        if (window.AI && AI.scheduleCheck) AI.scheduleCheck('finishTurn', 260);
     }
 }
 
@@ -327,6 +328,7 @@ function endTurn2() {
     render2();
     refreshHandStyles2();
     updateTankButtons();
+    if (window.AI && AI.scheduleCheck) AI.scheduleCheck('endTurn', 260);
 }
 
 function endGame2() {

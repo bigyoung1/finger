@@ -143,6 +143,7 @@ ONLINE.applyAction = function(payload, fromRemote) {
             }
             break;
     }
+    if (window.AI && AI.scheduleCheck) AI.scheduleCheck('onlineAction:' + payload.type, 260);
 };
 
 ONLINE.runHostRequest = function(payload, fromSlot, actionId) {
@@ -173,7 +174,7 @@ NET.onActionAck = function(msg) {
 NET.onHostChanged = function(hostSlot) {
     if (ONLINE.active) {
         setHint2('👑 房主已切换到 Slot' + (hostSlot + 1));
-        if (window.AI && AI.checkAndAct) setTimeout(function(){ AI.checkAndAct(); }, 300);
+        if (window.AI && AI.scheduleCheck) AI.scheduleCheck('hostChanged', 300, true);
     }
 };
 
@@ -224,7 +225,7 @@ NET.onSlotLeft = function(slotIdx) {
     setHint2('⚠️ ' + name + ' 已离线，其控制的角色由 AI 接管');
     ONLINE.handleSlotLeft(slotIdx);
     // 角色刚被 AI 接管，如果当前就是该角色的回合，立即让 AI 行动
-    if (window.AI && AI.checkAndAct) setTimeout(function(){ AI.checkAndAct(); }, 600);
+    if (window.AI && AI.scheduleCheck) AI.scheduleCheck('slotLeft', 600, true);
 };
 
 NET.onError = function(msg) {

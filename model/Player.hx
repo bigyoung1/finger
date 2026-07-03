@@ -238,6 +238,14 @@ class Player {
     // 护盾
     // ─────────────────────────────────────────────────────────────
     public function addShield(type:ShieldType, amount:Int, duration:Int) {
+        addDirectShield(type, amount, duration);
+    }
+
+    /**
+     * 原始护盾落地：只做合并/新增，不触发角色 addShield override。
+     * 用于坦脆流额外物理盾，避免小乔/藏师/熊猫等角色二次改写这层额外护盾。
+     */
+    public function addDirectShield(type:ShieldType, amount:Int, duration:Int) {
         var merged = false;
         for (shield in shieldList) {
             if (shield.type == type && shield.duration == duration) {

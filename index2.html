@@ -484,15 +484,7 @@ document.addEventListener('DOMContentLoaded', function() {
     tryInit();
 
     document.getElementById('startBtn2').onclick = startGame2;
-// AI 行动 hook：每次 render2 后检查
-var _origRender2_ai = (typeof render2 === 'function') ? render2 : null;
-if (_origRender2_ai) {
-    render2 = function() {
-        var r = _origRender2_ai.apply(this, arguments);
-        if (window.AI && AI.enabled) setTimeout(function() { AI.checkAndAct(); }, 400);
-        return r;
-    };
-}
+// AI 不再挂 render2。AI 由 startGame/finishTurn/联机回放显式调度，避免一次渲染触发多次行动。
 });
 
 // setupTrace2v2 已在 main.js 加载后的内联脚本里定义
@@ -538,6 +530,10 @@ function startGame2() {
     updateTankButtons();
     refreshHandStyles2();
     setHint2('👆 请先点击【己方】一只手，再点击【敌方】一只手发动攻击');
+    if (window.AI) {
+        if (AI.resetTurnGate) AI.resetTurnGate();
+        if (AI.scheduleCheck) AI.scheduleCheck('startGame', 420, true);
+    }
 }
 
 function restartGame2() {
@@ -788,7 +784,10 @@ function resetRuntimeLocks2() {
         ONLINE._authorityActionId = null;
         ONLINE._runningHostRequest = false;
     }
-    if (window.AI) AI.thinkingPromise = null;
+    if (window.AI) {
+        AI.thinkingPromise = null;
+        if (AI.resetTurnGate) AI.resetTurnGate();
+    }
 }
 
 // 房间状态变化时刷新大厅+控制下拉
@@ -936,6 +935,8 @@ function startOnlineGame(configOrId0, id1, id2, id3) {
                 }
             });
         }
+        if (AI.resetTurnGate) AI.resetTurnGate();
+        if (AI.scheduleCheck) AI.scheduleCheck('startOnlineGame', 420, true);
     }
 }
 

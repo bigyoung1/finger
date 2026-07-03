@@ -380,23 +380,48 @@ class GameEngine {
      * @param isFromSkill 是否来自技能内部
      */
     public function applyShield(actor:Player, type:ShieldType, amount:Int, duration:Int, isFromSkill:Bool = false) {
-        var finalType     = type;
-        var finalAmount   = amount;
-        var finalDuration = duration;
+        if (actor == null || amount <= 0) return;
 
-        // ── 坦脆流坦克护盾加成（叠在 actor.addShield/角色override 之前） ──
+        // 先让角色自身的 addShield override 正常生效（小乔升级、藏师翻倍、熊猫回血流等）。
+        // 坦脆流坦克的新规则：获得任意普通护盾后，额外获得“实际新增护盾量一半”的物理盾；
+        // 这层额外物理盾用 addDirectShield 落地，避免被角色 override 二次放大/改类型。
+        var before = new Array<{ type:ShieldType, amount:Int, duration:Int }>();
         if (actor.tankFormationBonus) {
-            if (finalType == BOTH_PHYSICAL_MAGIC) {
-                // 已是物法盾 → 厚度×1.5
-                finalAmount = Math.ceil(finalAmount * 1.5);
-            } else {
-                // 物理/法术盾 → 升级为物法盾，持续+1
-                finalType     = BOTH_PHYSICAL_MAGIC;
-                finalDuration = finalDuration + 1;
+            for (shield in actor.shieldList) {
+                before.push({ type: shield.type, amount: shield.amount, duration: shield.duration });
             }
         }
 
-        actor.addShield(finalType, finalAmount, finalDuration);
+        actor.addShield(type, amount, duration);
+
+        if (actor.tankFormationBonus) {
+            var extraTotal = 0;
+            var extras = new Array<{ amount:Int, duration:Int }>();
+            for (after in actor.shieldList) {
+                var oldAmount = 0;
+                for (b in before) {
+                    if (b.type == after.type && b.duration == after.duration) {
+                        oldAmount = b.amount;
+                        break;
+                    }
+                }
+                var gained = after.amount - oldAmount;
+                if (gained > 0) {
+                    var extra = Math.ceil(gained / 2);
+                    if (extra > 0) {
+                        extras.push({ amount: extra, duration: after.duration });
+                        extraTotal += extra;
+                    }
+                }
+            }
+            for (extraInfo in extras) {
+                actor.addDirectShield(PHYSICAL, extraInfo.amount, extraInfo.duration);
+            }
+            if (extraTotal > 0) {
+                trace('🏰 [坦脆流] ${actor.name} 获得额外 ${extraTotal} 点物理盾（新增护盾量的一半）');
+            }
+        }
+
         notifyShieldEvent(actor, isFromSkill);
     }
 
@@ -410,7 +435,7 @@ class GameEngine {
         var p = turnManager.players[playerIdx];
         if (p == null) return;
         p.tankFormationBonus = true;
-        trace('🏰 [坦脆流] ${p.name} 获得坦克加强：回复×1.5，护盾升级为物法盾/厚度+50%');
+        trace('🏰 [坦脆流] ${p.name} 获得坦克加强：回复×1.5，获得任意护盾时额外获得一半量物理盾');
     }
 
     /**

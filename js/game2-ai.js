@@ -10,21 +10,21 @@
 // ════════════════════════════════════════════════════════════════════
 
 // ──────────────────────────────────────────────────
-//  角色权重系统（从各角色 skill md 的 ## 权重 块解析）
-//  无全局默认权重，每个角色独立
+//  角色权重系统（公共 AI_BASE_WEIGHTS + 角色 skill md 稀疏覆盖）
+//  base 管通用棋理，skill 只写角色个性
 // ──────────────────────────────────────────────────
 // ──────────────────────────────────────────────────
 //  全局模型配置（可在 UI 中实时切换）
 //  providers: 'minimax' | 'deepseek' | 'qianfan'
 // ──────────────────────────────────────────────────
 var AI_MODEL_CONFIG = {
-    p0: 'minimax',   // HERO 角色0
-    p1: 'deepseek',  // REBEL 角色1
-    p2: 'minimax',   // HERO 角色2
-    p3: 'deepseek',  // REBEL 角色3
-    train_main:   'minimax',   // 自战训练主力
-    train_reflect: 'deepseek', // 自战复盘
-    reflect:       'deepseek', // 玩家对战复盘
+    p0: 'qianfan',   // HERO 角色0
+    p1: 'qianfan',   // REBEL 角色1
+    p2: 'qianfan',   // HERO 角色2
+    p3: 'qianfan',   // REBEL 角色3
+    train_main:    'qianfan',  // 自战训练主力
+    train_reflect: 'qianfan',  // 自战复盘
+    reflect:       'qianfan',  // 玩家对战复盘
 };
 
 // 所有可选 provider
@@ -36,7 +36,7 @@ var AI_PROVIDERS = {
 
 // 工具函数：给某个角色 idx 分配 provider（按 AI_MODEL_CONFIG）
 function getProviderForSlot(idx) {
-    return AI_MODEL_CONFIG['p' + idx] || 'minimax';
+    return AI_MODEL_CONFIG['p' + idx] || 'qianfan';
 }
 
 var AI_BASE_WEIGHTS = {
@@ -45,8 +45,8 @@ var AI_BASE_WEIGHTS = {
     star_5: 420,  star_7: 380,
     star_6: 300,  star_8: 270,
     star_4: 220,
-    star_1: 110,
-    star_2: 15,   star_3: 15,   // 最低价值双子星，AI主动回避但留个正值
+    star_1: 200,
+    star_2: 100,  star_3: 100,  // 低价值双子星仍保留正值，但主要由“不给敌方凑组合”惩罚兜底
 
     // ── 0组合 ──
     zero_combo_atk:    340,  // [0,1/5/8/9] 物伤组合，地位接近双子星
@@ -54,34 +54,77 @@ var AI_BASE_WEIGHTS = {
     zero_combo_7:      180,
     zero_combo_shield: 100,
 
-    // ── 凑0本身（这是用户特别强调的：AI不喜欢拿0是问题）──
-    build_zero: 340,
+    // ── 凑0本身（AI 不喜欢拿0是大问题，所以作为公共棋理大幅提高）──
+    build_zero: 440,
 
     // ── 单手6回血 ──
-    six_heal: 130,
+    six_heal: 230,
 
     // ── 击杀/路径 ──
     kill_bonus: 180,
     path_bonus: 50,
 
-    // ── 帮敌方凑组合的惩罚（大幅加重，AI之前太轻易放给敌方双子星）──
+    // ── 旧式防守惩罚（兼容旧skill/旧训练数据；新评分主链路已改用 opponent_reply_delta）──
     give_star_9:     -700,
     give_star_0:     -650,
     give_star_7:     -450,
-    give_star_5:     -480,  // 新增：反弹盾给敌方很恶心
-    give_star_6:     -350,  // 新增：90血给敌方
-    give_star_8:     -300,  // 新增：再动+盾给敌方
-    give_star_4:     -250,  // 新增：增伤翻倍给敌方
-    give_star_other: -280,  // 其余双子星兜底（含2/3，凑给敌方收益低惩罚也低）
-    give_zero_combo: -380,  // 帮敌方完成 [0,x]
-    give_build_zero: -180,  // 新增：帮敌方凑出 0（让敌方下回合有0用）
+    give_star_5:     -480,  // 反弹盾给敌方很恶心
+    give_star_6:     -350,  // 90血给敌方
+    give_star_8:     -300,  // 再动+盾给敌方
+    give_star_4:     -250,  // 增伤翻倍给敌方
+    give_star_other: -280,  // 其余双子星兜底（含2/3）
+    give_zero_combo: -480,  // 帮敌方完成 [0,x]
+    give_build_zero: -180,  // 帮敌方凑出 0（让敌方下回合有0用）
 
-    // ── 角色专属 ──
+    // ── 角色专属基础项（默认值低，真正偏好写在角色 skill 的覆盖权重里）──
     mage_zero_atk: 90,   wukong_02: 380,
     ninja_7: 180,        zhangfei_diff: 2.0,
     daqiao_evolve: 50,
+    panda_make_shield: 260, panda_heal_mode: 160, panda_shield_mode: 160,
+
+    // ── 对手下一手预判（minimax 一层）──
+    // 不再手写"别给忍者7/别给悟空[0,2]"这种特殊惩罚；
+    // 改为：我走完后，按敌方自己的权重算他下一手最高能赚多少，新增收益 × 系数 作为扣分。
+    opponent_reply_coef:        0.80,  // 下一个敌方行动者的新增威胁扣分系数
+    opponent_reply_future_coef: 0.45,  // 另一名敌方队友的新增威胁扣分系数
+    opponent_reply_cap:         560,   // 防止单个预判分过大把一切动作压死
+    opponent_break_cap:         260,   // 如果我这一手拆掉敌方威胁，最多加这么多
+
+    // ── 一层 minimax 的二阶修正 ──
+    // sharedThreatRetention：避免“队友也有同样危险数字，所以我不管”的甩锅。
+    // 只轻微惩罚“我自己仍然给敌方保留的高价值入口”，不取代 enemyBestAfter-before。
+    shared_threat_retention_coef: 0.20,
+    shared_threat_floor:          160,
+    shared_threat_cap:            180,
+
+    // enemyCounterCoef：敌方下一手如果贪收益后，会立刻送给我方反击窗口，则降低它的威胁分。
+    enemy_counter_coef:           0.30,
+    enemy_counter_cap:            260,
+
+    // 我方最终行动选择的轻微随机：只在 top 15% 近似最优池里 softmax 抽样。
+    ai_softmax_pool_ratio:        0.85,
+    ai_softmax_temperature:       85,
 };
-var AI_CHAR_WEIGHTS = {}; // { 角色名: { ...完整权重 } }，从 skill md 解析
+
+// 角色权重现在是“稀疏覆盖项”：
+//   AI_BASE_WEIGHTS 负责公共棋理；
+//   ai/skills/角色.md 的 ## 权重 只写该角色要覆盖的少量 key；
+//   运行时 getCharWeights() 合并二者。
+var AI_CHAR_WEIGHTS = {}; // { 角色名: { key: overrideValue, ... } }
+
+var AI_ROLE_OVERRIDE_KEYS = {
+    '小乔':   ['star_6','six_heal','zero_combo_heal','star_2','star_3','zero_combo_shield'],
+    '藏师':   ['star_6','six_heal','zero_combo_heal','zero_combo_shield'],
+    '法师':   ['build_zero','zero_combo_atk','mage_zero_atk'],
+    '孙悟空': ['wukong_02','build_zero','zero_combo_shield','zero_combo_heal'],
+    '大乔':   ['daqiao_evolve','zero_combo_atk','build_zero'],
+    '忍者':   ['star_7','zero_combo_7','ninja_7'],
+    '张飞':   ['zhangfei_diff','zero_combo_heal','six_heal','star_6'],
+    '阴阳师': ['build_zero','zero_combo_atk','zero_combo_heal','star_6'],
+    '鸦眼':   ['build_zero','zero_combo_atk','star_9','kill_bonus'],
+    '赵云':   ['star_9','star_4','zero_combo_atk','kill_bonus'],
+    '功夫熊猫': ['panda_make_shield','panda_heal_mode','panda_shield_mode','zero_combo_heal','six_heal','star_6'],
+};
 
 // 从 skill md 文本里提取 ## 权重 代码块
 function parseWeightsFromSkill(skillText) {
@@ -90,17 +133,75 @@ function parseWeightsFromSkill(skillText) {
     try { return JSON.parse(m[1].trim()); } catch { return null; }
 }
 
-// 获取角色权重（合并基础值 + 角色专属值）
+function sanitizeWeightOverrides(overrides) {
+    const out = {};
+    if (!overrides || typeof overrides !== 'object') return out;
+    for (const [key, value] of Object.entries(overrides)) {
+        if (!(key in AI_BASE_WEIGHTS)) continue;
+        const n = Number(value);
+        if (!Number.isFinite(n)) continue;
+        if (Math.abs(n - AI_BASE_WEIGHTS[key]) < 1e-9) continue; // 和 base 一样就不写覆盖
+        out[key] = Math.round(n * 10) / 10;
+    }
+    return out;
+}
+
+// 兼容旧 skill：如果旧文件里是“全量权重”，不要让它整块覆盖新的 base。
+// 只保留明显是角色特化、且比 base 更偏向该角色的少量 key；其余公共权重交给 AI_BASE_WEIGHTS。
+function normalizeCharOverrides(charName, parsed) {
+    const cleaned = sanitizeWeightOverrides(parsed);
+    const keys = Object.keys(cleaned);
+    const looksLegacyFull = keys.length >= 16;
+    if (!looksLegacyFull) return cleaned;
+
+    const allow = AI_ROLE_OVERRIDE_KEYS[charName] || [];
+    const migrated = {};
+    for (const key of allow) {
+        if (!(key in cleaned)) continue;
+        const v = cleaned[key];
+        const base = AI_BASE_WEIGHTS[key];
+        // 正向权重只保留“比base更重视”的覆盖；负向权重只保留“比base更厌恶”的覆盖。
+        // 避免旧 skill 里很低的 star_7/build_zero 把新的公共棋理压回去。
+        if ((base >= 0 && v > base) || (base < 0 && v < base)) migrated[key] = v;
+    }
+    console.warn('[AI] 检测到旧式全量权重，已按稀疏覆盖迁移:', charName, migrated);
+    return migrated;
+}
+
+// 获取角色权重（公共base + 角色稀疏覆盖 + 临时阵营覆盖）
 // camp 参数可选：AI.evolve 测试时用于临时覆盖单个 key（不影响正式对局/训练）
 function getCharWeights(charName, camp) {
-    const base = AI_CHAR_WEIGHTS[charName] || AI_BASE_WEIGHTS;
+    let weights = Object.assign({}, AI_BASE_WEIGHTS, AI_CHAR_WEIGHTS[charName] || {});
     if (camp && window.AI && AI.evolve && AI.evolve._campOverride && AI.evolve._campOverride[camp]) {
         const ov = AI.evolve._campOverride[camp];
-        // 浅拷贝一份，避免直接改写 AI_CHAR_WEIGHTS 污染其他阵营/正式对局
-        return Object.assign({}, base, { [ov.weightKey]: ov.value });
+        weights = Object.assign({}, weights, { [ov.weightKey]: ov.value });
     }
-    return base;
+    return weights;
 }
+
+function setCharWeightOverride(charName, key, value) {
+    if (!(key in AI_BASE_WEIGHTS)) return;
+    const n = Math.round(Number(value) * 10) / 10;
+    if (!Number.isFinite(n)) return;
+    if (!AI_CHAR_WEIGHTS[charName]) AI_CHAR_WEIGHTS[charName] = {};
+    if (Math.abs(n - AI_BASE_WEIGHTS[key]) < 1e-9) delete AI_CHAR_WEIGHTS[charName][key];
+    else AI_CHAR_WEIGHTS[charName][key] = n;
+}
+
+// 调试用：控制台可直接看某角色的合并后权重/稀疏覆盖项。
+window.getAIWeights2 = function(charName) { return getCharWeights(charName); };
+window.getAIWeightOverrides2 = function(charName) { return Object.assign({}, AI_CHAR_WEIGHTS[charName] || {}); };
+window.explainAIEnemyThreat2 = function(enemyName, a, b) {
+    // 兼容旧调试入口：现在不再用手写上下文惩罚，只展示敌方用这副手牌时的最高本地收益。
+    var idx = -1;
+    var players = Main.turnManager && Main.turnManager.players || [];
+    for (var i = 0; i < players.length; i++) if (players[i] && players[i].name === enemyName) { idx = i; break; }
+    if (idx < 0) return { enemy: enemyName, pair:[a,b], error: '当前战场找不到这个角色；请用 explainAIReplyDelta2(actorIdx,myHand,targetIdx,touchHandIdx)' };
+    var hands = AI.simulate.captureHands();
+    hands[idx] = [a,b];
+    var best = AI.simulate.bestReplyScoreForActor(idx, hands);
+    return { enemy: enemyName, pair:[a,b], bestReplyScore: best.score, bestAction: best.action ? AI.describeAction(best.action) : '无' };
+};
 
 // ──────────────────────────────────────────────────
 //  主对象
@@ -115,6 +216,22 @@ window.AI = {
     log:           [],
     providerMap:   {},
     weights:       Object.assign({}, AI_BASE_WEIGHTS),
+
+    // 决策入口模式：
+    //   llm   = 规则/权重/模拟筛出 topN，再交给大模型选择（当前默认，保留你的体验）
+    //   local = 完全本地：规则 + 权重 + 轻量模拟，选最高分
+    // 以后如果想切成纯本地AI，只需要 AI.setDecisionMode('local') 或改 chooseAction 入口。
+    decisionMode:  localStorage.getItem('AI_DECISION_MODE') || 'llm',
+
+    // render2 不再直接驱动 AI。以下字段用于“同一局面只行动一次”的回合门闩。
+    _scheduled:    null,
+    _lastActKey:   '',
+    _usedTurnTags: {},
+
+    debug: {
+        enabled: localStorage.getItem('AI_DEBUG_PANEL') !== '0',
+        last: null,
+    },
 };
 
 // ──────────────────────────────────────────────────
@@ -168,8 +285,8 @@ AI.preloadAllSkills = async function() {
 
 // 把更新后的权重写回对应角色的 skill md（更新 ## 权重 代码块）
 AI.saveCharWeights = async function(charName) {
-    const w = AI_CHAR_WEIGHTS[charName];
-    if (!w) return;
+    const w = sanitizeWeightOverrides(AI_CHAR_WEIGHTS[charName] || {});
+    AI_CHAR_WEIGHTS[charName] = w;
     try {
         await fetch('/api/skill-weight', {
             method: 'POST',
@@ -201,23 +318,79 @@ AI.loadSkill = async function(name) {
         // 同时解析权重块，合并到角色专属权重
         const parsed = parseWeightsFromSkill(text);
         if (parsed) {
-            AI_CHAR_WEIGHTS[name] = Object.assign({}, AI_BASE_WEIGHTS, parsed);
+            AI_CHAR_WEIGHTS[name] = normalizeCharOverrides(name, parsed);
         }
         return text;
     } catch(e) { return ''; }
 };
 
 // ──────────────────────────────────────────────────
-//  checkAndAct — render2 后调用
+//  AI 调度：不再挂 render2，改为“回合/状态变化后显式 schedule”
 // ──────────────────────────────────────────────────
-AI.checkAndAct = function() {
+AI.setDecisionMode = function(mode) {
+    if (!/^(llm|local)$/.test(mode)) mode = 'llm';
+    AI.decisionMode = mode;
+    try { localStorage.setItem('AI_DECISION_MODE', mode); } catch(e) {}
+    if (typeof setHint2 === 'function') setHint2('🤖 AI模式：' + (mode === 'local' ? '本地规则' : 'LLM增强'));
+};
+window.setAIMode2 = AI.setDecisionMode;
+
+AI.getTurnKey = function() {
+    if (!Main.turnManager || !Main.turnManager.players) return 'no-game';
+    const tm = Main.turnManager;
+    const p = tm.players[tm.currentPlayerIdx];
+    if (!p) return 'no-actor';
+    const extras = [p.modal, p.cakes, p.crowCount, p.useBurningArrow, p.useDemonSword, p.isGodForm]
+        .map(v => v === undefined ? '' : String(v)).join('|');
+    return [
+        tm.turnCount,
+        tm.currentPlayerIdx,
+        p.hp,
+        (p.hands || []).join(','),
+        extras,
+        G && G.inputLocked ? 'locked' : 'free',
+        G && G.helpTankContext ? 'help' : 'nohelp',
+        G && G.wukongPending ? 'wk' : 'nowk',
+    ].join('::');
+};
+
+AI.scheduleCheck = function(reason, delay, force) {
+    if (!AI.enabled) return;
+    if (AI._scheduled) clearTimeout(AI._scheduled);
+    AI._scheduled = setTimeout(function() {
+        AI._scheduled = null;
+        AI.checkAndAct({ reason: reason || 'schedule', force: !!force });
+    }, delay == null ? 260 : delay);
+};
+window.scheduleAICheck2 = AI.scheduleCheck;
+
+AI.resetTurnGate = function() {
+    AI._lastActKey = '';
+    AI._usedTurnTags = {};
+    if (AI._scheduled) { clearTimeout(AI._scheduled); AI._scheduled = null; }
+};
+
+AI.turnTagKey = function(actorIdx, tag) {
+    return (Main.turnManager ? Main.turnManager.turnCount : 0) + ':' + actorIdx + ':' + tag;
+};
+AI.hasUsedTurnTag = function(actorIdx, tag) { return !!AI._usedTurnTags[AI.turnTagKey(actorIdx, tag)]; };
+AI.markTurnTag = function(actorIdx, tag) { AI._usedTurnTags[AI.turnTagKey(actorIdx, tag)] = true; };
+
+// checkAndAct 现在只由 finishTurn2/startGame/联机回放等明确入口调度。
+AI.checkAndAct = function(opts) {
+    opts = opts || {};
     if (!AI.enabled || AI.thinkingPromise) return;
     if (!Main.turnManager || Main.turnManager.gameOver) return;
+
+    const turnKey = AI.getTurnKey();
+    if (!opts.force && AI._lastActKey === turnKey) return;
+
     const curIdx = Main.turnManager.currentPlayerIdx;
     const curActor = Main.turnManager.players && Main.turnManager.players[curIdx];
 
     // 兜底：如果联机/AI 局因为濒死帮抗或旧状态导致轮到已阵亡角色，房主负责推进到下一个可行动角色。
     if (curActor && curActor.hp <= 0 && !G.inputLocked && !G.helpTankContext && !G.wukongPending) {
+        AI._lastActKey = turnKey;
         if (!window.ONLINE || !ONLINE.active || ONLINE.isHost()) {
             setTimeout(function(){ if (Main.turnManager && !Main.turnManager.gameOver) finishTurn2(); }, 0);
         }
@@ -238,70 +411,335 @@ AI.checkAndAct = function() {
         if (!isAI) return;
     }
 
+    AI._lastActKey = turnKey;
     AI.thinkingPromise = AI.takeTurn(curIdx).finally(() => { AI.thinkingPromise = null; });
 };
 
 // ──────────────────────────────────────────────────
-//  AI 主回合流程
+//  AI 主回合流程：统一 Action Planner
 // ──────────────────────────────────────────────────
 AI.takeTurn = async function(actorIdx) {
     const players = Main.turnManager.players;
     const actor   = players[actorIdx];
     setHint2('🤖 ' + actor.name + ' 思考中...');
 
-    // 1. 主动技能 + 抗伤位决策
-    AI.decide.activeSkills(actorIdx);
-    AI.decide.tankPosition(actorIdx);
-
-    // 2. 枚举合法动作
-    const candidates = AI.enumerateLegalActions(actorIdx);
+    const candidates = AI.collectActions(actorIdx);
     if (candidates.length === 0) { finishTurn2(); return; }
 
-    // 3. 启发式打分（含 lookahead），取 top-4
     candidates.forEach(c => { c.score = AI.score.evaluate(actorIdx, c); });
     candidates.sort((a, b) => b.score - a.score);
-    const top4 = candidates.slice(0, 4);
+    const top = candidates.slice(0, 5);
 
-    // 4. 帮抗 AI 自动决策（自战时用，玩家对战时弹窗仍然弹）
-    // （帮抗弹窗由 tryHelpTankOrPause 负责，这里不干预）
-
-    // 5. 加载角色技能文档
     const skillDoc = await AI.loadSkill(actor.name);
+    const decision = await AI.chooseAction(actorIdx, top, skillDoc);
+    const chosen = decision.action || top[0];
+    const reason = decision.reason || '启发式';
 
-    // 6. LLM 决策（15% 概率探索）—— headlessMode 时完全跳过LLM，纯启发式（用于批量统计调参）
-    let chosen = top4[0];
-    let reason = '启发式';
-
-    if (AI.headlessMode) {
-        reason = '启发式(headless)';
-    } else if (Math.random() < 0.15 && top4.length > 1) {
-        const pick = 1 + Math.floor(Math.random() * Math.min(2, top4.length - 1));
-        chosen = top4[pick];
-        reason = `探索(#${pick})`;
-    } else {
-        try {
-            const provider = AI.providerMap[actorIdx] || 'minimax';
-            const result   = await AI.llm.ask(actorIdx, top4, skillDoc, provider);
-            if (result && typeof result.choice === 'number') {
-                const idx = Math.max(0, Math.min(top4.length - 1, result.choice));
-                chosen = top4[idx];
-                reason = `[${provider}] ${result.reason || ''}`;
-            }
-        } catch(e) {
-            console.warn('[AI] LLM failed:', e);
-        }
-    }
-
-    AI.log.push({ turn: Main.turnManager.turnCount, actor: actor.name, reason, score: chosen.score });
+    AI.log.push({
+        turn: Main.turnManager.turnCount,
+        actor: actor.name,
+        actionType: chosen.type,
+        reason,
+        score: chosen.score,
+        desc: AI.describeAction(chosen)
+    });
+    AI.debugUpdate(actorIdx, top, chosen, reason);
     setHint2('🤖 ' + actor.name + ': ' + reason.slice(0, 35));
 
-    const dmgTargetIdx = getActualTarget(chosen.targetIdx);
-    doAttack2(actorIdx, chosen.myHand, chosen.targetIdx, chosen.touchHandIdx, dmgTargetIdx);
+    AI.executeAction(chosen);
+};
+
+// 一个入口切换本地AI/LLM：以后只改这里，就能把“LLM选择”换成“本地选择”。
+AI.chooseAction = async function(actorIdx, topActions, skillDoc) {
+    if (!topActions || topActions.length === 0) return { action: null, reason: '无动作' };
+    if (AI.decisionMode === 'local' || AI.headlessMode) {
+        return AI.chooseLocalAction(actorIdx, topActions);
+    }
+    return AI.chooseLlmAction(actorIdx, topActions, skillDoc);
+};
+
+AI.chooseSoftmaxAction = function(actorIdx, topActions, reasonPrefix) {
+    if (!topActions || topActions.length === 0) return { action: null, reason: '无动作' };
+    const actor = Main.turnManager?.players?.[actorIdx];
+    const W = getCharWeights(actor?.name || '', campOf(actorIdx));
+    const sorted = topActions.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+    const bestScore = sorted[0].score || 0;
+    const ratio = W.ai_softmax_pool_ratio || 0.85;
+    const temp = Math.max(1, W.ai_softmax_temperature || 85);
+
+    // 只让“接近最优”的动作参与随机：
+    // best>0 时取 >= best*0.85；best<=0 时取和 best 差距不超过一个温度的候选。
+    let pool = sorted.filter(a => {
+        const sc = a.score || 0;
+        return bestScore > 0 ? sc >= bestScore * ratio : sc >= bestScore - temp;
+    });
+    if (pool.length === 0) pool = [sorted[0]];
+
+    // 分差越小越容易被抽到；分差很大时基本仍选第一。
+    const weights = pool.map(a => Math.exp(((a.score || 0) - bestScore) / temp));
+    const total = weights.reduce((s, x) => s + x, 0) || 1;
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < pool.length; idx++) {
+        r -= weights[idx];
+        if (r <= 0) break;
+    }
+    if (idx >= pool.length) idx = pool.length - 1;
+    const action = pool[idx];
+    const rank = sorted.indexOf(action);
+    const poolMsg = pool.length > 1 ? `top${pool.length}/softmax` : 'top1';
+    return { action, reason: `${reasonPrefix || '本地'}：${poolMsg}${rank > 0 ? ` #${rank}` : ''}` };
+};
+
+AI.chooseLocalAction = function(actorIdx, topActions) {
+    return AI.chooseSoftmaxAction(actorIdx, topActions, '本地规则/权重/模拟');
+};
+
+AI.chooseLlmAction = async function(actorIdx, topActions, skillDoc) {
+    let chosen = topActions[0];
+    let reason = '启发式兜底';
+
+    if (Math.random() < 0.15 && topActions.length > 1) {
+        return AI.chooseSoftmaxAction(actorIdx, topActions, '探索');
+    }
+
+    try {
+        const provider = AI.providerMap[actorIdx] || getProviderForSlot(actorIdx) || 'qianfan';
+        const result   = await AI.llm.ask(actorIdx, topActions, skillDoc, provider);
+        if (result && typeof result.choice === 'number') {
+            const idx = Math.max(0, Math.min(topActions.length - 1, result.choice));
+            chosen = topActions[idx];
+            reason = `[${provider}] ${result.reason || ''}`;
+            return { action: chosen, reason };
+        }
+    } catch(e) {
+        console.warn('[AI] LLM failed:', e);
+    }
+    return AI.chooseSoftmaxAction(actorIdx, topActions, 'LLM失败→本地兜底');
+};
+
+AI.executeAction = function(action) {
+    if (!action) { finishTurn2(); return; }
+    if (action.turnTag) AI.markTurnTag(action.actorIdx, action.turnTag);
+
+    if (action.type === 'attack') {
+        const dmgTargetIdx = getActualTarget(action.targetIdx);
+        doAttack2(action.actorIdx, action.myHand, action.targetIdx, action.touchHandIdx, dmgTargetIdx);
+        return;
+    }
+
+    if (action.type === 'skill') {
+        invokeAction2(action.actorIdx, action.actionName, action.params || {}, false, { silent: true });
+        // 主动技能通常不结束回合，给状态一点时间更新后继续规划普通攻击。
+        AI.scheduleCheck('after-skill:' + action.actionName, action.rescheduleDelay || 220, true);
+        return;
+    }
+
+    if (action.type === 'tank') {
+        if (typeof toggleTank === 'function') toggleTank(action.playerIdx);
+        AI.scheduleCheck('after-tank', 180, true);
+        return;
+    }
+
+    finishTurn2();
+};
+
+AI.describeAction = function(action) {
+    if (!action) return '无动作';
+    const players = Main.turnManager && Main.turnManager.players || [];
+    if (action.type === 'attack') {
+        const actor = players[action.actorIdx], target = players[action.targetIdx];
+        return `攻击 ${actor?.name || action.actorIdx} ${action.myHand===0?'左':'右'}手 → ${target?.name || action.targetIdx} ${action.touchHandIdx===0?'左':'右'}手`;
+    }
+    if (action.type === 'skill') return `技能 ${action.actionName}`;
+    if (action.type === 'tank') return `切抗伤位 ${action.playerIdx}`;
+    return action.type || '动作';
 };
 
 // ──────────────────────────────────────────────────
-//  枚举合法动作
+//  统一 Action 收集：主动技能 / 抗伤位 / 普通攻击都变成同一种候选动作
 // ──────────────────────────────────────────────────
+AI.collectActions = function(actorIdx) {
+    const actions = [];
+    actions.push.apply(actions, AI.collectSkillActions(actorIdx));
+    actions.push.apply(actions, AI.collectTankActions(actorIdx));
+    actions.push.apply(actions, AI.enumerateLegalActions(actorIdx));
+    return actions.filter(AI.isLegalAction);
+};
+
+AI.isLegalAction = function(action) {
+    if (!action) return false;
+    const players = Main.turnManager && Main.turnManager.players;
+    if (!players || !players[action.actorIdx] || players[action.actorIdx].hp <= 0) return false;
+    if (action.type === 'attack') {
+        const actor = players[action.actorIdx];
+        const target = players[action.targetIdx];
+        if (!target || target.hp <= 0) return false;
+        if (target.hands[action.touchHandIdx] === 0) return false;
+        return !actor.isValidTouch || actor.isValidTouch(action.myHand, target, action.touchHandIdx);
+    }
+    return true;
+};
+
+AI.collectSkillActions = function(actorIdx) {
+    const players = Main.turnManager.players;
+    const actor   = players[actorIdx];
+    if (!actor || actor.hp <= 0) return [];
+    const name = actor.name;
+    const actions = [];
+    const pushSkill = function(actionName, params, score, reason, tag, category) {
+        const turnTag = category || actionName;
+        if (AI.hasUsedTurnTag(actorIdx, turnTag)) return;
+        actions.push({
+            type: 'skill', actorIdx, actionName,
+            params: params || {}, baseScore: score || 0,
+            reason: reason || actionName, turnTag
+        });
+    };
+
+    if (name === '鸦眼') {
+        if (!actor.useBurningArrow && actor.hp > 70) {
+            pushSkill('toggleBurningArrow', {}, 260, '开启灼燃箭', 'crowBurning');
+        }
+        if (actor.useBurningArrow && actor.crowCount >= 6 && actor.hp > 180 && !actor.useDemonSword) {
+            pushSkill('toggleDemonSword', {}, 300, '乌鸦足够，开启魔王剑', 'crowDemon');
+        }
+        const enemies = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p && p.hp > 0);
+        const enemyHasCrow = enemies.some(p => (p.buffList||[]).some(b => b.id === 'CROW' && b.layers > 0));
+        if (!enemyHasCrow && actor.hp > 50) {
+            pushSkill('crowCurseTarget', { camp: 'enemy' }, 230, '敌方无乌鸦诅咒，先挂诅咒', 'crowCurse');
+        }
+    }
+
+    if (name === '张飞') {
+        const enemies   = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p && p.hp > 0);
+        const modal     = actor.modal || 1;
+        const campRatio = campStats(actorIdx).ratio;
+        if (actor.rage >= 24 && !actor.isBerserk) {
+            pushSkill('enterBerserk', {}, 520, '怒气已满，进入狂暴', 'zhangfeiBerserk');
+        }
+        if (campRatio < 0.8 && modal !== 3) {
+            pushSkill('setModal', { modal: 3 }, 180, '局势落后，切回血模态', 'zhangfeiModal');
+        } else if (enemies.length >= 2 && modal !== 2 && campRatio >= 0.8) {
+            pushSkill('setModal', { modal: 2 }, 170, '敌方双人存活，切群攻模态', 'zhangfeiModal');
+        } else if (enemies.length < 2 && campRatio >= 0.8 && modal !== 1) {
+            pushSkill('setModal', { modal: 1 }, 120, '单目标时切回爆发模态', 'zhangfeiModal');
+        }
+    }
+
+    if (name === '阴阳师') {
+        const modal   = actor.modal || 'ren';
+        const camp    = campOf(actorIdx);
+        const seats   = camp === 'hero' ? [0,2] : [1,3];
+        const eSeat   = camp === 'hero' ? [1,3] : [0,2];
+        const myHP    = seats.reduce((s,i) => s + (players[i]?.hp||0), 0);
+        const enHP    = eSeat.reduce((s,i) => s + (players[i]?.hp||0), 0);
+        const winning = myHP > enHP * 0.8;
+        const h = actor.hands || [0,0];
+        const hasAttackCombo = (h[0]===0&&[1,5,8,9].includes(h[1])) || (h[1]===0&&[1,5,8,9].includes(h[0]))
+            || (h[0]===h[1] && h[0]>0 && [9,7,0].includes(h[0]));
+        const hasHealCombo   = (h[0]===0&&[4,6].includes(h[1])) || (h[1]===0&&[4,6].includes(h[0]))
+            || h[0]===6 || h[1]===6 || (h[0]===h[1]&&h[0]===6);
+        let targetModal = null;
+        if (hasAttackCombo) targetModal = 'yin';
+        else if (hasHealCombo && !winning) targetModal = 'yang';
+        else if (hasHealCombo && winning) targetModal = 'yin';
+        else targetModal = (modal === 'ren') ? (winning ? 'yin' : 'yang') : 'ren';
+        if (targetModal && targetModal !== modal) {
+            pushSkill('switchModal', { modal: targetModal }, hasAttackCombo || hasHealCombo ? 240 : 120,
+                '阴阳师按局势切' + targetModal, 'yinyangModal');
+        }
+    }
+
+    if (name === '藏师') {
+        const cakes = actor.cakes || 0;
+        if (cakes >= 3) {
+            const enemies = players
+                .map((p, i) => ({ p, i }))
+                .filter(({ p, i }) => campOf(i) !== campOf(actorIdx) && p && p.hp > 0)
+                .sort((a, b) => a.p.hp - b.p.hp);
+            if (enemies.length > 0) {
+                const groups = Math.floor(cakes / 3);
+                const target = enemies[0];
+                const killBonus = groups * 10 >= target.p.hp ? 220 : 0;
+                pushSkill('useCake', { targetIdx: target.i, groupCount: groups }, 130 + groups * 45 + killBonus,
+                    '蛋糕充足，优先打低血目标', 'zangshiCake');
+            }
+        }
+    }
+
+    if (name === '大乔') {
+        const canEvolve = (typeof actor.canEvolve === 'function')
+            ? actor.canEvolve()
+            : (actor.hp > 300 && !actor.isGodForm && !actor.hasRevived);
+        if (canEvolve) {
+            pushSkill('evolve', {}, 900, '满足条件，进化神大乔', 'daqiaoEvolve');
+        }
+    }
+
+    if (name === '功夫熊猫') {
+        const W = getCharWeights(name, campOf(actorIdx));
+        const shieldCount = Array.isArray(actor.kingShields) ? actor.kingShields.filter(v => v > 0).length : 0;
+        const mode = actor.pandaMode || 'heal';
+        const ratio = campStats(actorIdx).ratio;
+        if (actor.hp > 110 && shieldCount < 7) {
+            // 血量越安全、罩越少，越倾向补罩；低血时保命优先，不乱扣。
+            const safety = Math.max(0, actor.hp - 110);
+            const score = (W.panda_make_shield || 0) + Math.min(120, safety * 0.35) - shieldCount * 28;
+            if (score > 120) pushSkill('pandaMakeShield', {}, score, '功夫熊猫扣血补金刚罩', 'pandaMakeShield');
+        }
+        if (ratio < 0.85 && mode !== 'heal') {
+            pushSkill('pandaSetMode', { mode: 'heal' }, W.panda_heal_mode || 160, '局势偏弱，切回血流续航', 'pandaMode');
+        } else if (ratio >= 0.95 && mode !== 'shield') {
+            pushSkill('pandaSetMode', { mode: 'shield' }, W.panda_shield_mode || 160, '局势稳定，切回盾流输出/养罩', 'pandaMode');
+        }
+        if (shieldCount > 0 && actor.defaultGuard !== 0) {
+            pushSkill('pandaSetGuard', { guard: 0 }, 80, '默认用第一层金刚罩承伤', 'pandaGuard');
+        }
+    }
+
+    return actions;
+};
+
+AI.collectTankActions = function(actorIdx) {
+    const players  = Main.turnManager.players;
+    const camp     = campOf(actorIdx);
+    if (!G || G.formation[camp] !== 'dual_half') return [];
+    const seats    = camp === 'hero' ? [0, 2] : [1, 3];
+    const alive    = seats.filter(i => players[i] && players[i].hp > 0);
+    if (alive.length < 2) return [];
+
+    const [a, b]   = alive;
+    const pa       = players[a];
+    const pb       = players[b];
+    const shieldA  = (pa.shieldList||[]).reduce((s,x)=>s+(x.amount||0),0);
+    const shieldB  = (pb.shieldList||[]).reduce((s,x)=>s+(x.amount||0),0);
+    const hpRatioA = pa.hp / (pa.maxHp||1);
+    const hpRatioB = pb.hp / (pb.maxHp||1);
+    let preferTank = G.tankIdx[camp];
+    let reason = '';
+
+    if (shieldA > shieldB + 10) { preferTank = a; reason = '盾更多，适合抗伤'; }
+    else if (shieldB > shieldA + 10) { preferTank = b; reason = '盾更多，适合抗伤'; }
+    else if (Math.abs(shieldA - shieldB) <= 10) {
+        preferTank = hpRatioA >= hpRatioB ? a : b;
+        reason = '血量比例更高，适合抗伤';
+    }
+
+    const curTank = G.tankIdx[camp];
+    const curTankHP = players[curTank] && players[curTank].hp / (players[curTank].maxHp||1);
+    if (curTankHP < 0.25) {
+        const other = alive.find(i => i !== curTank);
+        if (other !== undefined) { preferTank = other; reason = '当前抗伤位血量过低'; }
+    }
+
+    if (preferTank !== G.tankIdx[camp] && !AI.hasUsedTurnTag(actorIdx, 'tankSwitch')) {
+        return [{ type: 'tank', actorIdx, playerIdx: preferTank, baseScore: 90, reason, turnTag: 'tankSwitch' }];
+    }
+    return [];
+};
+
+// 保留原名：现在它只枚举普通攻击动作。
 AI.enumerateLegalActions = function(actorIdx) {
     const players = Main.turnManager.players;
     const actor   = players[actorIdx];
@@ -314,7 +752,7 @@ AI.enumerateLegalActions = function(actorIdx) {
             for (let tHand = 0; tHand < 2; tHand++) {
                 if (tp.hands[tHand] === 0) continue;
                 const valid = !actor.isValidTouch || actor.isValidTouch(myHand, tp, tHand);
-                if (valid) result.push({ myHand, targetIdx: tIdx, touchHandIdx: tHand });
+                if (valid) result.push({ type: 'attack', actorIdx, myHand, targetIdx: tIdx, touchHandIdx: tHand });
             }
         }
     }
@@ -343,10 +781,45 @@ function campStats(actorIdx) {
     return { myHp, enHp, ratio: enHp > 0 ? myHp / enHp : 99, myPoisoned, enemyHas0 };
 }
 
+// ── 对手上下文风险修正 ──
+// 这些不是“我是谁”的偏好，而是“对方是谁”的危险系数。
+// 例：给忍者7要额外惩罚；给孙悟空[0,2]要额外惩罚；给坦克0的风险比给法师/鸦眼低。
+function handPairHas(a, b, value) { return a === value || b === value; }
+function isZeroPair(a, b) { return a === 0 || b === 0; }
+function isZeroTwoPair(a, b) { return (a === 0 && b === 2) || (a === 2 && b === 0); }
+
+// 旧版曾经在这里手写“给忍者7/给悟空[0,2]”等上下文惩罚。
+// 现在改成一层对手预判：直接按敌方自己的权重，计算他下一步最高收益增量。
+// 这些小工具保留给旧调试函数兼容，不再参与评分主链路。
+function contextualEnemyPenalty(basePenalty, enemy, newVal, otherVal, W) {
+    return basePenalty;
+}
+
+function clamp2(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+
 AI.score = {};
 
 AI.score.evaluate = function(actorIdx, action) {
-    return AI.score.heuristic(actorIdx, action) + AI.score.lookahead(actorIdx, action);
+    if (!action) return -99999;
+    if (action.type === 'attack') {
+        return AI.score.heuristic(actorIdx, action) + AI.simulate.evaluate(actorIdx, action);
+    }
+    if (action.type === 'skill') {
+        return AI.score.skill(actorIdx, action) + AI.simulate.evaluate(actorIdx, action);
+    }
+    if (action.type === 'tank') {
+        return AI.score.tank(actorIdx, action);
+    }
+    return action.baseScore || 0;
+};
+
+AI.score.skill = function(actorIdx, action) {
+    return action.baseScore || 0;
+};
+
+AI.score.tank = function(actorIdx, action) {
+    return action.baseScore || 0;
 };
 
 AI.score.heuristic = function(actorIdx, action) {
@@ -379,8 +852,8 @@ AI.score.heuristic = function(actorIdx, action) {
 
     if (isSelfPoisoned) {
         // 自己中毒：解毒类动作（RECOVERY回血）优先级显著提升
-        // 注意：是否"得不偿失"（比如解毒但放给对方[7,7]）已经由下方lookahead的
-        // give_star_7/give_zero_combo惩罚机制兜底，这里只管"我自己想解毒"这一半
+        // 注意：是否"得不偿失"（比如解毒但放给对方[7,7]）已经由 lookahead 的
+        // opponent reply delta 预判兜底，这里只管"我自己想解毒"这一半
         if (newVal === 6 && otherVal !== 6) score += 70; // 单手6解毒
         if (otherVal === 0 && [4,6].includes(newVal)) score += 70; // [0,4]/[0,6]解毒
         if (newVal === otherVal && newVal === 6) score += 50; // [6,6]解毒+回血
@@ -511,22 +984,58 @@ AI.score.heuristic = function(actorIdx, action) {
     return score;
 };
 
-AI.score.lookahead = function(actorIdx, action) {
-    const players  = Main.turnManager.players;
-    const actor    = players[actorIdx];
-    const target   = players[action.targetIdx];
-    const W        = getCharWeights(actor.name, campOf(actorIdx));
-    const dmgIdx   = typeof getActualTarget === 'function' ? getActualTarget(action.targetIdx) : action.targetIdx;
+// 轻量模拟层：攻击动作会额外做一层“敌方最佳应对增量”预判。
+AI.simulate = {};
+
+AI.simulate.captureHands = function() {
+    const players = Main.turnManager && Main.turnManager.players || [];
+    return players.map(p => p && p.hands ? [p.hands[0], p.hands[1]] : [0,0]);
+};
+
+AI.simulate.withHands = function(handsState, fn) {
+    const players = Main.turnManager && Main.turnManager.players || [];
+    const backup = players.map(p => p && p.hands ? [p.hands[0], p.hands[1]] : null);
+    try {
+        for (let i = 0; i < players.length; i++) {
+            if (players[i] && handsState[i]) players[i].hands = [handsState[i][0], handsState[i][1]];
+        }
+        return fn();
+    } finally {
+        for (let i = 0; i < players.length; i++) {
+            if (players[i] && backup[i]) players[i].hands = backup[i];
+        }
+    }
+};
+
+AI.simulate.handsAfterAttackFromState = function(handsState, actorIdx, action) {
+    const hands = (handsState || AI.simulate.captureHands()).map(h => h ? [h[0], h[1]] : [0,0]);
+    if (!hands[actorIdx] || !hands[action.targetIdx]) return hands;
+    const myVal = hands[actorIdx][action.myHand];
+    const tVal  = hands[action.targetIdx][action.touchHandIdx];
+    hands[actorIdx][action.myHand] = (myVal + tVal) % 10;
+    return hands;
+};
+
+AI.simulate.handsAfterAttack = function(actorIdx, action) {
+    return AI.simulate.handsAfterAttackFromState(AI.simulate.captureHands(), actorIdx, action);
+};
+
+AI.simulate.estimateAttackImmediateBonus = function(actorIdx, action) {
+    const players = Main.turnManager.players;
+    const actor   = players[actorIdx];
+    const target  = players[action.targetIdx];
+    const W       = getCharWeights(actor.name, campOf(actorIdx));
+    const dmgIdx  = typeof getActualTarget === 'function' ? getActualTarget(action.targetIdx) : action.targetIdx;
     const dmgTarget = players[dmgIdx];
-    if (!dmgTarget) return 0;
+    if (!actor || !target || !dmgTarget) return 0;
 
     const myVal    = actor.hands[action.myHand];
     const tVal     = target.hands[action.touchHandIdx];
     const newVal   = (myVal + tVal) % 10;
     const otherVal = actor.hands[1 - action.myHand];
-    let bonus      = 0;
+    let bonus = 0;
 
-    // 估算输出伤害
+    // 估算输出伤害，只做粗略收益；真实结算仍由 Haxe 引擎负责。
     let estDmg = 0;
     if (otherVal === 0 && newVal > 0) {
         estDmg = {1:40,5:40,8:40,9:40,7:10}[newVal] || 0;
@@ -534,79 +1043,198 @@ AI.score.lookahead = function(actorIdx, action) {
     if (newVal === otherVal && newVal > 0) {
         estDmg = Math.max(estDmg, {9:200,0:150,7:40}[newVal] || 0);
     }
-    // 角色倍率修正
-    if (actor.name === '小乔') estDmg = Math.floor(estDmg * 1.5); // 小乔物伤×1.5
-    if (charRole(actor.name) === 'output' && otherVal === 0 && [1,5,8,9].includes(newVal)) estDmg += 45; // 输出职业 0 组合追加法伤
+    if (actor.name === '小乔') estDmg = Math.floor(estDmg * 1.5);
+    if (charRole(actor.name) === 'output' && otherVal === 0 && [1,5,8,9].includes(newVal)) estDmg += 45;
 
     const shTotal = (dmgTarget.shieldList||[]).reduce((s,x) => s+(x.amount||0), 0);
     bonus += Math.max(0, estDmg - shTotal) * 0.5;
 
-    // 击杀奖励
     if (estDmg > 0 && estDmg >= dmgTarget.hp) {
         bonus += W.kill_bonus;
-        if ((dmgTarget.maxHp||999) < 200) bonus += 20; // 脆皮优先击杀
+        if ((dmgTarget.maxHp||999) < 200) bonus += 20;
     }
+    return bonus;
+};
 
-    // ─── 我动完后，对方下回合行动时能凑出多危险的组合？ ───
-    // 关键修复：之前这段写错了——把"对方的手被碰后的值"算成了 (对方手 + 我手) % 10，
-    // 但实际游戏规则是"碰别人，变的是自己的手"，对方的手数值不会因我碰而变化。
-    // 所以这里改为：模拟对方下回合用他的某只手 h_o 碰我的某只非0手 h_m，
-    // 对方的 h_o 会变成 (h_o + h_m) % 10，看这是否凑出双子星 / 0组合 / 完成攻击型0组合。
-    // 取所有对方可能行动里"对对方收益最大"的那一种，作为本次行动的"放给对方"惩罚。
-    //
-    // 注意：因为对方也可能选择碰我方"队友"而非碰我，但这里我们只评估"碰我"这一支线，
-    // 简化模型避免计算量爆炸；这已经能解决"我留个5，对方能轻松凑[7,7]"这种漏算了。
-    const enemySeats = [0,1,2,3].filter(i => i !== actorIdx && campOf(i) !== campOf(actorIdx));
-    var worstPenalty = 0; // 取所有对方角色×对方手×我方动完后手 的最坏情况
-
-    // 我动完后，我自己的双手：被动的那只=newVal，另一只=otherVal
-    const myHandsAfter = [newVal, otherVal];
-
-    for (const eIdx of enemySeats) {
-        const ep = players[eIdx];
-        if (!ep || ep.hp <= 0) continue;
-        for (let eHand = 0; eHand < 2; eHand++) {
-            const eVal = ep.hands[eHand];
-            const eOtherVal = ep.hands[1 - eHand];
-            if (eVal === 0 && eOtherVal === 0) continue;
-            for (let myH = 0; myH < 2; myH++) {
-                if (myHandsAfter[myH] === 0) continue;
-                const eNewVal = (eVal + myHandsAfter[myH]) % 10;
-                var penalty = 0;
-                if (eNewVal === eOtherVal && eNewVal > 0) {
-                    const key = 'give_star_' + eNewVal;
-                    penalty = W[key] !== undefined ? W[key] : W.give_star_other;
-                }
-                if (eNewVal === 0 && eOtherVal > 0) {
-                    penalty = Math.min(penalty, W.give_build_zero !== undefined ? W.give_build_zero : -180);
-                }
-                if (eOtherVal === 0 && eNewVal > 0) {
-                    if ([1,5,8,9].includes(eNewVal)) {
-                        penalty = Math.min(penalty, W.give_zero_combo);
-                    } else {
-                        penalty = Math.min(penalty, Math.floor(W.give_zero_combo * 0.5));
-                    }
-                }
-                if (penalty < worstPenalty) worstPenalty = penalty;
-            }
+AI.simulate.bestReplyScoreForActor = function(enemyIdx, handsState, opts) {
+    opts = opts || {};
+    return AI.simulate.withHands(handsState, function() {
+        const players = Main.turnManager.players || [];
+        const enemy = players[enemyIdx];
+        if (!enemy || enemy.hp <= 0) return { score: 0, rawScore: 0, counterScore: 0, action: null };
+        let actions = AI.enumerateLegalActions(enemyIdx).filter(AI.isLegalAction);
+        if (opts.targetIdx !== undefined && opts.targetIdx !== null) {
+            actions = actions.filter(a => a.targetIdx === opts.targetIdx);
         }
-    }
-    // 关键：当我这一手本身收益巨大时（凑成0、双子星、击杀），lookahead 惩罚打折
-    // 因为高收益动作意味着我下回合也有强力反制手段，"让出去"的风险其实没那么纯亏。
-    // 否则AI会被lookahead惩罚吓得永远不敢凑0，宁可打无关痛痒的动作。
-    var selfGainHasValue = (newVal === 0 && otherVal > 0)                  // 凑成 0
-                        || (newVal === otherVal && newVal > 0 && [9,7,6,5,8].includes(newVal)) // 高价值双子星
-                        || (estDmg > 0 && dmgTarget && estDmg >= dmgTarget.hp); // 击杀
-    if (selfGainHasValue) worstPenalty = Math.floor(worstPenalty * 0.55);
-    bonus += worstPenalty;
+        let best = { score: 0, rawScore: 0, counterScore: 0, action: null };
+        for (const a of actions) {
+            // 敌方预判不加抖动，永远取最高分。
+            // 默认只算“敌方下一手自己的即时收益”，不递归。
+            let raw = AI.score.heuristic(enemyIdx, a) + AI.simulate.estimateAttackImmediateBonus(enemyIdx, a);
+            let counter = 0;
 
-    // 路径激励（2 步内能凑高价值双子星 → 加分）
-    const nextOther = newVal; // 动完后我的这手 = newVal
-    const curOther  = otherVal;
-    // 两手差值为 0 但上面已经算了双子星，差值为 1 → 下回合可能凑成
-    const diff = Math.abs(nextOther - curOther);
-    if (diff === 1 && nextOther > 0 && curOther > 0) {
-        const target2 = Math.max(nextOther, curOther); // 下次要凑的值
+            // 轻量陷阱识别：如果敌方这步贪收益后，会立刻给我方下一位行动者送出高反击，
+            // 则降低这步对我方造成的威胁。不是完整二层 minimax，只打 0.3 折。
+            if (opts.includeCounter) {
+                const handsAfterEnemy = AI.simulate.handsAfterAttackFromState(handsState, enemyIdx, a);
+                const counterIdx = AI.simulate.nextAliveEnemyIdx(enemyIdx);
+                if (counterIdx >= 0) {
+                    const cr = AI.simulate.bestReplyScoreForActor(counterIdx, handsAfterEnemy, { includeCounter: false });
+                    counter = clamp2(cr.score || 0, 0, opts.counterCap || AI_BASE_WEIGHTS.enemy_counter_cap || 260);
+                    raw -= counter * (opts.counterCoef || AI_BASE_WEIGHTS.enemy_counter_coef || 0.3);
+                }
+            }
+
+            if (raw > best.score) best = { score: raw, rawScore: raw + counter * (opts.counterCoef || AI_BASE_WEIGHTS.enemy_counter_coef || 0.3), counterScore: counter, action: Object.assign({}, a) };
+        }
+        return best;
+    });
+};
+
+AI.simulate.nextAliveEnemyIdx = function(actorIdx) {
+    const players = Main.turnManager.players || [];
+    const myCamp = campOf(actorIdx);
+    for (let step = 1; step <= players.length; step++) {
+        const idx = (actorIdx + step) % players.length;
+        const p = players[idx];
+        if (p && p.hp > 0 && campOf(idx) !== myCamp) return idx;
+    }
+    return -1;
+};
+
+AI.simulate.bestReplyScoreForEnemies = function(actorIdx, handsState, onlyIdx, opts) {
+    opts = opts || {};
+    const players = Main.turnManager.players || [];
+    const myCamp = campOf(actorIdx);
+    let best = { score: 0, rawScore: 0, counterScore: 0, actorIdx: -1, action: null };
+    for (let i = 0; i < players.length; i++) {
+        if (onlyIdx !== undefined && onlyIdx !== null && i !== onlyIdx) continue;
+        const p = players[i];
+        if (!p || p.hp <= 0 || campOf(i) === myCamp) continue;
+        const r = AI.simulate.bestReplyScoreForActor(i, handsState, opts);
+        if (r.score > best.score) best = { score: r.score, rawScore: r.rawScore || r.score, counterScore: r.counterScore || 0, actorIdx: i, action: r.action };
+    }
+    return best;
+};
+
+AI.simulate.sharedThreatRetention = function(actorIdx, afterHands, W) {
+    // 只看“敌方通过攻击我当前角色的手”还能拿到多高收益。
+    // 这能处理：队友也有同样数字时，delta 可能为0，但我若仍保留自己的危险入口，也轻微扣分。
+    const ownThreat = AI.simulate.bestReplyScoreForEnemies(actorIdx, afterHands, null, {
+        includeCounter: false,
+        targetIdx: actorIdx
+    });
+    const floor = W.shared_threat_floor || 160;
+    const coef  = W.shared_threat_retention_coef || 0.20;
+    const cap   = W.shared_threat_cap || 180;
+    const penalty = clamp2(Math.max(0, (ownThreat.score || 0) - floor) * coef, 0, cap);
+    return { penalty, ownThreat };
+};
+
+AI.simulate.opponentReplyDelta = function(actorIdx, action) {
+    const W = getCharWeights(Main.turnManager.players[actorIdx].name, campOf(actorIdx));
+    const beforeHands = AI.simulate.captureHands();
+    const afterHands  = AI.simulate.handsAfterAttack(actorIdx, action);
+    const nextEnemyIdx = AI.simulate.nextAliveEnemyIdx(actorIdx);
+    const replyOpts = {
+        includeCounter: true,
+        counterCoef: W.enemy_counter_coef || 0.3,
+        counterCap:  W.enemy_counter_cap  || 260
+    };
+
+    const beforeNext = nextEnemyIdx >= 0 ? AI.simulate.bestReplyScoreForEnemies(actorIdx, beforeHands, nextEnemyIdx, replyOpts) : { score: 0, actorIdx: -1, action: null };
+    const afterNext  = nextEnemyIdx >= 0 ? AI.simulate.bestReplyScoreForEnemies(actorIdx, afterHands,  nextEnemyIdx, replyOpts) : { score: 0, actorIdx: -1, action: null };
+    const beforeAny  = AI.simulate.bestReplyScoreForEnemies(actorIdx, beforeHands, null, replyOpts);
+    const afterAny   = AI.simulate.bestReplyScoreForEnemies(actorIdx, afterHands,  null, replyOpts);
+
+    const nextWeighted = (afterNext.score - beforeNext.score) * (W.opponent_reply_coef || 0.8);
+    const anyWeighted  = (afterAny.score  - beforeAny.score)  * (W.opponent_reply_future_coef || 0.45);
+
+    // 正收益：取更危险的那条；负收益：如果两条都在下降，就给“拆威胁”奖励。
+    let deltaWeighted = Math.max(nextWeighted, anyWeighted);
+    if (deltaWeighted <= 0) deltaWeighted = Math.min(nextWeighted, anyWeighted);
+
+    const retention = AI.simulate.sharedThreatRetention(actorIdx, afterHands, W);
+    let weightedDelta = deltaWeighted + retention.penalty;
+    weightedDelta = clamp2(weightedDelta, -(W.opponent_break_cap || 260), W.opponent_reply_cap || 560);
+
+    return {
+        weightedDelta,
+        deltaWeighted,
+        sharedRetention: retention.penalty,
+        ownThreat: retention.ownThreat,
+        nextEnemyIdx,
+        beforeNext, afterNext, beforeAny, afterAny,
+        nextDelta: afterNext.score - beforeNext.score,
+        anyDelta:  afterAny.score  - beforeAny.score,
+    };
+};
+
+window.explainAIReplyDelta2 = function(actorIdx, myHand, targetIdx, touchHandIdx) {
+    const action = { type:'attack', actorIdx, myHand, targetIdx, touchHandIdx };
+    const d = AI.simulate.opponentReplyDelta(actorIdx, action);
+    return {
+        action: AI.describeAction(action),
+        penaltyApplied: -d.weightedDelta,
+        threatDeltaWeighted: d.deltaWeighted,
+        sharedRetention: d.sharedRetention,
+        nextEnemy: d.nextEnemyIdx,
+        nextDelta: d.nextDelta,
+        anyDelta: d.anyDelta,
+        ownThreatScore: d.ownThreat?.score || 0,
+        beforeNext: d.beforeNext.action ? AI.describeAction(d.beforeNext.action) : '无',
+        afterNext:  d.afterNext.action  ? AI.describeAction(d.afterNext.action)  : '无',
+        beforeAny:  d.beforeAny.action  ? AI.describeAction(d.beforeAny.action)  : '无',
+        afterAny:   d.afterAny.action   ? AI.describeAction(d.afterAny.action)   : '无',
+        ownThreat:  d.ownThreat?.action ? AI.describeAction(d.ownThreat.action)  : '无',
+        counterOnAfterNext: d.afterNext.counterScore || 0,
+        counterOnAfterAny:  d.afterAny.counterScore || 0,
+    };
+};
+
+AI.simulate.evaluate = function(actorIdx, action) {
+    if (action.type === 'attack') return AI.score.lookahead(actorIdx, action);
+    if (action.type === 'skill') {
+        // 非消耗回合的准备技能通常是低风险收益；真正合法性已由 collectSkillActions 过滤。
+        if (action.actionName === 'evolve') return 120;
+        if (action.actionName === 'useCake') return (action.params && action.params.groupCount || 1) * 30;
+        if (action.actionName === 'enterBerserk') return 80;
+        return 20;
+    }
+    return 0;
+};
+
+AI.score.lookahead = function(actorIdx, action) {
+    if (!action || action.type !== 'attack') return 0;
+    const players  = Main.turnManager.players;
+    const actor    = players[actorIdx];
+    const target   = players[action.targetIdx];
+    const W        = getCharWeights(actor.name, campOf(actorIdx));
+    if (!actor || !target) return 0;
+
+    const myVal    = actor.hands[action.myHand];
+    const tVal     = target.hands[action.touchHandIdx];
+    const newVal   = (myVal + tVal) % 10;
+    const otherVal = actor.hands[1 - action.myHand];
+    let bonus      = 0;
+
+    // 1) 我这一手的直接收益：伤害、破盾后有效伤害、击杀等。
+    bonus += AI.simulate.estimateAttackImmediateBonus(actorIdx, action);
+
+    // 2) 一层对手预判：
+    //    enemyThreatDelta = 敌方下一手最高收益(我行动后) - 敌方下一手最高收益(我行动前)
+    //    最终扣分 = enemyThreatDelta × 系数。
+    //    这会自然体现：忍者喜欢7、悟空喜欢[0,2]、法师/鸦眼喜欢0、坦克拿0收益相对低等，
+    //    因为这些都来自“敌方自己的 getCharWeights(enemy.name)”，不再手写一堆 give_xxx 特判。
+    const reply = AI.simulate.opponentReplyDelta(actorIdx, action);
+    bonus -= reply.weightedDelta;
+    action.replyDelta = reply.weightedDelta;
+    action.replyDebug = reply;
+
+    // 3) 路径激励：2步内能凑高价值双子星 → 加分。
+    const diff = Math.abs(newVal - otherVal);
+    if (diff === 1 && newVal > 0 && otherVal > 0) {
+        const target2 = Math.max(newVal, otherVal);
         if ([9,7,6,1,4,5,8].includes(target2)) bonus += W.path_bonus;
     }
 
@@ -798,12 +1426,23 @@ AI.llm.ask = async function(actorIdx, top4, skillDoc, provider) {
     const snapshot = AI.llm.buildSnapshot(actorIdx);
 
     const candidatesText = top4.map((c, i) => {
-        const t = players[c.targetIdx];
-        return `${i}: 我的${c.myHand===0?'左':'右'}手(${actor.hands[c.myHand]}) → 碰 ${t.name} 的${c.touchHandIdx===0?'左':'右'}手(${t.hands[c.touchHandIdx]}) [启发式${c.score.toFixed(0)}分]`;
+        let desc = '';
+        if (c.type === 'attack') {
+            const t = players[c.targetIdx];
+            desc = `普通攻击：我的${c.myHand===0?'左':'右'}手(${actor.hands[c.myHand]}) → 碰 ${t.name} 的${c.touchHandIdx===0?'左':'右'}手(${t.hands[c.touchHandIdx]})`;
+        } else if (c.type === 'skill') {
+            desc = `主动技能：${c.actionName} ${c.reason ? '（' + c.reason + '）' : ''}`;
+        } else if (c.type === 'tank') {
+            const p = players[c.playerIdx];
+            desc = `调整抗伤位：切到 ${p ? p.name : c.playerIdx} ${c.reason ? '（' + c.reason + '）' : ''}`;
+        } else {
+            desc = AI.describeAction ? AI.describeAction(c) : String(c.type);
+        }
+        return `${i}: ${desc} [评分${(c.score||0).toFixed(0)}]`;
     }).join('\n');
 
     const sysPrompt =
-`你是指尖博弈AI，控制${actor.name}。从候选动作选最优一个。
+`你是指尖博弈AI，控制${actor.name}。从候选动作中选最优一个。候选可能是普通攻击、主动技能或调整抗伤位。
 严格JSON回复：{"choice":编号0-${top4.length-1},"reason":"15字内"}
 注意：[2,2]/[3,3]双子星收益极低，避免为其布局；[0,x]组合和高价值双子星([9,9][7,7][6,6])优先。
 
@@ -853,6 +1492,63 @@ AI.llm.buildSnapshot = function(actorIdx) {
     return lines.join('\n');
 };
 
+
+// ══════════════════════════════════════════════════
+//  AI Debug Panel — 显示当前AI候选动作、选择和模式
+// ══════════════════════════════════════════════════
+AI.ensureDebugPanel = function() {
+    if (!AI.debug || !AI.debug.enabled) return null;
+    let el = document.getElementById('aiDebugPanel2');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'aiDebugPanel2';
+    el.style.cssText = [
+        'position:fixed','right:12px','bottom:12px','z-index:9999','width:360px','max-height:42vh','overflow:auto',
+        'background:rgba(0,0,0,.78)','color:#e6f7ff','border:1px solid rgba(255,255,255,.22)',
+        'border-radius:10px','box-shadow:0 8px 24px rgba(0,0,0,.25)','padding:10px 12px',
+        'font:12px/1.45 Consolas,Monaco,monospace','backdrop-filter:blur(6px)'
+    ].join(';');
+    document.body.appendChild(el);
+    return el;
+};
+
+AI.debugUpdate = function(actorIdx, topActions, chosen, reason) {
+    AI.debug.last = { actorIdx, topActions, chosen, reason, time: new Date().toLocaleTimeString() };
+    const el = AI.ensureDebugPanel();
+    if (!el) return;
+    const players = Main.turnManager?.players || [];
+    const actor = players[actorIdx];
+    const rows = (topActions || []).map((a, i) => {
+        const mark = a === chosen ? '✅' : '&nbsp;&nbsp;';
+        return `<div style="margin:2px 0;${a===chosen?'color:#ffd666;font-weight:bold;':''}">${mark}#${i} ${(a.score||0).toFixed(0)}｜${escapeHtml2(AI.describeAction(a))}</div>`;
+    }).join('');
+    el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;">
+            <b>🤖 AI Debug</b>
+            <span style="opacity:.8">${AI.decisionMode === 'local' ? '本地' : 'LLM'}｜${AI.debug.last.time}</span>
+            <button onclick="toggleAIDebug2(false)" style="background:#333;color:#fff;border:1px solid #777;border-radius:4px;cursor:pointer;">×</button>
+        </div>
+        <div>当前：<b>${escapeHtml2(actor?.name || String(actorIdx))}</b>｜原因：${escapeHtml2(reason || '')}</div>
+        <div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.16);padding-top:6px;">${rows}</div>
+        <div style="margin-top:6px;opacity:.72">控制台：setAIMode2('local'/'llm')，toggleAIDebug2()</div>
+    `;
+};
+
+function escapeHtml2(s) {
+    return String(s == null ? '' : s).replace(/[&<>'"]/g, function(c) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'})[c];
+    });
+}
+
+window.toggleAIDebug2 = function(force) {
+    const next = (typeof force === 'boolean') ? force : !(AI.debug && AI.debug.enabled);
+    AI.debug.enabled = next;
+    try { localStorage.setItem('AI_DEBUG_PANEL', next ? '1' : '0'); } catch(e) {}
+    const el = document.getElementById('aiDebugPanel2');
+    if (!next && el) el.remove();
+    else if (next && AI.debug.last) AI.debugUpdate(AI.debug.last.actorIdx, AI.debug.last.topActions, AI.debug.last.chosen, AI.debug.last.reason);
+};
+
 // ══════════════════════════════════════════════════
 //  AI.train — 自战训练系统
 // ══════════════════════════════════════════════════
@@ -870,13 +1566,14 @@ const CHAR_ID_MAP = {
     'daqiao':    '大乔',   'renzhe':    '忍者',
     'zhangfei':  '张飞',   'yinyangshi':'阴阳师',
     'yayan':     '鸦眼',   'zhaoyun':   '赵云',
+    'gongfupanda': '功夫熊猫',
 };
 const CHAR_NAME_MAP = Object.fromEntries(Object.entries(CHAR_ID_MAP).map(([k,v])=>[v,k]));
 
 // 角色职业映射（用于 AI 决策替代硬编码名字检查）
 const AI_CHAR_ROLE = {
     '法师': 'output', '鸦眼': 'output', '孙悟空': 'output',
-    '藏师': 'tank',   '张飞': 'tank',
+    '藏师': 'tank',   '张飞': 'tank', '功夫熊猫': 'tank',
     // 其余为 semi_tank（半肉），无需显式列出
 };
 function charRole(name) { return AI_CHAR_ROLE[name] || 'semi_tank'; }
@@ -888,14 +1585,14 @@ const TRAINABLE_CHARS = Object.keys(CHAR_ID_MAP);
 const AI_CHAR_HP = {
     '小乔':360, '藏师':660, '法师':160, '孙悟空':260,
     '大乔':120, '忍者':300, '张飞':560, '阴阳师':240,
-    '鸦眼':140, '赵云':200,
+    '鸦眼':140, '赵云':200, '功夫熊猫':230,
 };
 
 // 脆皮判定：HP < 200 视为脆皮
 function isSquishy(name) { return (AI_CHAR_HP[name] || 350) < 200; }
 
 // 坦克角色
-const TANK_IDS = ['zangshi', 'zhangfei'];
+const TANK_IDS = ['zangshi', 'zhangfei', 'gongfupanda'];
 
 // 按角色 ID 决定阵容类型
 function decideFormation(charIds) {
@@ -1039,7 +1736,7 @@ AI.train.runOneBattle = function(charIds) {
         }, 500);
 
         // 启动 AI 行动
-        setTimeout(() => AI.checkAndAct(), 300);
+        AI.scheduleCheck ? AI.scheduleCheck('trainStart', 300, true) : setTimeout(() => AI.checkAndAct({force:true}), 300);
     });
 };
 
@@ -1063,7 +1760,7 @@ AI.train.reflect = async function(winnerCamp, charIds) {
         });
     } catch(e) { console.warn('[Train] 日志保存失败', e); }
 
-    // ── 2. DeepSeek 复盘：产出权重增量 + 新经验 + 各角色攻略更新 ──
+    // ── 2. LLM 复盘：产出权重增量 + 新经验 + 各角色攻略更新 ──
     try {
         const logPanel   = document.getElementById('logPanel2');
         const battleLog  = logPanel ? logPanel.innerText.slice(-2000) : '';
@@ -1088,7 +1785,7 @@ weight_deltas 范围[-10,+10]，只填需要调整的key。
 new_rules 最多2条。char_updates 只填本局参战角色，内容具体可操作。`
                 },{
                     role: 'user',
-                    content: `【${dateStr}】${charInfo} 结果:${resultStr}\n\n战斗日志(节选):\n${battleLog.slice(0,1500)}\n\nAI行动:\n${summary.slice(0,500)}\n\n角色权重(节选):\n${names.map(n=>`${n}: star_2=${(AI_CHAR_WEIGHTS[n]||AI_BASE_WEIGHTS).star_2} zero_atk=${(AI_CHAR_WEIGHTS[n]||AI_BASE_WEIGHTS).zero_combo_atk}`).join(', ')}\n已有经验(节选):\n${(AI.knowledgeCache||'').slice(0,300)}`
+                    content: `【${dateStr}】${charInfo} 结果:${resultStr}\n\n战斗日志(节选):\n${battleLog.slice(0,1500)}\n\nAI行动:\n${summary.slice(0,500)}\n\n角色权重(节选):\n${names.map(n=>{ const mw=getCharWeights(n); const ow=AI_CHAR_WEIGHTS[n]||{}; return `${n}: star_2=${mw.star_2} zero_atk=${mw.zero_combo_atk} 覆盖=${JSON.stringify(ow)}`; }).join(', ')}\n已有经验(节选):\n${(AI.knowledgeCache||'').slice(0,300)}`
                 }],
                 temperature: 0.4,
                 max_tokens: 600,
@@ -1100,17 +1797,16 @@ new_rules 最多2条。char_updates 只填本局参战角色，内容具体可�
         if (!m) throw new Error('No JSON in response');
         const parsed = JSON.parse(m[0]);
 
-        // 应用权重增量（胜方强化，败方弱化，直接更新 AI_CHAR_WEIGHTS）
+        // 应用权重增量（胜方强化，败方弱化，只写入角色稀疏覆盖项，不污染 AI_BASE_WEIGHTS）
         if (parsed.weight_deltas) {
             const applyDelta = (charName, deltas, sign) => {
-                if (!AI_CHAR_WEIGHTS[charName])
-                    AI_CHAR_WEIGHTS[charName] = Object.assign({}, AI_BASE_WEIGHTS);
-                const w = AI_CHAR_WEIGHTS[charName];
+                if (!AI_CHAR_WEIGHTS[charName]) AI_CHAR_WEIGHTS[charName] = {};
+                const w = getCharWeights(charName);
                 for (const [key, delta] of Object.entries(deltas)) {
                     if (w[key] !== undefined) {
                         const cur = w[key], next = cur + Number(delta) * sign;
                         if (Math.sign(next) === Math.sign(cur) || cur === 0)
-                            w[key] = Math.round(next * 10) / 10;
+                            setCharWeightOverride(charName, key, next);
                     }
                 }
             };
@@ -1171,7 +1867,7 @@ AI.train.getStatusText = function() {
         deepseek: `W${s.deepseek.win} L${s.deepseek.lose}`,
         rateMM:   mmTotal > 0 ? `胜率 ${Math.round(s.minimax.win/mmTotal*100)}%` : '胜率 -',
         rateDS:   dsTotal > 0 ? `胜率 ${Math.round(s.deepseek.win/dsTotal*100)}%` : '胜率 -',
-        weights:  `已加载角色: ${Object.keys(AI_CHAR_WEIGHTS).join(', ') || '加载中...'}`,
+        weights:  `已加载角色覆盖权重: ${Object.keys(AI_CHAR_WEIGHTS).join(', ') || '加载中...'}`,
     };
 };
 
@@ -1280,9 +1976,9 @@ AI.evolve.runHeadlessBattle = function(charIds) {
 // 临时替换某角色的某个权重 key（跑完后必须用 restoreCharWeight 还原）
 AI.evolve._backup = {};
 AI.evolve.setCharWeight = function(charName, key, value) {
-    if (!AI_CHAR_WEIGHTS[charName]) AI_CHAR_WEIGHTS[charName] = Object.assign({}, AI_BASE_WEIGHTS);
+    if (!AI_CHAR_WEIGHTS[charName]) AI_CHAR_WEIGHTS[charName] = {};
     if (!(charName in AI.evolve._backup)) AI.evolve._backup[charName] = Object.assign({}, AI_CHAR_WEIGHTS[charName]);
-    AI_CHAR_WEIGHTS[charName][key] = value;
+    setCharWeightOverride(charName, key, value);
 };
 AI.evolve.restoreCharWeights = function(charName) {
     if (AI.evolve._backup[charName]) {
@@ -1315,7 +2011,7 @@ AI.evolve.testWeight = async function(charName, weightKey, candidates, gamesPerV
     if (!myCharId) { AI.evolve.running = false; throw new Error(`未知角色名: ${charName}`); }
     const oppId = opponentCharId || myCharId; // 默认对手=自己（同角色对打，只有权重不同）
 
-    const baselineValue = (AI_CHAR_WEIGHTS[charName] || AI_BASE_WEIGHTS)[weightKey];
+    const baselineValue = getCharWeights(charName)[weightKey];
     const results = [];
 
     for (let ci = 0; ci < candidates.length; ci++) {
@@ -1414,7 +2110,7 @@ AI.evolve.autoTune = async function(options) {
 
     outer:
     for (const charName of charNames) {
-        const weights = AI_CHAR_WEIGHTS[charName] || Object.assign({}, AI_BASE_WEIGHTS);
+        const weights = getCharWeights(charName);
         const keys = Object.keys(weights).filter(k => !EVOLVE_SKIP_KEYS.includes(k));
 
         for (const key of keys) {
@@ -1442,7 +2138,7 @@ AI.evolve.autoTune = async function(options) {
             const adopted = best.winRate >= baselineWinRate + adoptThreshold;
 
             if (adopted) {
-                AI_CHAR_WEIGHTS[charName][key] = best.value;
+                setCharWeightOverride(charName, key, best.value);
                 await AI.saveCharWeights(charName); // 自动写回 skill md
                 onProgress(`✅ 采纳：${charName}.${key} ${baseline} → ${best.value}（胜率${(best.winRate*100).toFixed(1)}%）`);
             } else {
@@ -1510,14 +2206,14 @@ new_rules最多2条，weight_deltas范围[-8,+8]，char_updates只填参战角�
         // 更新权重并写回 skill 文件
         if (parsed.weight_deltas) {
             charNames.forEach((name, idx) => {
-                if (!AI_CHAR_WEIGHTS[name]) AI_CHAR_WEIGHTS[name] = Object.assign({}, AI_BASE_WEIGHTS);
-                const w    = AI_CHAR_WEIGHTS[name];
+                if (!AI_CHAR_WEIGHTS[name]) AI_CHAR_WEIGHTS[name] = {};
+                const w    = getCharWeights(name);
                 const sign = (campOf(idx) === (AI.aiCamp || 'rebel') ? 1 : -0.5) * (aiWon ? 1 : -1);
                 for (const [key, delta] of Object.entries(parsed.weight_deltas)) {
                     if (w[key] !== undefined) {
                         const cur = w[key], next = cur + Number(delta) * sign;
                         if (Math.sign(next) === Math.sign(cur) || cur === 0)
-                            w[key] = Math.round(next * 10) / 10;
+                            setCharWeightOverride(name, key, next);
                     }
                 }
             });
