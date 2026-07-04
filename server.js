@@ -229,6 +229,10 @@ function genCode() {
     return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
+function genSessionId() {
+    return Date.now().toString(36) + ':' + Math.random().toString(36).slice(2, 12);
+}
+
 function send(ws, obj) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(obj));
@@ -294,6 +298,7 @@ function roomSummary(room) {
         hostSlot: room.hostSlot,
         lobbyConfig: room.lobbyConfig || null,
         gameConfig: room.gameConfig || null,
+        runtimeCharControl: room.runtimeCharControl ? room.runtimeCharControl.slice() : null,
     };
 }
 
@@ -318,16 +323,21 @@ wss.on('connection', (ws) => {
                 rooms[code] = {
                     slots:     [ws, null, null, null],
                     slotNames: [msg.name || '玩家1', '', '', ''],
+                    slotSessions: ['', '', '', ''],
                     hostSlot:  0,
                     actionSeq: 0,
                     seenActions: new Set(),
                     seenActionQueue: [],
                     lobbyConfig: null,
                     gameConfig: null,
+                    runtimeCharControl: [0, 1, 0, 1],
                 };
+                const sessionId = genSessionId();
+                rooms[code].slotSessions[0] = sessionId;
                 ws.roomCode = code;
                 ws.slotIdx  = 0;
-                send(ws, { type: 'created', code, slotIdx: 0, ...roomSummary(rooms[code]) });
+                ws.sessionId = sessionId;
+                send(ws, { type: 'created', code, slotIdx: 0, sessionId, ...roomSummary(rooms[code]) });
                 console.log(`[房间] 创建 ${code}，玩家0: ${msg.name}`);
                 break;
             }
@@ -337,19 +347,45 @@ wss.on('connection', (ws) => {
                 // 找第一个空 slot
                 const emptyIdx = room.slots.findIndex(s => !s);
                 if (emptyIdx === -1) { send(ws, { type: 'error', msg: '房间已满（4人）' }); break; }
+                const sessionId = genSessionId();
+                if (!room.slotSessions) room.slotSessions = ['', '', '', ''];
                 room.slots[emptyIdx]     = ws;
                 room.slotNames[emptyIdx] = msg.name || ('玩家' + (emptyIdx + 1));
+                room.slotSessions[emptyIdx] = sessionId;
                 ws.roomCode = msg.code;
                 ws.slotIdx  = emptyIdx;
-                send(ws, { type: 'joined', code: msg.code, slotIdx: emptyIdx, ...roomSummary(room) });
+                ws.sessionId = sessionId;
+                send(ws, { type: 'joined', code: msg.code, slotIdx: emptyIdx, sessionId, ...roomSummary(room) });
                 broadcastRoomState(room);
                 console.log(`[房间] ${msg.code} slot${emptyIdx} 加入 (${msg.name})`);
+                break;
+            }
+            case 'rejoin': {
+                const room = rooms[msg.code];
+                if (!room) { send(ws, { type: 'error', msg: '房间不存在，无法重连' }); break; }
+                const slotIdx = Number(msg.slotIdx);
+                if (!Number.isInteger(slotIdx) || slotIdx < 0 || slotIdx > 3) { send(ws, { type: 'error', msg: '重连座位无效' }); break; }
+                if (!room.slotSessions) room.slotSessions = ['', '', '', ''];
+                if (room.slotSessions[slotIdx] !== msg.sessionId) { send(ws, { type: 'error', msg: '重连身份已过期，请重新加入房间' }); break; }
+                if (room.slots[slotIdx] && room.slots[slotIdx] !== ws) {
+                    try { room.slots[slotIdx].close(4001, 'replaced by reconnect'); } catch (e) {}
+                }
+                room.slots[slotIdx] = ws;
+                if (msg.name) room.slotNames[slotIdx] = msg.name;
+                ws.roomCode = msg.code;
+                ws.slotIdx = slotIdx;
+                ws.sessionId = msg.sessionId;
+                send(ws, { type: 'rejoined', code: msg.code, slotIdx, sessionId: msg.sessionId, ...roomSummary(room) });
+                broadcast(room, ws, { type: 'slotRejoined', slotIdx, charControl: room.runtimeCharControl ? room.runtimeCharControl.slice() : null });
+                broadcastRoomState(room);
+                console.log(`[房间] ${msg.code} slot${slotIdx} 重连 (${msg.name || room.slotNames[slotIdx] || ''})`);
                 break;
             }
             case 'lobbyUpdate': {
                 const room = rooms[ws.roomCode];
                 if (!room) break;
                 room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, msg.config || {});
+                if (room.lobbyConfig.charControl) room.runtimeCharControl = room.lobbyConfig.charControl.slice();
                 const seq = nextRoomSeq(room);
                 broadcastAll(room, { type: 'lobbyUpdate', fromSlot: ws.slotIdx, seq, config: room.lobbyConfig });
                 break;
@@ -365,6 +401,7 @@ wss.on('connection', (ws) => {
                 }
                 room.gameConfig = msg.config || room.lobbyConfig || {};
                 room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, room.gameConfig || {});
+                if (room.gameConfig.charControl) room.runtimeCharControl = room.gameConfig.charControl.slice();
                 const seq = nextRoomSeq(room);
                 broadcastAll(room, { type: 'startGameConfig', fromSlot: ws.slotIdx, seq, config: room.gameConfig });
                 break;
@@ -376,6 +413,17 @@ wss.on('connection', (ws) => {
                 if (!markActionSeen(room, actionId)) {
                     send(ws, { type: 'actionAck', actionId, duplicate: true });
                     break;
+                }
+                if (msg.payload && (msg.payload.type === 'ctrlUpdate' || msg.payload.type === 'delegate')) {
+                    if (!room.runtimeCharControl) room.runtimeCharControl = [0, 1, 0, 1];
+                    const ci = Number(msg.payload.charIdx ?? msg.payload.playerIdx);
+                    if (Number.isInteger(ci) && ci >= 0 && ci < 4) {
+                        if (msg.payload.type === 'delegate') {
+                            room.runtimeCharControl[ci] = msg.payload.delegate ? 'AI' : (msg.payload.controller === 'AI' ? 'AI' : Number(msg.payload.controller));
+                        } else {
+                            room.runtimeCharControl[ci] = msg.payload.controller === 'AI' ? 'AI' : Number(msg.payload.controller);
+                        }
+                    }
                 }
                 const seq = nextRoomSeq(room);
                 const payload = decoratePayload(msg.payload, {
@@ -443,8 +491,10 @@ wss.on('connection', (ws) => {
         if (!code || !rooms[code]) return;
         const room = rooms[code];
         const idx  = ws.slotIdx;
+        // 如果这个 close 来自被新重连连接替换掉的旧 ws，不要把新连接踢掉。
+        if (room.slots[idx] !== ws) return;
         room.slots[idx]     = null;
-        room.slotNames[idx] = '';
+        // 保留 slotNames/slotSessions，允许短线后按原座位重连。
         // 通知其他人：该 slot 已掉线（让他们把 charControl[i]===idx 的角色改 AI 接管）
         broadcast(room, ws, { type: 'slotLeft', slotIdx: idx });
         // 如果整个房间空了就清掉；否则房主离线时转移给第一个在线 slot

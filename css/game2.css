@@ -79,9 +79,11 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 .hand-box2.death-clock{background:#fff1f0;border-color:#ffa39e!important}
 .death-turns2{font-size:10px;color:#f5222d}
 
-/* 抗伤位按钮 */
+/* 抗伤位 / AI托管按钮 */
 .tank-btn{position:absolute;top:6px;right:6px;padding:2px 8px;font-size:11px;font-weight:bold;border:2px solid #1890ff;background:white;color:#1890ff;border-radius:10px;cursor:pointer;transition:all .15s}
 .tank-btn.active{background:#1890ff;color:white}
+.delegate-btn{position:absolute;top:6px;right:82px;padding:2px 8px;font-size:11px;font-weight:bold;border:2px solid #52c41a;background:white;color:#389e0d;border-radius:10px;cursor:pointer;transition:all .15s;z-index:20}
+.delegate-btn.active{background:#52c41a;color:white}
 .custom-display2{display:none;margin-top:4px;padding:4px 8px;background:#fff7e6;border:1px solid #ffd591;border-radius:4px;color:#874d00;font-size:11px}
 
 /* ── 中间列 ── */
@@ -347,11 +349,20 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
     font-weight: bold;
 }
 
-/* 抗伤/坦克/脆皮按钮绝对定位 */
+/* 抗伤/坦克/脆皮/AI托管按钮绝对定位 */
 .tank-btn { 
     position: absolute; 
     top: 12px; 
     right: 12px; 
+    z-index: 20;
+    font-size: 12px; 
+    padding: 4px 12px; 
+    border-radius: 14px;
+}
+.delegate-btn { 
+    position: absolute; 
+    top: 12px; 
+    right: 92px; 
     z-index: 20;
     font-size: 12px; 
     padding: 4px 12px; 
@@ -363,7 +374,7 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
     content: "👉 行动中";
     position: absolute; 
     top: 12px; 
-    right: 88px;                /* 精准避开右侧的“抗伤”按钮，并排完美展现 */
+    right: 178px;               /* 避开右侧“托管/抗伤”按钮 */
     background: #52c41a; 
     color: white; 
     padding: 4px 12px; 

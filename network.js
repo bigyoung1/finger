@@ -11,19 +11,72 @@ var NET = {
     roomState: null,  // 最近一次 roomState 快照
     lastSeq:   0,     // 最近一次服务端排序号
     seenActions: {},  // actionId 去重表
+    sessionId: '',
+    reconnecting: false,
+    _manualClose: false,
+    _reconnectTimer: null,
+    _reconnectAttempts: 0,
 
     connect: function(onOpen) {
         var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         var url = protocol + '://' + location.host;
+        NET._manualClose = false;
         NET.ws = new WebSocket(url);
 
         NET.ws.onopen = function() {
             NET.isOnline = true;
+            NET._reconnectAttempts = 0;
             if (onOpen) onOpen();
         };
         NET.ws.onclose = function() {
             NET.isOnline = false;
-            NET.onDisconnect();
+            if (!NET._manualClose) {
+                NET.onDisconnect();
+                NET.scheduleReconnect();
+            }
+        };
+        NET.ws.onmessage = function(e) {
+            var msg = JSON.parse(e.data);
+            NET.handleMessage(msg);
+        };
+    },
+
+    rememberSession: function() {
+        if (!NET.roomCode || NET.slotIdx < 0 || !NET.sessionId) return;
+        try {
+            localStorage.setItem('fingerGameOnlineSession', JSON.stringify({
+                roomCode: NET.roomCode,
+                slotIdx: NET.slotIdx,
+                sessionId: NET.sessionId,
+                myName: NET.myName || ''
+            }));
+        } catch (e) {}
+    },
+
+    scheduleReconnect: function() {
+        if (!NET.roomCode || NET.slotIdx < 0 || !NET.sessionId) return;
+        if (NET._reconnectTimer) return;
+        var delay = Math.min(1000 * Math.pow(1.6, NET._reconnectAttempts || 0), 8000);
+        NET._reconnectAttempts = (NET._reconnectAttempts || 0) + 1;
+        NET.reconnecting = true;
+        NET._reconnectTimer = setTimeout(function() {
+            NET._reconnectTimer = null;
+            NET.reconnect();
+        }, delay);
+    },
+
+    reconnect: function() {
+        if (!NET.roomCode || NET.slotIdx < 0 || !NET.sessionId) return;
+        var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        var url = protocol + '://' + location.host;
+        NET.ws = new WebSocket(url);
+        NET.ws.onopen = function() {
+            NET.isOnline = true;
+            NET.send({ type: 'rejoin', code: NET.roomCode, slotIdx: NET.slotIdx, sessionId: NET.sessionId, name: NET.myName });
+        };
+        NET.ws.onclose = function() {
+            NET.isOnline = false;
+            NET.scheduleReconnect();
         };
         NET.ws.onmessage = function(e) {
             var msg = JSON.parse(e.data);
@@ -104,7 +157,9 @@ var NET = {
             case 'created':
                 NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
+                NET.sessionId = msg.sessionId || NET.sessionId || '';
+                NET.rememberSession();
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null, runtimeCharControl: msg.runtimeCharControl || null };
                 NET.onRoomCreated(msg.code);
                 NET.onRoomState(NET.roomState);
                 break;
@@ -112,13 +167,30 @@ var NET = {
             case 'joined':
                 NET.slotIdx  = msg.slotIdx;
                 NET.roomCode = msg.code;
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
+                NET.sessionId = msg.sessionId || NET.sessionId || '';
+                NET.rememberSession();
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null, runtimeCharControl: msg.runtimeCharControl || null };
                 NET.onRoomJoined(msg.code);
                 NET.onRoomState(NET.roomState);
                 break;
 
+            case 'rejoined':
+                NET.slotIdx  = msg.slotIdx;
+                NET.roomCode = msg.code;
+                NET.sessionId = msg.sessionId || NET.sessionId || '';
+                NET.reconnecting = false;
+                NET.rememberSession();
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null, runtimeCharControl: msg.runtimeCharControl || null };
+                NET.onRejoined(msg);
+                NET.onRoomState(NET.roomState);
+                break;
+
+            case 'slotRejoined':
+                NET.onSlotRejoined(msg.slotIdx, msg.charControl || null);
+                break;
+
             case 'roomState':
-                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null };
+                NET.roomState = { slotNames: msg.slotNames, slotOccupied: msg.slotOccupied, hostSlot: msg.hostSlot, lobbyConfig: msg.lobbyConfig || null, gameConfig: msg.gameConfig || null, runtimeCharControl: msg.runtimeCharControl || null };
                 NET.onRoomState(NET.roomState);
                 break;
 
@@ -186,8 +258,10 @@ var NET = {
     // ── 回调（由游戏层覆盖实现）──
     onRoomCreated:  function(code) {},
     onRoomJoined:   function(code) {},
+    onRejoined:     function(msg) {},
     onRoomState:    function(state) {},
     onSlotLeft:     function(slotIdx) {},
+    onSlotRejoined: function(slotIdx, charControl) {},
     onRemoteAction: function(payload, fromSlot, seq, actionId) {},
     onActionRequest:function(payload, fromSlot, actionId) {},
     onActionAck:    function(msg) {},

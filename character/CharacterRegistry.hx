@@ -48,7 +48,7 @@ class CharacterRegistry {
             (id, camp) -> new YinYangShi(id, "阴阳师", camp));
 
         register("yangdali",  "💪 杨大力 (沙包 1000HP)", 1000,
-            (id, camp) -> new Player(id, "杨大力", 1000, camp));
+            (id, camp) -> new Yangdali(id, "杨大力", camp));
 
         register("yayan", "🦅 鸦眼 (输出 140HP)", 140,
             (id, camp) -> new YaYan(id, "鸦眼", camp));

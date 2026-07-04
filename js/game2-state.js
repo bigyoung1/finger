@@ -35,9 +35,8 @@ function toggleTank(playerIdx, fromRemote) {
     if (G.tankIdx[camp] === playerIdx) return;
     // 坦脆流：抗伤位固定（等于坦克），不允许切换
     if (G.formation[camp] === 'tank_carry') return;
-    // 联机：必须控制至少一个该阵营角色才能切抗伤位
-    if (ONLINE.active && !fromRemote && !ONLINE.iControlAnyOf(camp)) return;
-    // 联机稳定版：非房主只提交请求，不本地切换；等房主广播后再更新。
+    // 联机稳定版：抗伤位属于“队伍策略”，不再按角色控制权拦截。
+    // 任意在线玩家都可以点击任意双半肉队伍的抗伤按钮；非房主提交给房主权威执行后广播。
     if (ONLINE.active && !fromRemote && !ONLINE.isHost()) {
         ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });
         return;
@@ -45,6 +44,76 @@ function toggleTank(playerIdx, fromRemote) {
     G.tankIdx[camp] = playerIdx;
     updateTankButtons();
     if (!fromRemote) ONLINE.sendAction({ type: "toggleTank", playerIdx: playerIdx });
+}
+
+function toggleDelegate(playerIdx) {
+    var delegated = ONLINE.active ? (ONLINE.charControl[playerIdx] === 'AI') : !!(window.AI && AI.controlled && AI.controlled[playerIdx]);
+    setDelegate(playerIdx, !delegated);
+}
+
+function setDelegate(playerIdx, delegate, fromRemote) {
+    delegate = !!delegate;
+    var controller = delegate ? 'AI' : (ONLINE.active ? ONLINE.slotIdx : 'local');
+    if (delegate && window.AI_CHAR_MODEL) {
+        AI_CHAR_MODEL[playerIdx] = 'deepseek';
+        if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + playerIdx] = 'deepseek';
+        var mSel = document.getElementById('aiModel' + playerIdx);
+        if (mSel) mSel.value = 'deepseek';
+    }
+    if (ONLINE.active && !fromRemote && !ONLINE.isHost()) {
+        ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });
+        return;
+    }
+    applyDelegateLocal(playerIdx, delegate, controller);
+    if (!fromRemote) ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });
+}
+
+function applyDelegateLocal(playerIdx, delegate, controller) {
+    delegate = !!delegate;
+    controller = delegate ? 'AI' : controller;
+    if (ONLINE.active) {
+        ONLINE.charControl[playerIdx] = controller;
+    } else if (window.AI) {
+        AI.controlled = AI.controlled || {};
+        AI.providerMap = AI.providerMap || {};
+        if (delegate) {
+            AI.enabled = true;
+            AI.controlled[playerIdx] = true;
+            AI.providerMap[playerIdx] = 'deepseek';
+            if (AI.preloadAllSkills) AI.preloadAllSkills();
+            if (!AI.knowledgeCache && AI.loadKnowledge) AI.loadKnowledge();
+        } else {
+            delete AI.controlled[playerIdx];
+            delete AI.providerMap[playerIdx];
+            if (Object.keys(AI.controlled).length === 0 && AI.stop) AI.stop();
+        }
+    }
+    var sel = document.getElementById('ctrlSelect' + playerIdx);
+    if (sel) {
+        var v = controller === 'AI' ? 'AI' : String(controller);
+        if (typeof rebuildCtrlOptions === 'function') rebuildCtrlOptions(sel, v);
+        else sel.value = v;
+        if (typeof updateAiModelVisibility === 'function') updateAiModelVisibility(playerIdx);
+    }
+    if (delegate && window.AI_CHAR_MODEL) {
+        AI_CHAR_MODEL[playerIdx] = 'deepseek';
+        if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + playerIdx] = 'deepseek';
+        if (window.AI && AI.providerMap) AI.providerMap[playerIdx] = 'deepseek';
+    }
+    if (window.AI && AI.refreshControlled) AI.refreshControlled();
+    updateDelegateButtons();
+    if (window.AI && AI.scheduleCheck) AI.scheduleCheck('delegate', 220, true);
+}
+
+function updateDelegateButtons() {
+    for (var i = 0; i < 4; i++) {
+        var btn = document.getElementById('delegateBtn' + i);
+        if (!btn) continue;
+        var delegated = ONLINE.active ? (ONLINE.charControl[i] === 'AI') : !!(window.AI && AI.controlled && AI.controlled[i]);
+        btn.textContent = delegated ? '🤖 已托管' : '🤖 托管';
+        btn.className = 'delegate-btn' + (delegated ? ' active' : '');
+        btn.title = delegated ? 'AI 正在托管；点击可由当前玩家接管' : '交给 AI 托管（默认 DeepSeek）';
+    }
 }
 
 function updateTankButtons() {
@@ -66,6 +135,8 @@ function updateTankButtons() {
             btn.title       = active ? '当前抗伤位（点击无效）' : '点击设为抗伤位';
         }
     }
+    // 更新托管按钮
+    updateDelegateButtons();
     // 更新坦克攻击目标按钮（坦脆vs坦脆）
     updateTankTargetButtons();
 }

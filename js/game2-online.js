@@ -12,7 +12,7 @@ var ONLINE = {
 
     // 房主权威：所有会改变战斗状态的动作只由房主执行；非房主只发请求。
     authoritativeTypes: {
-        attack: true, invokeAction: true, wukong02: true, toggleTank: true,
+        attack: true, invokeAction: true, wukong02: true, toggleTank: true, delegate: true,
         helpTank: true, steal: true, cake: true, crowCurse: true
     },
 
@@ -64,6 +64,7 @@ var ONLINE = {
             }
         }
         if (window.AI) AI.refreshControlled();
+        if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
     },
 
     // 我是否控制了 camp 阵营至少一个角色（HERO=0,2 / REBEL=1,3）
@@ -111,6 +112,12 @@ ONLINE.applyAction = function(payload, fromRemote) {
 
         case 'toggleTank':
             toggleTank(payload.playerIdx, !!fromRemote);
+            break;
+
+        case 'delegate':
+            if (typeof applyDelegateLocal === 'function') {
+                applyDelegateLocal(payload.playerIdx, !!payload.delegate, payload.controller);
+            }
             break;
 
         case 'helpTank':
@@ -191,6 +198,9 @@ NET.onStartRequest = function(fromSlot) {
 
 // 房间状态变化（有人加入/离开）
 NET.onRoomState = function(state) {
+    // 注意：游戏中普通 roomState 不能强行恢复 runtimeCharControl，
+    // 否则 slotLeft 刚把掉线角色改成 AI 后，又会被旧快照覆盖。
+    // 控制权恢复只在 rejoined / slotRejoined 两类明确事件中执行。
     if (window.renderRoomLobby) window.renderRoomLobby(state);
 };
 
@@ -216,7 +226,35 @@ NET.onRoomJoined = function(code) {
 };
 
 NET.onDisconnect = function() {
-    if (ONLINE.active) alert('⚠️ 与服务器断开连接，请刷新页面重试。');
+    if (ONLINE.active) {
+        setOnlineStatus('⚠️ 与服务器断开，正在自动重连...');
+        if (typeof setHint2 === 'function') setHint2('⚠️ 与服务器断开，正在自动重连...');
+    }
+};
+
+NET.onRejoined = function(msg) {
+    ONLINE.slotIdx = NET.slotIdx;
+    if (msg && msg.runtimeCharControl) {
+        ONLINE.charControl = msg.runtimeCharControl.slice();
+    }
+    setOnlineStatus('✅ 已重连到房间 ' + NET.roomCode + '（Slot' + (NET.slotIdx + 1) + '）');
+    if (typeof setHint2 === 'function') setHint2('✅ 已重连，可以继续操作');
+    if (window.AI) AI.refreshControlled();
+    if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
+    if (typeof updateTankButtons === 'function') updateTankButtons();
+    if (typeof refreshHandStyles2 === 'function') refreshHandStyles2();
+    if (window.AI && AI.scheduleCheck) AI.scheduleCheck('rejoined', 500, true);
+};
+
+NET.onSlotRejoined = function(slotIdx, charControl) {
+    if (!ONLINE.active) return;
+    if (charControl) ONLINE.charControl = charControl.slice();
+    var name = (NET.roomState && NET.roomState.slotNames && NET.roomState.slotNames[slotIdx]) || ('Slot' + (slotIdx + 1));
+    setHint2('✅ ' + name + ' 已重连');
+    if (window.AI) AI.refreshControlled();
+    if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
+    if (typeof updateTankButtons === 'function') updateTankButtons();
+    if (typeof refreshHandStyles2 === 'function') refreshHandStyles2();
 };
 
 NET.onSlotLeft = function(slotIdx) {

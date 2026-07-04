@@ -195,6 +195,7 @@ function doTrainStop() {
 
             
         <div class="player-card2" id="card2v_0">
+            <button class="delegate-btn" id="delegateBtn0" onclick="toggleDelegate(0)">🤖 托管</button>
             <button class="tank-btn" id="tankBtn0" onclick="toggleTank(0)">🛡 抗伤</button>
             <div class="card-inner">
                 <div class="char-avatar-wrap">
@@ -227,6 +228,7 @@ function doTrainStop() {
             </div>
         </div>
         <div class="player-card2" id="card2v_2">
+            <button class="delegate-btn" id="delegateBtn2" onclick="toggleDelegate(2)">🤖 托管</button>
             <button class="tank-btn" id="tankBtn2" onclick="toggleTank(2)">🛡 抗伤</button>
             <div class="card-inner">
                 <div class="char-avatar-wrap">
@@ -270,6 +272,7 @@ function doTrainStop() {
         <div class="team-col">
             <div class="team-header rebel">🔴 REBEL 队</div>
         <div class="player-card2" id="card2v_1">
+            <button class="delegate-btn" id="delegateBtn1" onclick="toggleDelegate(1)">🤖 托管</button>
             <button class="tank-btn" id="tankBtn1" onclick="toggleTank(1)">🛡 抗伤</button>
             <div class="card-inner">
                 <div class="char-avatar-wrap">
@@ -302,6 +305,7 @@ function doTrainStop() {
             </div>
         </div>
         <div class="player-card2" id="card2v_3">
+            <button class="delegate-btn" id="delegateBtn3" onclick="toggleDelegate(3)">🤖 托管</button>
             <button class="tank-btn" id="tankBtn3" onclick="toggleTank(3)">🛡 抗伤</button>
             <div class="card-inner">
                 <div class="char-avatar-wrap">
@@ -652,6 +656,7 @@ function onCtrlChange(e) {
     updateAiModelVisibility(charIdx);
     if (window.ONLINE) ONLINE.charControl[charIdx] = ctrlVal;
     if (window.AI && AI.refreshControlled) AI.refreshControlled();
+    if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
     // 所有联机玩家修改后广播给其他人；同时同步完整大厅配置，避免新加入/不同窗口选角分叉。
     if (ONLINE && NET.roomState != null) {
         NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal });
@@ -743,6 +748,7 @@ function applyLobbyConfig2(config) {
                 }
             }
             if (window.AI && AI.refreshControlled) AI.refreshControlled();
+            if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
         }
 
         if (config.formation) {
@@ -848,6 +854,7 @@ NET.onRemoteAction = function(payload, fromSlot, seq, actionId) {
             var ctrlVal = payload.controller === 'AI' ? 'AI' : parseInt(payload.controller);
             ONLINE.charControl[payload.charIdx] = ctrlVal;
             if (window.AI) AI.refreshControlled();
+            if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
         }
         // 同步 UI 下拉框
         var sel = document.getElementById('ctrlSelect' + payload.charIdx);
