@@ -215,6 +215,16 @@
     gap: 10px;
   }
   .ch-icon { font-size: 28px; line-height: 1; }
+  .ch-avatar-img {
+    width: 54px;
+    height: 54px;
+    object-fit: cover;
+    object-position: top;
+    border-radius: 9px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    background: #f5f5f5;
+  }
   .ch-meta { flex: 1; }
   .ch-name { font-size: 15px; font-weight: 800; }
   .ch-tag  {
@@ -578,7 +588,7 @@
       </div>
       <div class="combo-card">
         <div class="cc-head">【9,9】爆发</div>
-        <div class="cc-body">巨额物理伤害，场上 3 的倍数越多，伤害越高</div>
+        <div class="cc-body"><b>基础 50 点物理伤害</b>，场上 3 的倍数越多，伤害越高</div>
       </div>
       <div class="combo-card">
         <div class="cc-head">【0,0】真实伤害</div>
@@ -592,7 +602,7 @@
     <div class="combo-grid">
       <div class="combo-card">
         <div class="cc-head">【0,1】/【0,5】/【0,8】/【0,9】</div>
-        <div class="cc-body"><b>40 点物理伤害</b></div>
+        <div class="cc-body"><b>50 点物理伤害</b></div>
       </div>
       <div class="combo-card">
         <div class="cc-head">【0,2】/【0,3】</div>
@@ -655,8 +665,8 @@
       <div class="badge poison">☠️ 毒伤（法术）<br><small style="font-weight:400">中毒每层每回合扣 10</small></div>
     </div>
     <p style="margin-top:14px;font-size:13px;color:var(--sub)">
-      护盾也分类型：<b>物理盾</b>只挡物伤，<b>法术盾</b>只挡法伤，<b>物法盾</b>两种都挡，<b>真实盾</b>挡真伤。
-      护盾剩余回合短的优先消耗，每回合流逝一次。
+      护盾也分类型：<b>物理盾</b>只挡物伤，<b>法术盾</b>只挡法伤，<b>物法盾</b>两种都挡，<b>真实盾</b>挡真伤；功夫熊猫的<b>金刚罩</b>是独立承伤系统，不算普通护盾。
+      护盾剩余回合短的优先消耗，每回合流逝一次；普通护盾之后落到本体 / 金刚罩上的伤害，通常都算“实际打中”。
     </p>
   </div>
 
@@ -697,7 +707,7 @@
     <!-- 小乔 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🌸</div>
+        <img class="ch-avatar-img" src="image/小乔.png" alt="小乔">
         <div class="ch-meta">
           <div class="ch-name">小乔</div>
           <span class="ch-tag tag-half">半肉</span>
@@ -707,19 +717,19 @@
       <div class="ch-body">
         <ul>
           <li>物理伤害 × 1.5，回血量 × 1.5</li>
-          <li>打人时，<b>自己也回等量的血</b></li>
-          <li>回血时，<b>对敌人造成等量物伤</b></li>
+          <li>造成物伤后，按普通护盾之后<b>实际落到本体 / 金刚罩的伤害</b>获得补给</li>
+          <li>回血时，对敌人造成<b>等量物伤</b>；这段反伤不再二次吃小乔自己的物伤倍率</li>
           <li>护盾全部升级为物法盾，更厚更耐</li>
           <li>0 可以多停留 1 回合</li>
         </ul>
-        <div class="ch-note">💡 攻防一体，打人就是治自己，治自己就是打人</div>
+        <div class="ch-note">💡 攻防一体，但补给看“打进承伤系统”的伤害，不看金刚罩是否溢出作废</div>
       </div>
     </div>
 
     <!-- 藏师 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🛡️</div>
+        <img class="ch-avatar-img" src="image/藏师.png" alt="藏师">
         <div class="ch-meta">
           <div class="ch-name">藏师</div>
           <span class="ch-tag tag-tank">坦克</span>
@@ -740,7 +750,7 @@
     <!-- 法师 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">⚡</div>
+        <img class="ch-avatar-img" src="image/法师.png" alt="法师">
         <div class="ch-meta">
           <div class="ch-name">法师</div>
           <span class="ch-tag tag-burst">刺杀</span>
@@ -749,7 +759,7 @@
       </div>
       <div class="ch-body">
         <ul>
-          <li>触发 0 组合攻击时：<b>物伤翻倍 + 额外 45 法伤</b>，并给对方附 1 层<b>雷霆之怒</b></li>
+          <li>触发 0 组合攻击时：<b>物伤翻倍 + 额外 50 法伤</b>，并给对方附 1 层<b>雷霆之怒</b></li>
           <li>带有雷霆之怒的人行动结束时，手上的偶数（2/4/6/8）越多，扣血越多</li>
           <li>雷霆造成伤害时，<b>法师同等回血</b></li>
         </ul>
@@ -760,7 +770,7 @@
     <!-- 孙悟空 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🐒</div>
+        <img class="ch-avatar-img" src="image/孙悟空.png" alt="孙悟空">
         <div class="ch-meta">
           <div class="ch-name">孙悟空</div>
           <span class="ch-tag tag-half">半肉</span>
@@ -780,7 +790,7 @@
     <!-- 大乔 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🌺</div>
+        <img class="ch-avatar-img" src="image/大乔.png" alt="大乔">
         <div class="ch-meta">
           <div class="ch-name">大乔</div>
           <span class="ch-tag tag-queen">天后</span>
@@ -801,7 +811,7 @@
     <!-- 忍者 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🥷</div>
+        <img class="ch-avatar-img" src="image/忍者.png" alt="忍者">
         <div class="ch-meta">
           <div class="ch-name">忍者</div>
           <span class="ch-tag tag-half">半肉</span>
@@ -822,7 +832,7 @@
     <!-- 张飞 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🐗</div>
+        <img class="ch-avatar-img" src="image/张飞.png" alt="张飞">
         <div class="ch-meta">
           <div class="ch-name">张飞</div>
           <span class="ch-tag tag-tank">坦克</span>
@@ -843,7 +853,7 @@
     <!-- 阴阳师 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">☯️</div>
+        <img class="ch-avatar-img" src="image/阴阳师.png" alt="阴阳师">
         <div class="ch-meta">
           <div class="ch-name">阴阳师</div>
           <span class="ch-tag tag-half">半肉</span>
@@ -855,16 +865,17 @@
           <li><b>阴模态</b>：输出 × 3.5，但回血全转成对敌人的伤害</li>
           <li><b>阳模态</b>：所有伤害转成对自己的回血，回血 × 3.5</li>
           <li><b>人模态</b>（默认）：1/4 物法免伤，输出 × 0.5，回血 × 1.5</li>
-          <li>切换阴/阳时产生特殊护盾作为缓冲</li>
+          <li>切回人时：回复特殊盾剩余值的一半，并获得等量物理盾，基础持续 2 回合</li>
+          <li>人形态每过一个自己的回合：现有所有物理盾 <b>+15 厚度、+1 回合</b>，可继续吃坦脆流坦克护盾加成</li>
         </ul>
-        <div class="ch-note">💡 血多切阴爆发，血少切阳回血，节奏把握是关键</div>
+        <div class="ch-note">💡 阴阳爆发，人形态养盾；拖得越久，物理盾越厚</div>
       </div>
     </div>
 
     <!-- 鸦眼 -->
     <div class="char-card">
       <div class="ch-head">
-        <div class="ch-icon">🦅</div>
+        <img class="ch-avatar-img" src="image/鸦眼.png" alt="鸦眼">
         <div class="ch-meta">
           <div class="ch-name">鸦眼</div>
           <span class="ch-tag tag-burst">刺杀</span>
@@ -873,11 +884,56 @@
       </div>
       <div class="ch-body">
         <ul>
-          <li>主动释放<b>乌鸦诅咒</b>（自扣 40 血）：给对方施加 buff，让所有打到他的伤害都增加，鸦眼同步回血</li>
+          <li>主动释放<b>乌鸦诅咒</b>（自扣 40 血）：可给敌方或己方阵营施加乌鸦 buff；某阵营已有乌鸦 buff 时，不能重复给该阵营添加</li>
+          <li>乌鸦 buff 跟随鸦眼自己的行动节奏：释放后下一次鸦眼行动仍在，下下次鸦眼行动开始移除并允许重新释放</li>
           <li>开启<b>灼燃箭</b>：攻击时造成额外法伤（基于双手和差），但攻击后自扣 60 血</li>
           <li>消耗 6 个乌鸦激活<b>魔王剑</b>：伤害大幅提升，但行动后自扣 150 血</li>
         </ul>
-        <div class="ch-note">💡 高风险高回报，每次行动都是豪赌</div>
+        <div class="ch-note">💡 可给己方挂乌鸦来加速叠鸦，但别忘了这是高风险赌命流</div>
+      </div>
+    </div>
+
+
+    <!-- 赵云 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <img class="ch-avatar-img" src="image/赵云.png" alt="赵云">
+        <div class="ch-meta">
+          <div class="ch-name">赵云</div>
+          <span class="ch-tag tag-half">半肉</span>
+          <div class="ch-hp">成长型半肉</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>追踪并利用成长值 <b>x / y</b>，适合作为持续作战位</li>
+          <li>x / y 可以在战斗中叠高，但如果连续 3 个自己的回合没有更新，且数值 &gt; 50，就会回落到 50</li>
+          <li>攻击廉价、节奏灵活，但需要不断更新成长值，不能永久囤着超高爆发</li>
+        </ul>
+        <div class="ch-note">💡 赵云现在更吃节奏维护：叠得高可以爆发，断档太久就会衰减</div>
+      </div>
+    </div>
+
+    <!-- 功夫熊猫 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <img class="ch-avatar-img" src="image/功夫熊猫.png" alt="功夫熊猫">
+        <div class="ch-meta">
+          <div class="ch-name">功夫熊猫</div>
+          <span class="ch-tag tag-tank">坦克</span>
+          <div class="ch-hp">HP 230 + 开局 150 金刚罩</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>拥有独立的<b>金刚罩</b>，可抵挡物理 / 法术 / 真实伤害；真伤打罩时按 ×1.5 扣罩</li>
+          <li>可随时选择最多 4 个抗伤单位：本体 / 金刚罩；蓝色表示参与抗伤，白色表示不参与</li>
+          <li>普通护盾结算后，剩余伤害由选中的抗伤单位<b>平均分摊</b>；金刚罩溢出伤害作废，不转移给本体或其他罩</li>
+          <li>自己回合可扣 110 HP 获得 70HP 金刚罩，最多 7 个；回血流 / 回盾流只有自己行动时可切换</li>
+          <li><b>回血流</b>：本体回复随金刚罩数量变化；回血时所有金刚罩共同分配固定 60 点补给修复；物理盾更强，物伤降低但打人补给</li>
+          <li><b>回盾流</b>：回复时修复所有金刚罩，物理伤害 ×2</li>
+        </ul>
+        <div class="ch-note">💡 把伤害摊给多个单位，或牺牲一个薄罩吃掉爆发，是熊猫的核心操作</div>
       </div>
     </div>
 
@@ -910,7 +966,7 @@
         <li>指定一人为<b>坦克</b>，另一人为脆皮</li>
         <li>脆皮只能打对方坦克</li>
         <li>坦克可自由选择攻击目标</li>
-        <li>坦克获得永久回血和护盾加强</li>
+        <li>坦克回血 ×1.5；获得任意护盾时，额外获得等量一半的物理盾（同回合数）</li>
       </ul>
     </div>
   </div>
@@ -918,9 +974,9 @@
   <div class="card">
     <h3>🤝 帮抗机制</h3>
     <p style="font-size:14px;color:var(--sub)">
-      队友即将被一击打死时，弹窗询问你是否<b>帮抗</b>。
-      帮抗后你承受本次全部伤害 × 1.5，但队友完全不受伤。
-      如果帮抗后你也会死，弹窗不出现。倒计时 10 秒，超时视为放弃。
+      队友受到<b>任何来源的单次伤害</b>而即将死亡时，都会检查是否可以帮抗：普通攻击、蛋糕、毒伤、反弹、雷霆之怒、张飞打两人等都包含在内。
+      只有在你承受本次伤害 × 1.5 后仍能存活时，才会弹窗询问是否帮抗；帮抗成功后队友回到这笔伤害前的状态，完全不受本次伤害。
+      如果帮抗会导致你死亡，弹窗不出现，队友直接承受本次伤害。倒计时 10 秒，超时视为放弃。
     </p>
   </div>
 
@@ -948,7 +1004,7 @@
 
 </main>
 
-<footer>指尖博弈 · 新手指南 — 版本随游戏更新</footer>
+<footer>指尖博弈 · 新手指南 — 版本随游戏更新 · 已同步帮抗 / 熊猫 / 鸦眼 / 阴阳师 / 赵云更新</footer>
 
 </body>
 </html>
