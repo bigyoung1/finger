@@ -48,6 +48,10 @@ class YinYangShi extends Player {
     // 套娃保护：阳模态"物伤→回复"路径中，不能再触发自身回复倍率
     private var _inYangDmgConvert:Bool = false;
 
+    // 切回人时由特殊护盾转成的物理盾，不立刻吃“人形态物理盾+15/+1”强化。
+    // 它要等到下一次自己行动开始、仍处于人形态时，才通过 strengthenHumanPhysicalShields() 强化。
+    private var _suppressHumanShieldBoost:Bool = false;
+
     public function new(id:String, name:String, camp:Camp) {
         super(id, name, 240, camp);
     }
@@ -72,7 +76,7 @@ class YinYangShi extends Player {
     // 人模态：物理护盾强化（给阴阳师一个坦克选择）
     // ─────────────────────────────────────────────────────────────
     override public function addShield(type:ShieldType, amount:Int, duration:Int) {
-        if (modal == "ren" && type == ShieldType.PHYSICAL && amount > 0) {
+        if (!_suppressHumanShieldBoost && modal == "ren" && type == ShieldType.PHYSICAL && amount > 0) {
             var boosted = amount + 15;
             var boostedDuration = duration + 1;
             trace('☯️ 阴阳师【人】强化物理护盾：${amount}/${duration}回合 → ${boosted}/${boostedDuration}回合。');
@@ -156,8 +160,11 @@ class YinYangShi extends Player {
                 engine.applyRawHeal(this, healAmount, RECOVERY, false);
             }
             if (shieldBefore > 0) {
-                // 此时已处于人模态，会吃到“物理盾+15、持续+1”的强化；若是坦脆流坦克，还会获得额外一半物理盾。
+                // 切回人这一瞬间只做“特殊盾→物理盾”的基础转换，不吃人形态的 +15/+1。
+                // 若是坦脆流坦克，仍会按阵型规则基于实际新增护盾额外获得一半物理盾。
+                _suppressHumanShieldBoost = true;
                 engine.applyShield(this, ShieldType.PHYSICAL, shieldBefore, 2, true);
+                _suppressHumanShieldBoost = false;
             }
             return "切换成功";
         }

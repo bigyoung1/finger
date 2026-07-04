@@ -3515,6 +3515,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 var character_YinYangShi = function(id,name,camp) {
 	this._pendingYinBase = 0;
 	this._pendingYangBase = 0;
+	this._suppressHumanShieldBoost = false;
 	this._inYangDmgConvert = false;
 	this._inYinHealConvert = false;
 	this.hasSwappedThisTurn = false;
@@ -3554,10 +3555,10 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		}
 	}
 	,addShield: function(type,amount,duration) {
-		if(this.modal == "ren" && type == model_ShieldType.PHYSICAL && amount > 0) {
+		if(!this._suppressHumanShieldBoost && this.modal == "ren" && type == model_ShieldType.PHYSICAL && amount > 0) {
 			var boosted = amount + 15;
 			var boostedDuration = duration + 1;
-			haxe_Log.trace("☯️ 阴阳师【人】强化物理护盾：" + amount + "/" + duration + "回合 → " + boosted + "/" + boostedDuration + "回合。",{ fileName : "./character/YinYangShi.hx", lineNumber : 78, className : "character.YinYangShi", methodName : "addShield"});
+			haxe_Log.trace("☯️ 阴阳师【人】强化物理护盾：" + amount + "/" + duration + "回合 → " + boosted + "/" + boostedDuration + "回合。",{ fileName : "./character/YinYangShi.hx", lineNumber : 82, className : "character.YinYangShi", methodName : "addShield"});
 			model_Player.prototype.addShield.call(this,type,boosted,boostedDuration);
 			return;
 		}
@@ -3583,7 +3584,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			}
 		}
 		if(changed) {
-			haxe_Log.trace("☯️ 人模态抗伤修行：现有所有物理盾 +15 厚度、+1 回合。",{ fileName : "./character/YinYangShi.hx", lineNumber : 97, className : "character.YinYangShi", methodName : "strengthenHumanPhysicalShields"});
+			haxe_Log.trace("☯️ 人模态抗伤修行：现有所有物理盾 +15 厚度、+1 回合。",{ fileName : "./character/YinYangShi.hx", lineNumber : 101, className : "character.YinYangShi", methodName : "strengthenHumanPhysicalShields"});
 		}
 	}
 	,switchModal: function(newModal,engine) {
@@ -3606,17 +3607,17 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			if(shieldBefore == 0) {
 				var enemies = this.countEnemies();
 				var extraPenalty = 25 * enemies;
-				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾已为0，额外惩罚 " + extraPenalty + " 点物伤（25×敌人数" + enemies + "）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 123, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾已为0，额外惩罚 " + extraPenalty + " 点物伤（25×敌人数" + enemies + "）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 127, className : "character.YinYangShi", methodName : "switchModal"});
 				var result = this.handleIncomingDamage(null,extraPenalty,model_DamageType.PHYSICAL);
-				haxe_Log.trace("☯️ 互切惩罚实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 125, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 互切惩罚实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 129, className : "character.YinYangShi", methodName : "switchModal"});
 			} else {
-				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾 " + shieldBefore + " 归零，自身受到 " + penalty + " 点物伤。",{ fileName : "./character/YinYangShi.hx", lineNumber : 127, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾 " + shieldBefore + " 归零，自身受到 " + penalty + " 点物伤。",{ fileName : "./character/YinYangShi.hx", lineNumber : 131, className : "character.YinYangShi", methodName : "switchModal"});
 				if(penalty > 0) {
 					var result = this.handleIncomingDamage(null,penalty,model_DamageType.PHYSICAL);
-					haxe_Log.trace("☯️ 互切自伤实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 130, className : "character.YinYangShi", methodName : "switchModal"});
+					haxe_Log.trace("☯️ 互切自伤实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 134, className : "character.YinYangShi", methodName : "switchModal"});
 				}
 			}
-			haxe_Log.trace("☯️ 切换至【" + (newModal == "yin" ? "阴" : "阳") + "】模态。",{ fileName : "./character/YinYangShi.hx", lineNumber : 133, className : "character.YinYangShi", methodName : "switchModal"});
+			haxe_Log.trace("☯️ 切换至【" + (newModal == "yin" ? "阴" : "阳") + "】模态。",{ fileName : "./character/YinYangShi.hx", lineNumber : 137, className : "character.YinYangShi", methodName : "switchModal"});
 			return "切换成功";
 		}
 		if(oldModal == "ren" && (newModal == "yin" || newModal == "yang")) {
@@ -3624,7 +3625,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var enemies = this.countEnemies();
 			var shieldAmount = 25 * enemies;
 			this.specialShield = shieldAmount;
-			haxe_Log.trace("☯️ 人→" + (newModal == "yin" ? "阴" : "阳") + "！获得特殊物法护盾 " + shieldAmount + "（敌人数 " + enemies + "×25）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 143, className : "character.YinYangShi", methodName : "switchModal"});
+			haxe_Log.trace("☯️ 人→" + (newModal == "yin" ? "阴" : "阳") + "！获得特殊物法护盾 " + shieldAmount + "（敌人数 " + enemies + "×25）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 147, className : "character.YinYangShi", methodName : "switchModal"});
 			return "切换成功";
 		}
 		if((oldModal == "yin" || oldModal == "yang") && newModal == "ren") {
@@ -3632,12 +3633,14 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var healAmount = shieldBefore / 2 | 0;
 			this.specialShield = 0;
 			this.modal = newModal;
-			haxe_Log.trace("☯️ " + (oldModal == "yin" ? "阴" : "阳") + "→人！特殊护盾 " + shieldBefore + " 清空，回复 " + healAmount + " 血，并转化为 " + shieldBefore + " 点2回合物理护盾。",{ fileName : "./character/YinYangShi.hx", lineNumber : 153, className : "character.YinYangShi", methodName : "switchModal"});
+			haxe_Log.trace("☯️ " + (oldModal == "yin" ? "阴" : "阳") + "→人！特殊护盾 " + shieldBefore + " 清空，回复 " + healAmount + " 血，并转化为 " + shieldBefore + " 点2回合物理护盾。",{ fileName : "./character/YinYangShi.hx", lineNumber : 157, className : "character.YinYangShi", methodName : "switchModal"});
 			if(healAmount > 0) {
 				engine.applyRawHeal(this,healAmount,model_HealType.RECOVERY,false);
 			}
 			if(shieldBefore > 0) {
+				this._suppressHumanShieldBoost = true;
 				engine.applyShield(this,model_ShieldType.PHYSICAL,shieldBefore,2,true);
+				this._suppressHumanShieldBoost = false;
 			}
 			return "切换成功";
 		}
@@ -3651,7 +3654,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var decay = 10 * enemies;
 			if(this.specialShield > 0) {
 				this.specialShield = Math.max(0,this.specialShield - decay) | 0;
-				haxe_Log.trace("☯️ 阴阳师特殊护盾衰减 " + decay + "（敌人×10），剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 189, className : "character.YinYangShi", methodName : "shouldSkipZeroTurnsDecrement"});
+				haxe_Log.trace("☯️ 阴阳师特殊护盾衰减 " + decay + "（敌人×10），剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 196, className : "character.YinYangShi", methodName : "shouldSkipZeroTurnsDecrement"});
 			}
 		} else if(this.modal == "ren") {
 			this.strengthenHumanPhysicalShields();
@@ -3662,12 +3665,12 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		var inputAmount = amount;
 		if(this.modal == "yin" || this.modal == "yang") {
 			var boosted = amount * 1.5 | 0;
-			haxe_Log.trace("☯️ 阴阳师【" + (this.modal == "yin" ? "阴" : "阳") + "】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + boosted + "（×1.5）",{ fileName : "./character/YinYangShi.hx", lineNumber : 207, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+			haxe_Log.trace("☯️ 阴阳师【" + (this.modal == "yin" ? "阴" : "阳") + "】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + boosted + "（×1.5）",{ fileName : "./character/YinYangShi.hx", lineNumber : 214, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 			inputAmount = boosted;
 		} else if(this.modal == "ren") {
 			if(dmgType == model_DamageType.PHYSICAL || dmgType == model_DamageType.MAGIC || dmgType == model_DamageType.TRUE) {
 				var reduced = amount * 3 / 4 | 0;
-				haxe_Log.trace("☯️ 阴阳师【人】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + reduced + "（物法真伤减少1/4）",{ fileName : "./character/YinYangShi.hx", lineNumber : 213, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+				haxe_Log.trace("☯️ 阴阳师【人】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + reduced + "（物法真伤减少1/4）",{ fileName : "./character/YinYangShi.hx", lineNumber : 220, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 				inputAmount = reduced;
 			}
 		}
@@ -3675,7 +3678,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var absorbed = Math.min(this.specialShield,inputAmount) | 0;
 			this.specialShield -= absorbed;
 			inputAmount -= absorbed;
-			haxe_Log.trace("☯️ 特殊护盾抵挡 " + absorbed + " 点伤害，剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 223, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+			haxe_Log.trace("☯️ 特殊护盾抵挡 " + absorbed + " 点伤害，剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 230, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 		}
 		return model_Player.prototype.handleIncomingDamage.call(this,attacker,inputAmount,dmgType);
 	}
@@ -3686,15 +3689,15 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		switch(this.modal) {
 		case "ren":
 			var halved = baseAmount * 0.5 | 0;
-			haxe_Log.trace("☯️ 人模态输出 ×0.5：" + baseAmount + " → " + halved,{ fileName : "./character/YinYangShi.hx", lineNumber : 250, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 人模态输出 ×0.5：" + baseAmount + " → " + halved,{ fileName : "./character/YinYangShi.hx", lineNumber : 257, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return halved;
 		case "yang":
 			this._pendingYangBase = baseAmount;
-			haxe_Log.trace("☯️ 阳模态：伤害将转为回复，输出置0（基础值 " + baseAmount + " 将×3.5回复）",{ fileName : "./character/YinYangShi.hx", lineNumber : 246, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 阳模态：伤害将转为回复，输出置0（基础值 " + baseAmount + " 将×3.5回复）",{ fileName : "./character/YinYangShi.hx", lineNumber : 253, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return 0;
 		case "yin":
 			var boosted = baseAmount * 3.5 | 0;
-			haxe_Log.trace("☯️ 阴模态输出 ×3.5：" + baseAmount + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 241, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 阴模态输出 ×3.5：" + baseAmount + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 248, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return boosted;
 		default:
 			return baseAmount;
@@ -3708,16 +3711,16 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		case "ren":
 			var base2 = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
 			var boosted2 = Math.ceil(base2 * 1.5);
-			haxe_Log.trace("☯️ 人模态回复 ×1.5：" + base2 + " → " + boosted2,{ fileName : "./character/YinYangShi.hx", lineNumber : 279, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 人模态回复 ×1.5：" + base2 + " → " + boosted2,{ fileName : "./character/YinYangShi.hx", lineNumber : 286, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return boosted2;
 		case "yang":
 			var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
 			var boosted = Math.ceil(base * 3.5);
-			haxe_Log.trace("☯️ 阳模态回复 ×3.5：" + base + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 274, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 阳模态回复 ×3.5：" + base + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 281, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return boosted;
 		case "yin":
 			this._pendingYinBase = baseAmount;
-			haxe_Log.trace("☯️ 阴模态：回复将转为物伤，拦截为0（基础值 " + baseAmount + " 将×3.5转为物伤）",{ fileName : "./character/YinYangShi.hx", lineNumber : 269, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 阴模态：回复将转为物伤，拦截为0（基础值 " + baseAmount + " 将×3.5转为物伤）",{ fileName : "./character/YinYangShi.hx", lineNumber : 276, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return 0;
 		default:
 			return model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
@@ -3729,7 +3732,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		}
 		if(this.modal == "yang" && this._pendingYangBase > 0) {
 			var healAmount = this._pendingYangBase * 3.5 | 0;
-			haxe_Log.trace("☯️ 阳模态：本次「基础」伤害 " + this._pendingYangBase + " × 3.5 = " + healAmount + "，转为回复！",{ fileName : "./character/YinYangShi.hx", lineNumber : 293, className : "character.YinYangShi", methodName : "onAfterDealtDamage"});
+			haxe_Log.trace("☯️ 阳模态：本次「基础」伤害 " + this._pendingYangBase + " × 3.5 = " + healAmount + "，转为回复！",{ fileName : "./character/YinYangShi.hx", lineNumber : 300, className : "character.YinYangShi", methodName : "onAfterDealtDamage"});
 			this._pendingYangBase = 0;
 			this._inYangDmgConvert = true;
 			engine.applyRawHeal(this,healAmount,model_HealType.RECOVERY,false);
@@ -3746,7 +3749,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var dmgAmount = this._pendingYinBase * 3.5 | 0;
 			var enemy = engine.findEnemyTarget(this);
 			if(enemy != null) {
-				haxe_Log.trace("☯️ 阴模态：本次「基础」回复 " + this._pendingYinBase + " × 3.5 = " + dmgAmount + "，转为物伤！",{ fileName : "./character/YinYangShi.hx", lineNumber : 312, className : "character.YinYangShi", methodName : "onAfterHeal"});
+				haxe_Log.trace("☯️ 阴模态：本次「基础」回复 " + this._pendingYinBase + " × 3.5 = " + dmgAmount + "，转为物伤！",{ fileName : "./character/YinYangShi.hx", lineNumber : 319, className : "character.YinYangShi", methodName : "onAfterHeal"});
 				this._pendingYinBase = 0;
 				this._inYinHealConvert = true;
 				engine.applyRawDamage(this,enemy,dmgAmount,model_DamageType.PHYSICAL);
