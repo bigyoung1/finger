@@ -27,10 +27,76 @@ class YaYan extends Player {
     @:keep public var crowCount:Int = 0;
     @:keep public var useBurningArrow:Bool = false;
     @:keep public var useDemonSword:Bool = false;
+    // 乌鸦诅咒现在允许敌我两边各挂一组；每个 CrowBuff 自带剩余行动计数，按鸦眼自己的行动开始衰减。
+    @:keep public var crowCurseTurns:Int = 0; // 兼容旧存档/旧JS读取，不再作为施法冷却
     private var _inSkillEffect:Bool = false;
 
     public function new(id:String, name:String, camp:Camp) {
         super(id, name, 140, camp);
+    }
+
+    private function isTargetCampMember(p:Player, targetCamp:String):Bool {
+        if (p == null) return false;
+        return (targetCamp == 'enemy') ? (p.camp != this.camp) : (p.camp == this.camp);
+    }
+
+    private function campHasCrowBuff(engine:GameEngine, targetCamp:String):Bool {
+        if (engine == null || engine.turnManager == null) return false;
+        for (p in engine.turnManager.players) {
+            if (p == null || p.hp <= 0 || !isTargetCampMember(p, targetCamp)) continue;
+            for (b in p.buffList) {
+                if (Std.isOfType(b, buffs.CrowBuff)) return true;
+            }
+        }
+        return false;
+    }
+
+    private function hasAvailableCrowCurseCamp(engine:GameEngine):Bool {
+        return !campHasCrowBuff(engine, 'enemy') || !campHasCrowBuff(engine, 'ally');
+    }
+
+    private function countOwnedCrowBuffs(engine:GameEngine):Int {
+        if (engine == null || engine.turnManager == null) return 0;
+        var count = 0;
+        for (p in engine.turnManager.players) {
+            if (p == null || p.hp <= 0) continue;
+            for (b in p.buffList) {
+                if (Std.isOfType(b, buffs.CrowBuff) && cast(b, buffs.CrowBuff).isOwnedBy(this)) count++;
+            }
+        }
+        return count;
+    }
+
+    private function tickOwnedCrowBuffs(engine:GameEngine):Void {
+        if (engine == null || engine.turnManager == null) return;
+        var removed = false;
+        var still = false;
+        for (p in engine.turnManager.players) {
+            if (p == null) continue;
+            var i = p.buffList.length - 1;
+            while (i >= 0) {
+                var b = p.buffList[i];
+                if (Std.isOfType(b, buffs.CrowBuff) && cast(b, buffs.CrowBuff).isOwnedBy(this)) {
+                    var cb = cast(b, buffs.CrowBuff);
+                    cb.duration--;
+                    if (cb.duration <= 0) {
+                        p.buffList.splice(i, 1);
+                        removed = true;
+                        trace('🦅 乌鸦诅咒随鸦眼行动节奏结束 → 从 ${p.name} 移除');
+                    } else {
+                        still = true;
+                    }
+                }
+                i--;
+            }
+        }
+        crowCurseTurns = still ? 1 : 0;
+        if (removed) trace('🦅 乌鸦诅咒有一组结束；没有乌鸦buff的阵营现在可重新施加');
+    }
+
+    override public function shouldSkipZeroTurnsDecrement():Bool {
+        tickOwnedCrowBuffs(GameEngine.instance);
+        return false;
     }
 
     // ── 攻击后：灼燃箭法伤 + 自扣 ──
@@ -73,6 +139,8 @@ class YaYan extends Player {
     // ── UI 显示 ──
     override public function getCustomDisplay():String {
         var s = '🦅 乌鸦：${crowCount} 只';
+        var ownedBuffs = countOwnedCrowBuffs(GameEngine.instance);
+        if (ownedBuffs > 0) s += ' | 🐦诅咒持续中×' + ownedBuffs;
         if (useBurningArrow) s += ' | 🔥灼燃';
         if (useDemonSword) s += ' | ⚔️魔王';
         return s;
@@ -83,7 +151,7 @@ class YaYan extends Player {
             {
                 label: '🐦 乌鸦诅咒（-40血）',
                 color: '#722ed1',
-                enabled: this.hp > 40,
+                enabled: this.hp > 40 && hasAvailableCrowCurseCamp(GameEngine.instance),
                 onClickJS: "showCrowCurseDialog(__IDX__); render2();"
             },
             {
@@ -108,24 +176,22 @@ class YaYan extends Player {
                 // params.camp: 'enemy' | 'ally'（含自身）
                 if (this.hp <= 40) return '错误：HP不足（需>40血）';
                 var targetCamp:String = (params != null && params.camp != null) ? params.camp : 'enemy';
+                if (targetCamp != 'enemy' && targetCamp != 'ally') targetCamp = 'enemy';
+                if (campHasCrowBuff(engine, targetCamp)) {
+                    return targetCamp == 'enemy'
+                        ? '错误：敌方阵营已有乌鸦诅咒，不能重复添加'
+                        : '错误：己方阵营已有乌鸦诅咒，不能重复添加';
+                }
                 this.hp -= 40;
                 trace('🦅 鸦眼释放乌鸦诅咒！自扣40血（剩${this.hp}），目标：${targetCamp}');
                 if (engine.turnManager != null) {
                     for (p in engine.turnManager.players) {
-                        if (p.hp <= 0) continue;
-                        var isEnemy = (p.camp != this.camp);
-                        var isAlly  = (p.camp == this.camp);
-                        var include = (targetCamp == 'enemy') ? isEnemy : isAlly;
-                        if (!include) continue;
-                        // 移除旧buff（不叠加）
-                        var old:buffs.CrowBuff = null;
-                        for (b in p.buffList) if (Std.isOfType(b, buffs.CrowBuff)) { old = cast b; break; }
-                        if (old != null) p.buffList.remove(old);
-                        // 施加新buff
+                        if (p.hp <= 0 || !isTargetCampMember(p, targetCamp)) continue;
                         p.addBuff(new CrowBuff(2, this));
-                        trace('🦅 乌鸦诅咒 → ${p.name}（2回合）');
+                        trace('🦅 乌鸦诅咒 → ${p.name}（跟随鸦眼行动节奏）');
                     }
                 }
+                crowCurseTurns = countOwnedCrowBuffs(engine) > 0 ? 1 : 0;
                 return 'ok';
 
             case 'toggleBurningArrow':

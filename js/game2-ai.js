@@ -18,13 +18,13 @@
 //  providers: 'minimax' | 'deepseek' | 'qianfan'
 // ──────────────────────────────────────────────────
 var AI_MODEL_CONFIG = {
-    p0: 'deepseek',   // HERO 角色0
-    p1: 'deepseek',   // REBEL 角色1
-    p2: 'deepseek',   // HERO 角色2
-    p3: 'deepseek',   // REBEL 角色3
-    train_main:    'deepseek',  // 自战训练主力
-    train_reflect: 'deepseek',  // 自战复盘
-    reflect:       'deepseek',  // 玩家对战复盘
+    p0: 'qianfan',   // HERO 角色0
+    p1: 'qianfan',   // REBEL 角色1
+    p2: 'qianfan',   // HERO 角色2
+    p3: 'qianfan',   // REBEL 角色3
+    train_main:    'qianfan',  // 自战训练主力
+    train_reflect: 'qianfan',  // 自战复盘
+    reflect:       'qianfan',  // 玩家对战复盘
 };
 
 // 所有可选 provider
@@ -605,9 +605,14 @@ AI.collectSkillActions = function(actorIdx) {
             pushSkill('toggleDemonSword', {}, 300, '乌鸦足够，开启魔王剑', 'crowDemon');
         }
         const enemies = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p && p.hp > 0);
-        const enemyHasCrow = enemies.some(p => (p.buffList||[]).some(b => b.id === 'CROW' && b.layers > 0));
+        const allies  = players.filter((p,i) => campOf(i) === campOf(actorIdx) && p && p.hp > 0);
+        const hasCrow = ps => ps.some(p => (p.buffList||[]).some(b => b.id === 'CROW' && b.layers > 0));
+        const enemyHasCrow = hasCrow(enemies);
+        const allyHasCrow  = hasCrow(allies);
         if (!enemyHasCrow && actor.hp > 50) {
             pushSkill('crowCurseTarget', { camp: 'enemy' }, 230, '敌方无乌鸦诅咒，先挂诅咒', 'crowCurse');
+        } else if (!allyHasCrow && actor.hp > 50) {
+            pushSkill('crowCurseTarget', { camp: 'ally' }, 200, '己方无乌鸦诅咒，给己方挂诅咒加速叠乌鸦', 'crowCurse');
         }
     }
 
@@ -1258,11 +1263,16 @@ AI.decide.activeSkills = function(actorIdx) {
         // 魔王剑：乌鸦够6且灼燃开启且血量充足
         if (actor.useBurningArrow && actor.crowCount >= 6 && actor.hp > 180 && !actor.useDemonSword)
             invokeAction2(actorIdx, 'toggleDemonSword', {});
-        // 乌鸦诅咒：敌方没有乌鸦buff时主动施加（走 invokeAction 而非弹窗，因为自战时弹窗无人点）
+        // 乌鸦诅咒：敌方/己方各自最多一组；敌方优先，其次给己方挂以加速叠乌鸦
         const enemies = players.filter((p,i) => campOf(i) !== campOf(actorIdx) && p.hp > 0);
-        const enemyHasCrow = enemies.some(p => (p.buffList||[]).some(b=>b.id==='CROW'&&b.layers>0));
+        const allies  = players.filter((p,i) => campOf(i) === campOf(actorIdx) && p.hp > 0);
+        const hasCrow = ps => ps.some(p => (p.buffList||[]).some(b=>b.id==='CROW'&&b.layers>0));
+        const enemyHasCrow = hasCrow(enemies);
+        const allyHasCrow  = hasCrow(allies);
         if (!enemyHasCrow && actor.hp > 50)
             invokeAction2(actorIdx, 'crowCurseTarget', { camp: 'enemy' });
+        else if (!allyHasCrow && actor.hp > 50)
+            invokeAction2(actorIdx, 'crowCurseTarget', { camp: 'ally' });
     }
 
     if (name === '张飞') {

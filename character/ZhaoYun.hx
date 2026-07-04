@@ -33,6 +33,8 @@ class ZhaoYun extends Player {
 
     @:keep public var x:Int = 20; // 物伤加成
     @:keep public var y:Int = 10; // 回血加成
+    private var xStaleTurns:Int = 0; // x 连续多少个自己的回合未更新
+    private var yStaleTurns:Int = 0; // y 连续多少个自己的回合未更新
 
     // x/y 上限：防止 [9,9] 等高基数组合一次性把联动值推到失控范围
     // （健康的连续单手/0组合连击不会触碰到这个上限，只在踩中爆发性组合时生效）
@@ -71,6 +73,7 @@ class ZhaoYun extends Player {
         var newY = Std.int(Math.min(Y_CAP, raw)); // 上限保护：防止高基数伤害把y推到失控范围
         trace('🐉 [赵云] 本次物理总输出 ${outputDamage}，y：${this.y} → ${newY}（输出/2，上限${Y_CAP}）');
         this.y = newY;
+        this.yStaleTurns = 0;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -94,6 +97,7 @@ class ZhaoYun extends Player {
         var newX = Std.int(Math.min(X_CAP, raw)); // 上限保护：防止高基数回血把x推到失控范围
         trace('🐉 [赵云] 本次总回血 ${amount}，x：${this.x} → ${newX}（总回血量，上限${X_CAP}）');
         this.x = newX;
+        this.xStaleTurns = 0;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -145,11 +149,40 @@ class ZhaoYun extends Player {
         }
     }
 
+
+    // ─────────────────────────────────────────────────────────────
+    // 衰减：x / y 若连续 3 个自己的回合没有被更新，且仍大于 50，则回落到 50。
+    // 防止偶发爆发把数值长期锁在 100+，导致低成本普攻持续超标。
+    // ─────────────────────────────────────────────────────────────
+    override public function onTurnEnd():Void {
+        super.onTurnEnd();
+        if (this.x > 50) {
+            this.xStaleTurns++;
+            if (this.xStaleTurns >= 3) {
+                trace('🐉 [赵云] x 三回合未更新，${this.x} → 50');
+                this.x = 50;
+                this.xStaleTurns = 0;
+            }
+        } else {
+            this.xStaleTurns = 0;
+        }
+        if (this.y > 50) {
+            this.yStaleTurns++;
+            if (this.yStaleTurns >= 3) {
+                trace('🐉 [赵云] y 三回合未更新，${this.y} → 50');
+                this.y = 50;
+                this.yStaleTurns = 0;
+            }
+        } else {
+            this.yStaleTurns = 0;
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // 自描述接口
     // ─────────────────────────────────────────────────────────────
     override public function getCustomDisplay():String {
-        return '🐉 x = <b>${x}</b>（物伤加成）| y = <b>${y}</b>（回血加成）';
+        return '🐉 x = <b>${x}</b>（物伤加成）| y = <b>${y}</b>（回血加成）| 未更新：x ${xStaleTurns}/3，y ${yStaleTurns}/3';
     }
 
     override public function getSnapshotExtras():Array<String> {

@@ -42,13 +42,27 @@ class GameEngine {
      * 队列为空时才回退到旧的 lastTouchDamageLog 逻辑。
      */
     @:keep public var pendingHelpTankEvents:Array<Dynamic> = [];
+    private var _lastConsumedHelpTankEvent:Dynamic = null;
+    public var suppressHelpTankAutoEvents:Bool = false;
 
     /**
      * 供 buff/角色调用：登记一笔可能致死的独立伤害（非 handleTouch 主线）。
      * JS 层轮询该队列处理帮抗，处理完后会清空。
      */
-    @:keep public function registerHelpTankEvent(victim:Player, attacker:Player, actualDamage:Int, type:DamageType, source:String):Void {
-        if (victim == null || actualDamage <= 0) return;
+    private function cloneShieldSnapshot(list:Array<ShieldInstance>):Array<ShieldInstance> {
+        var out:Array<ShieldInstance> = [];
+        if (list != null) {
+            for (s in list) out.push(new ShieldInstance(s.type, s.amount, s.duration));
+        }
+        return out;
+    }
+
+    @:keep public function registerHelpTankEvent(victim:Player, attacker:Player, penaltyBase:Int, type:DamageType, source:String, restoreHp:Null<Int> = null, restoreShields:Array<ShieldInstance> = null):Void {
+        if (victim == null || penaltyBase <= 0) return;
+        // 同一个受害者只保留第一条致死事件，避免 applyDamage 自动登记后角色钩子又手动登记导致重复弹窗。
+        for (e in pendingHelpTankEvents) {
+            if (e.victimName == victim.name) return;
+        }
         var typeStr = switch(type) {
             case PHYSICAL: "PHYSICAL";
             case MAGIC:    "MAGIC";
@@ -57,12 +71,23 @@ class GameEngine {
         pendingHelpTankEvents.push({
             victimName: victim.name,
             attackerName: attacker != null ? attacker.name : null,
-            amount: actualDamage,
+            amount: penaltyBase,
             damageType: type,
             damageTypeStr: typeStr,
-            source: source
+            source: source,
+            restoreHp: restoreHp,
+            restoreShields: restoreShields != null ? cloneShieldSnapshot(restoreShields) : null
         });
-        trace('🛡️ [帮抗事件登记] ${victim.name} 受到来自[${source}]的 ${actualDamage} 点${typeStr}伤害，已登记供帮抗判定。');
+        trace('🛡️ [帮抗事件登记] ${victim.name} 受到来自[${source}]的 ${penaltyBase} 点${typeStr}伤害，已登记供帮抗判定。');
+    }
+
+    @:keep public function maybeRegisterHelpTankEvent(victim:Player, attacker:Player, penaltyBase:Int, actualDamage:Int, type:DamageType, source:String, beforeHp:Int, beforeShields:Array<ShieldInstance>):Void {
+        if (suppressHelpTankAutoEvents) return;
+        if (victim == null || actualDamage <= 0 || penaltyBase <= 0) return;
+        if (beforeHp <= 0 || victim.hp > 0) return;
+        // handleTouch 主目标仍走 lastTouchDamageLog + snapshotHelpTankVictim，避免把一次碰手拆成多次事件。
+        if (_recordingDamage && victim == lastTouchDamageTarget) return;
+        registerHelpTankEvent(victim, attacker, penaltyBase, type, source, beforeHp, beforeShields);
     }
 
     /**
@@ -74,9 +99,11 @@ class GameEngine {
             var e = pendingHelpTankEvents[i];
             if (e.victimName == victimName) {
                 pendingHelpTankEvents.splice(i, 1);
+                _lastConsumedHelpTankEvent = e;
                 return e;
             }
         }
+        _lastConsumedHelpTankEvent = null;
         return null;
     }
 
@@ -85,6 +112,7 @@ class GameEngine {
      */
     @:keep public function clearHelpTankEvents():Void {
         pendingHelpTankEvents = [];
+        _lastConsumedHelpTankEvent = null;
     }
 
     public function new() {
@@ -290,7 +318,8 @@ class GameEngine {
      * 用途：钩子内部调用，防止套娃
      */
     public function applyRawDamage(actor:Player, target:Player, amount:Int, type:DamageType):DamageResult {
-        // 乌鸦buff加算：先算无乌鸦的actor输出，再算有乌鸦的，差值即为乌鸦贡献
+        // 乌鸦buff加算：raw 伤害仍可吃目标身上的乌鸦加算，
+        // 但绝不再走攻击者 calculateOutputDamage / DamageBoostBuff，避免小乔回血反伤等钩子套倍率。
         var crowExtra = 0;
         if (target != null) {
             for (b in target.buffList) {
@@ -300,11 +329,8 @@ class GameEngine {
                 }
             }
         }
-        // applyRawDamage 不走 calculateOutputDamage，但乌鸦的加算仍要体现乘算效果
-        // 用 actor.calculateOutputDamage 推算差值（与 applyDamage 逻辑对齐）
-        var baseOnlyFinal = (actor != null) ? actor.calculateOutputDamage(amount, type) : amount;
-        var finalAmount   = (actor != null) ? actor.calculateOutputDamage(amount + crowExtra, type) : (amount + crowExtra);
-        var crowHeal = finalAmount - baseOnlyFinal;
+        var finalAmount = amount + crowExtra;
+        var crowHeal = crowExtra;
 
         // 帮抗记录（与 applyDamage 对齐）：记录对 lastTouchDamageTarget 造成的输出伤害
         if (_recordingDamage && target == lastTouchDamageTarget) {
@@ -316,7 +342,12 @@ class GameEngine {
             lastTouchDamageLog.push({ type: type, outputAmount: finalAmount, typeName: tName });
         }
 
+        // raw 伤害进入目标减伤/护盾/金刚罩，但跳过攻击者侧增伤 Buff，防止二次倍率。
+        var oldSkipAttackerDealBuffs = _skipAttackerDealBuffs;
+        _skipAttackerDealBuffs = true;
         var result = target.handleIncomingDamage(actor, finalAmount, type);
+        _skipAttackerDealBuffs = oldSkipAttackerDealBuffs;
+
         if (crowHeal > 0 && target != null) {
             for (b in target.buffList) {
                 if (Std.isOfType(b, buffs.CrowBuff)) {
@@ -577,7 +608,7 @@ class GameEngine {
             case 9:
                 var count = countMultiplesOf3OnField();
                 var mult = Math.pow(1.5, count);
-                trace('💥 ${actor.name} 凑齐【双九】！场上有 ${count} 个3的倍数(不含0)，基础60×1.5^${count}=${Std.int(60*mult)}（乌鸦+20会先加再乘）');
+                trace('💥 ${actor.name} 凑齐【双九】！场上有 ${count} 个3的倍数(不含0)，基础50×1.5^${count}=${Std.int(50*mult)}（乌鸦+20会先加再乘）');
                 currentComboMultiplier = mult;
                 applyDamage(actor, dmgTarget, 50, PHYSICAL);
                 currentComboMultiplier = 1.0;
@@ -656,7 +687,7 @@ class GameEngine {
                 applyDamage(actor, dmgTarget, 10, PHYSICAL);
                 dmgTarget.addBuff(new PoisonBuff(1));
             case 1 | 5 | 8 | 9:
-                trace('✨ ${actor.name} 触发 [0,${otherValue}] 破军组合：40 点物伤！');
+                trace('✨ ${actor.name} 触发 [0,${otherValue}] 破军组合：50 点物伤！');
                 applyDamage(actor, dmgTarget, 50, PHYSICAL);
             case 2 | 3:
                 trace('✨ ${actor.name} 触发 [0,${otherValue}] 御守组合：20 点物法盾，3 回合！');
@@ -724,6 +755,7 @@ class GameEngine {
     private var _htIsEventMode:Bool = false;
     private var _htEventAmount:Int = 0;
     private var _htEventType:DamageType = PHYSICAL;
+    private var _htEventHasShieldSnapshot:Bool = false;
 
     /**
      * 帮抗-步骤1&2（事件模式）：针对反弹/毒伤/模态②第二刀这类"非 handleTouch 主线"伤害。
@@ -731,12 +763,28 @@ class GameEngine {
      * 与主线模式不同：不恢复护盾（这类伤害通常不经过护盾消耗判定，或已在 handleIncomingDamage 内处理过），
      * 只把 victim 的 hp 加回 actualDamage。
      */
-    @:keep public function snapshotHelpTankVictimFromEvent(victim:Player, actualDamage:Int, type:DamageType):Void {
+    @:keep public function snapshotHelpTankVictimFromEvent(victim:Player, penaltyBase:Int, type:DamageType):Void {
         _htVictim = victim;
-        _htVictimHp = (victim != null) ? victim.hp + actualDamage : 0; // 恢复后的目标hp = 当前hp(已扣) + 这笔伤害
-        _htVictimShields = []; // 事件模式不恢复护盾快照（这类伤害不走护盾消耗的常规链路）
+        var ev = _lastConsumedHelpTankEvent;
+        if (victim != null && ev != null && ev.victimName == victim.name && ev.restoreHp != null) {
+            _htVictimHp = ev.restoreHp;
+            _htVictimShields = [];
+            if (ev.restoreShields != null) {
+                var arr:Array<Dynamic> = cast ev.restoreShields;
+                for (s in arr) {
+                    _htVictimShields.push(new ShieldInstance(s.type, s.amount, s.duration));
+                }
+                _htEventHasShieldSnapshot = true;
+            } else {
+                _htEventHasShieldSnapshot = false;
+            }
+        } else {
+            _htVictimHp = (victim != null) ? victim.hp + penaltyBase : 0;
+            _htVictimShields = [];
+            _htEventHasShieldSnapshot = false;
+        }
         _htIsEventMode = true;
-        _htEventAmount = actualDamage;
+        _htEventAmount = penaltyBase;
         _htEventType = type;
     }
 
@@ -752,8 +800,8 @@ class GameEngine {
         // 1. 恢复 victim
         if (_htVictim != null) {
             _htVictim.hp = _htVictimHp;
-            if (!_htIsEventMode) {
-                // 主线模式：恢复护盾快照
+            if (!_htIsEventMode || _htEventHasShieldSnapshot) {
+                // 主线模式或通用事件快照：恢复护盾快照，确保被帮者完全不承受这次伤害/盾耗。
                 _htVictim.shieldList = [];
                 for (s in _htVictimShields) {
                     _htVictim.shieldList.push(new ShieldInstance(s.type, s.amount, s.duration));
@@ -774,7 +822,9 @@ class GameEngine {
                         case TRUE:     "真实";
                     };
                     trace('🛡️ [帮抗开始-事件模式] ${helper.name} 替队友承受：${typeStr} ${_htEventAmount} × 1.5 = ${penaltyAmt}');
+                    suppressHelpTankAutoEvents = true;
                     helper.handleIncomingDamage(null, penaltyAmt, _htEventType);
+                    suppressHelpTankAutoEvents = false;
                     trace('🛡️ [帮抗结算] ${helper.name} 剩余HP：${helper.hp}');
                 } else if (_htDamageSnapshot.length > 0) {
                     trace('🛡️ [帮抗开始] ${helper.name} 替队友承受以下伤害 ×1.5：');
@@ -787,7 +837,9 @@ class GameEngine {
                             case TRUE:     "真实";
                         };
                         trace('   → ${typeStr} ${rec.outputAmount} × 1.5 = ${penaltyAmt}');
+                        suppressHelpTankAutoEvents = true;
                         helper.handleIncomingDamage(null, penaltyAmt, dt);
+                        suppressHelpTankAutoEvents = false;
                     }
                     trace('🛡️ [帮抗结算] ${helper.name} 剩余HP：${helper.hp}');
                 }
@@ -796,6 +848,9 @@ class GameEngine {
 
         // 清理快照
         _htIsEventMode = false;
+        _htEventHasShieldSnapshot = false;
+        _lastConsumedHelpTankEvent = null;
+        suppressHelpTankAutoEvents = false;
         _htVictim = null;
         _htVictimShields = [];
         _htDamageSnapshot = [];

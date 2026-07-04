@@ -163,6 +163,8 @@ function executeWukong02(chosenTargetIdx, fromRemote) {
 
     // 攻击前：快照伤害承受者防御状态（帮抗恢复用）
     Main.engine.snapshotHelpTankVictim(dmgTarget);
+    var aliveBeforeWukong = [];
+    for (var wi = 0; wi < players.length; wi++) aliveBeforeWukong.push(players[wi] && players[wi].hp > 0);
 
     var result = Main.engine.handleTouch(actor, ctx.myHand, touchTarget, ctx.targetHandIdx, dmgTarget);
     if (typeof result === 'string' && result.indexOf('错误') === 0) {
@@ -171,8 +173,8 @@ function executeWukong02(chosenTargetIdx, fromRemote) {
 
     if (!fromRemote) ONLINE.sendAction({ type: "wukong02", wukongPending: ctx, chosenTargetIdx: chosenTargetIdx });
 
-    // 濒死检测 → 若弹出帮抗窗则回合暂停
-    if (tryHelpTankOrPause(chosenTargetIdx, fromRemote)) return;
+    // 濒死检测 → 若弹出帮抗窗则回合暂停。统一扫全场，覆盖反弹/第二目标/附加伤害。
+    if (checkAllDeathsForHelpTank(fromRemote, aliveBeforeWukong)) return;
 
     finishTurn2();
 }

@@ -26,8 +26,9 @@ import model.ShieldType;
  * 特殊护盾（仅人→阴/阳时产生）：
  *   - 厚度 = 25 × 敌人数；每次「轮到自己行动前」-= 10 × 敌人数
  *   - 类型：物法盾（BOTH_PHYSICAL_MAGIC），真伤穿透
- *   - 切回人时：回复当前护盾剩余厚度的血量，护盾保留
+ *   - 切回人时：回复当前护盾剩余厚度/2，并把等量护盾转换为物理盾（2回合）
  *   - 阴阳直接互切：护盾归零，自身受到「原护盾剩余 / 2」点物伤（纯标准流程，无额外倍率）
+ * 人模态强化：获得物理护盾时厚度+15、持续+1；每次轮到自己行动时，现有物理盾也+15、持续+1。
  *
  * 每次行动前可切换一次模态（切换后本轮不能再切）。
  */
@@ -65,6 +66,35 @@ class YinYangShi extends Player {
             count++;
         }
         return count > 0 ? count : 1;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 人模态：物理护盾强化（给阴阳师一个坦克选择）
+    // ─────────────────────────────────────────────────────────────
+    override public function addShield(type:ShieldType, amount:Int, duration:Int) {
+        if (modal == "ren" && type == ShieldType.PHYSICAL && amount > 0) {
+            var boosted = amount + 15;
+            var boostedDuration = duration + 1;
+            trace('☯️ 阴阳师【人】强化物理护盾：${amount}/${duration}回合 → ${boosted}/${boostedDuration}回合。');
+            super.addShield(type, boosted, boostedDuration);
+            return;
+        }
+        super.addShield(type, amount, duration);
+    }
+
+
+    private function strengthenHumanPhysicalShields():Void {
+        if (modal != "ren") return;
+        var changed = false;
+        for (shield in shieldList) {
+            if (shield.amount <= 0) continue;
+            if (shield.type == ShieldType.PHYSICAL) {
+                shield.amount += 15;
+                shield.duration += 1;
+                changed = true;
+            }
+        }
+        if (changed) trace('☯️ 人模态抗伤修行：现有所有物理盾 +15 厚度、+1 回合。');
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -114,14 +144,20 @@ class YinYangShi extends Player {
             return "切换成功";
         }
 
-        // ── 情况C：阴/阳 → 人（回复护盾厚度的血量） ──
+        // ── 情况C：阴/阳 → 人（特殊护盾/2回复，特殊盾等量转换为物理盾） ──
         if ((oldModal == "yin" || oldModal == "yang") && newModal == "ren") {
-            var healAmount = specialShield;
+            var shieldBefore = specialShield;
+            var healAmount = Std.int(shieldBefore / 2);
+            specialShield = 0;
             modal = newModal;
-            trace('☯️ ${oldModal == "yin" ? "阴" : "阳"}→人！回复当前特殊护盾剩余 ${healAmount} 点血量，护盾保留。');
+            trace('☯️ ${oldModal == "yin" ? "阴" : "阳"}→人！特殊护盾 ${shieldBefore} 清空，回复 ${healAmount} 血，并转化为 ${shieldBefore} 点2回合物理护盾。');
             if (healAmount > 0) {
                 // 用 applyRawHeal 避免触发"阳模态回复→伤害"的套娃（此时已切回人）
                 engine.applyRawHeal(this, healAmount, RECOVERY, false);
+            }
+            if (shieldBefore > 0) {
+                // 此时已处于人模态，会吃到“物理盾+15、持续+1”的强化；若是坦脆流坦克，还会获得额外一半物理盾。
+                engine.applyShield(this, ShieldType.PHYSICAL, shieldBefore, 2, true);
             }
             return "切换成功";
         }
@@ -152,6 +188,8 @@ class YinYangShi extends Player {
                 specialShield = Std.int(Math.max(0, specialShield - decay));
                 trace('☯️ 阴阳师特殊护盾衰减 ${decay}（敌人×10），剩余 ${specialShield}。');
             }
+        } else if (modal == "ren") {
+            strengthenHumanPhysicalShields();
         }
         return false; // 不影响 zeroTurns 递减逻辑
     }
@@ -298,7 +336,7 @@ class YinYangShi extends Player {
         var modalName = switch (modal) {
             case "yin": "☯️阴（输出×3.5，回复→物伤，受伤×1.5）";
             case "yang": "☯️阳（回复×3.5，伤害→回复，受伤×1.5）";
-            case "ren": "☯️人（输出×0.5，回复×1.5，物法真伤-1/4）";
+            case "ren": "☯️人（输出×0.5，回复×1.5，物法真伤-1/4，物理盾成长+15/+1）";
             case _: "未知";
         }
         var shieldStr = (modal == "yin" || modal == "yang") ? ' | 特殊护盾 <b>${specialShield}</b>' : '';

@@ -269,6 +269,11 @@ class Player {
      */
     public function handleIncomingDamage(attacker:Player, amount:Int, dmgType:DamageType):DamageResult {
         if (amount <= 0) return { damageBeforeShield: 0, actualDamage: 0 };
+        var __helpBeforeHp = this.hp;
+        var __helpBeforeShields:Array<ShieldInstance> = [];
+        if (GameEngine.instance != null) {
+            for (s in this.shieldList) __helpBeforeShields.push(new ShieldInstance(s.type, s.amount, s.duration));
+        }
         var finalDamage = amount;
 
         // 0. 攻击者的 Buff 修改伤害（如双4翻倍）
@@ -329,6 +334,10 @@ class Player {
 
         // 3. 落地扣血
         this.hp -= finalDamage;
+        if (GameEngine.instance != null) {
+            var src = attacker != null ? attacker.name : "伤害";
+            GameEngine.instance.maybeRegisterHelpTankEvent(this, attacker, damageBeforeShield, finalDamage, dmgType, src, __helpBeforeHp, __helpBeforeShields);
+        }
         return { damageBeforeShield: damageBeforeShield, actualDamage: finalDamage };
     }
 

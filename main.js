@@ -8,9 +8,12 @@ function $extend(from, fields) {
 	return proto;
 }
 var GameEngine = function() {
+	this._htEventHasShieldSnapshot = false;
 	this._htEventType = model_DamageType.PHYSICAL;
 	this._htEventAmount = 0;
 	this._htIsEventMode = false;
+	this.suppressHelpTankAutoEvents = false;
+	this._lastConsumedHelpTankEvent = null;
 	this.pendingHelpTankEvents = [];
 	this._htDamageSnapshot = [];
 	this._htVictimShields = [];
@@ -27,9 +30,30 @@ var GameEngine = function() {
 };
 GameEngine.__name__ = true;
 GameEngine.prototype = {
-	registerHelpTankEvent: function(victim,attacker,actualDamage,type,source) {
-		if(victim == null || actualDamage <= 0) {
+	cloneShieldSnapshot: function(list) {
+		var out = [];
+		if(list != null) {
+			var _g = 0;
+			while(_g < list.length) {
+				var s = list[_g];
+				++_g;
+				out.push(new model_ShieldInstance(s.type,s.amount,s.duration));
+			}
+		}
+		return out;
+	}
+	,registerHelpTankEvent: function(victim,attacker,penaltyBase,type,source,restoreHp,restoreShields) {
+		if(victim == null || penaltyBase <= 0) {
 			return;
+		}
+		var _g = 0;
+		var _g1 = this.pendingHelpTankEvents;
+		while(_g < _g1.length) {
+			var e = _g1[_g];
+			++_g;
+			if(e.victimName == victim.name) {
+				return;
+			}
 		}
 		var typeStr;
 		switch(type._hx_index) {
@@ -43,8 +67,23 @@ GameEngine.prototype = {
 			typeStr = "TRUE";
 			break;
 		}
-		this.pendingHelpTankEvents.push({ victimName : victim.name, attackerName : attacker != null ? attacker.name : null, amount : actualDamage, damageType : type, damageTypeStr : typeStr, source : source});
-		haxe_Log.trace("🛡️ [帮抗事件登记] " + victim.name + " 受到来自[" + source + "]的 " + actualDamage + " 点" + typeStr + "伤害，已登记供帮抗判定。",{ fileName : "GameEngine.hx", lineNumber : 65, className : "GameEngine", methodName : "registerHelpTankEvent"});
+		this.pendingHelpTankEvents.push({ victimName : victim.name, attackerName : attacker != null ? attacker.name : null, amount : penaltyBase, damageType : type, damageTypeStr : typeStr, source : source, restoreHp : restoreHp, restoreShields : restoreShields != null ? this.cloneShieldSnapshot(restoreShields) : null});
+		haxe_Log.trace("🛡️ [帮抗事件登记] " + victim.name + " 受到来自[" + source + "]的 " + penaltyBase + " 点" + typeStr + "伤害，已登记供帮抗判定。",{ fileName : "GameEngine.hx", lineNumber : 81, className : "GameEngine", methodName : "registerHelpTankEvent"});
+	}
+	,maybeRegisterHelpTankEvent: function(victim,attacker,penaltyBase,actualDamage,type,source,beforeHp,beforeShields) {
+		if(this.suppressHelpTankAutoEvents) {
+			return;
+		}
+		if(victim == null || actualDamage <= 0 || penaltyBase <= 0) {
+			return;
+		}
+		if(beforeHp <= 0 || victim.hp > 0) {
+			return;
+		}
+		if(this._recordingDamage && victim == this.lastTouchDamageTarget) {
+			return;
+		}
+		this.registerHelpTankEvent(victim,attacker,penaltyBase,type,source,beforeHp,beforeShields);
 	}
 	,consumeHelpTankEvent: function(victimName) {
 		var _g = 0;
@@ -54,13 +93,16 @@ GameEngine.prototype = {
 			var e = this.pendingHelpTankEvents[i];
 			if(e.victimName == victimName) {
 				this.pendingHelpTankEvents.splice(i,1);
+				this._lastConsumedHelpTankEvent = e;
 				return e;
 			}
 		}
+		this._lastConsumedHelpTankEvent = null;
 		return null;
 	}
 	,clearHelpTankEvents: function() {
 		this.pendingHelpTankEvents = [];
+		this._lastConsumedHelpTankEvent = null;
 	}
 	,setTurnManager: function(tm) {
 		this.turnManager = tm;
@@ -286,9 +328,8 @@ GameEngine.prototype = {
 				}
 			}
 		}
-		var baseOnlyFinal = actor != null ? actor.calculateOutputDamage(amount,type) : amount;
-		var finalAmount = actor != null ? actor.calculateOutputDamage(amount + crowExtra,type) : amount + crowExtra;
-		var crowHeal = finalAmount - baseOnlyFinal;
+		var finalAmount = amount + crowExtra;
+		var crowHeal = crowExtra;
 		if(this._recordingDamage && target == this.lastTouchDamageTarget) {
 			var tName;
 			switch(type._hx_index) {
@@ -304,7 +345,10 @@ GameEngine.prototype = {
 			}
 			this.lastTouchDamageLog.push({ type : type, outputAmount : finalAmount, typeName : tName});
 		}
+		var oldSkipAttackerDealBuffs = this._skipAttackerDealBuffs;
+		this._skipAttackerDealBuffs = true;
 		var result = target.handleIncomingDamage(actor,finalAmount,type);
+		this._skipAttackerDealBuffs = oldSkipAttackerDealBuffs;
 		if(crowHeal > 0 && target != null) {
 			var _g = 0;
 			var _g1 = target.buffList;
@@ -422,7 +466,7 @@ GameEngine.prototype = {
 				actor.addDirectShield(model_ShieldType.PHYSICAL,extraInfo.amount,extraInfo.duration);
 			}
 			if(extraTotal > 0) {
-				haxe_Log.trace("🏰 [坦脆流] " + actor.name + " 获得额外 " + extraTotal + " 点物理盾（新增护盾量的一半）",{ fileName : "GameEngine.hx", lineNumber : 417, className : "GameEngine", methodName : "applyShield"});
+				haxe_Log.trace("🏰 [坦脆流] " + actor.name + " 获得额外 " + extraTotal + " 点物理盾（新增护盾量的一半）",{ fileName : "GameEngine.hx", lineNumber : 452, className : "GameEngine", methodName : "applyShield"});
 			}
 		}
 		this.notifyShieldEvent(actor,isFromSkill);
@@ -439,7 +483,7 @@ GameEngine.prototype = {
 			return;
 		}
 		p.tankFormationBonus = true;
-		haxe_Log.trace("🏰 [坦脆流] " + p.name + " 获得坦克加强：回复×1.5，获得任意护盾时额外获得一半量物理盾",{ fileName : "GameEngine.hx", lineNumber : 435, className : "GameEngine", methodName : "applyTankFormationBuff"});
+		haxe_Log.trace("🏰 [坦脆流] " + p.name + " 获得坦克加强：回复×1.5，获得任意护盾时额外获得一半量物理盾",{ fileName : "GameEngine.hx", lineNumber : 469, className : "GameEngine", methodName : "applyTankFormationBuff"});
 	}
 	,doHealing: function(actor,amount,type) {
 		var totalHealing = amount;
@@ -449,9 +493,9 @@ GameEngine.prototype = {
 			actor.pendingHealing = 0;
 			totalHealing = amount + overflow;
 			if(overflow > 0) {
-				haxe_Log.trace("💚 " + actor.name + " 获得 " + totalHealing + " 点回血（" + Std.string(type) + "，本次 " + amount + " + 溢出 " + overflow + "）。",{ fileName : "GameEngine.hx", lineNumber : 430, className : "GameEngine", methodName : "doHealing"});
+				haxe_Log.trace("💚 " + actor.name + " 获得 " + totalHealing + " 点回血（" + Std.string(type) + "，本次 " + amount + " + 溢出 " + overflow + "）。",{ fileName : "GameEngine.hx", lineNumber : 486, className : "GameEngine", methodName : "doHealing"});
 			} else {
-				haxe_Log.trace("💚 " + actor.name + " 获得 " + totalHealing + " 点回血（" + Std.string(type) + "）。",{ fileName : "GameEngine.hx", lineNumber : 432, className : "GameEngine", methodName : "doHealing"});
+				haxe_Log.trace("💚 " + actor.name + " 获得 " + totalHealing + " 点回血（" + Std.string(type) + "）。",{ fileName : "GameEngine.hx", lineNumber : 488, className : "GameEngine", methodName : "doHealing"});
 			}
 			var poisonBuff = actor.getBuff("POISON");
 			var poisonLayers = poisonBuff != null ? poisonBuff.layers : 0;
@@ -463,15 +507,15 @@ GameEngine.prototype = {
 				}
 				poisonBuff.layers = poisonLayers;
 				if(poisonLayers == 0) {
-					haxe_Log.trace("💊 完全解毒！" + actor.name + " 余 " + totalHealing + " 血落地。",{ fileName : "GameEngine.hx", lineNumber : 448, className : "GameEngine", methodName : "doHealing"});
+					haxe_Log.trace("💊 完全解毒！" + actor.name + " 余 " + totalHealing + " 血落地。",{ fileName : "GameEngine.hx", lineNumber : 504, className : "GameEngine", methodName : "doHealing"});
 				} else {
 					actor.pendingHealing = totalHealing;
-					haxe_Log.trace("⚠️ 回血不足！剩 " + poisonLayers + " 层毒，" + totalHealing + " 血储存到下次。",{ fileName : "GameEngine.hx", lineNumber : 451, className : "GameEngine", methodName : "doHealing"});
+					haxe_Log.trace("⚠️ 回血不足！剩 " + poisonLayers + " 层毒，" + totalHealing + " 血储存到下次。",{ fileName : "GameEngine.hx", lineNumber : 507, className : "GameEngine", methodName : "doHealing"});
 					totalHealing = 0;
 				}
 			}
 		} else {
-			haxe_Log.trace("💚 " + actor.name + " 获得 " + amount + " 点补给（SUPPLY，纯加血不解毒）。",{ fileName : "GameEngine.hx", lineNumber : 457, className : "GameEngine", methodName : "doHealing"});
+			haxe_Log.trace("💚 " + actor.name + " 获得 " + amount + " 点补给（SUPPLY，纯加血不解毒）。",{ fileName : "GameEngine.hx", lineNumber : 513, className : "GameEngine", methodName : "doHealing"});
 		}
 		if(totalHealing > 0) {
 			actor.hp += totalHealing;
@@ -497,14 +541,14 @@ GameEngine.prototype = {
 		var newValue = (oldValue + targetValue) % 10;
 		actor.hands[handIdx] = newValue;
 		var touchDesc = dmgTarget != target ? "⚔️ [动作] " + actor.name + " 用 [" + oldValue + "] 碰了 " + target.name + " 的 [" + targetValue + "] -> 变为了 [" + newValue + "]（伤害由 " + dmgTarget.name + " 承受）" : "⚔️ [动作] " + actor.name + " 用 [" + oldValue + "] 碰了 " + target.name + " 的 [" + targetValue + "] -> 变为了 [" + newValue + "]";
-		haxe_Log.trace(touchDesc,{ fileName : "GameEngine.hx", lineNumber : 501, className : "GameEngine", methodName : "handleTouch"});
+		haxe_Log.trace(touchDesc,{ fileName : "GameEngine.hx", lineNumber : 557, className : "GameEngine", methodName : "handleTouch"});
 		if(newValue == 0) {
 			if(handIdx == 0) {
 				actor.zeroTurns0 = actor.initTurns;
 			} else {
 				actor.zeroTurns1 = actor.initTurns;
 			}
-			haxe_Log.trace("🔢 " + actor.name + " 第 " + handIdx + " 手变为 0，启动 " + actor.initTurns + " 回合倒计时。",{ fileName : "GameEngine.hx", lineNumber : 507, className : "GameEngine", methodName : "handleTouch"});
+			haxe_Log.trace("🔢 " + actor.name + " 第 " + handIdx + " 手变为 0，启动 " + actor.initTurns + " 回合倒计时。",{ fileName : "GameEngine.hx", lineNumber : 563, className : "GameEngine", methodName : "handleTouch"});
 		} else if(handIdx == 0) {
 			actor.zeroTurns0 = 0;
 		} else {
@@ -531,9 +575,9 @@ GameEngine.prototype = {
 		if(actor.hands[0] == 6 || actor.hands[1] == 6) {
 			if(newValue == 6 && oldValue != 6) {
 				this.applyHeal(actor,30,model_HealType.RECOVERY);
-				haxe_Log.trace("✨ " + actor.name + " 触发 [x,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 542, className : "GameEngine", methodName : "processBasicEffect"});
+				haxe_Log.trace("✨ " + actor.name + " 触发 [x,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 598, className : "GameEngine", methodName : "processBasicEffect"});
 			} else {
-				haxe_Log.trace("ℹ️ " + actor.name + " 的 6 是老数字，不再触发回血。",{ fileName : "GameEngine.hx", lineNumber : 544, className : "GameEngine", methodName : "processBasicEffect"});
+				haxe_Log.trace("ℹ️ " + actor.name + " 的 6 是老数字，不再触发回血。",{ fileName : "GameEngine.hx", lineNumber : 600, className : "GameEngine", methodName : "processBasicEffect"});
 			}
 			return;
 		}
@@ -541,44 +585,44 @@ GameEngine.prototype = {
 	,triggerDoubleStar: function(actor,target,dmgTarget,num) {
 		switch(num) {
 		case 0:
-			haxe_Log.trace("💀 " + actor.name + " 凑齐【双零】！对目标造成 150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 602, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("💀 " + actor.name + " 凑齐【双零】！对目标造成 150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 658, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyDamage(actor,dmgTarget,150,model_DamageType.TRUE);
 			break;
 		case 1:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双一】！获得无敌 2 回合！",{ fileName : "GameEngine.hx", lineNumber : 598, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双一】！获得无敌 2 回合！",{ fileName : "GameEngine.hx", lineNumber : 654, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_InvincibleBuff(2));
 			break;
 		case 2:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双二】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 590, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双二】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 646, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,30,3);
 			break;
 		case 3:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双三】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 594, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双三】！30 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 650, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,30,3);
 			break;
 		case 4:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双四】！获得 2 次伤害翻倍！",{ fileName : "GameEngine.hx", lineNumber : 586, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双四】！获得 2 次伤害翻倍！",{ fileName : "GameEngine.hx", lineNumber : 642, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_DamageBoostBuff(2));
 			break;
 		case 5:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双五】！获得 2 层反弹盾！",{ fileName : "GameEngine.hx", lineNumber : 582, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双五】！获得 2 层反弹盾！",{ fileName : "GameEngine.hx", lineNumber : 638, className : "GameEngine", methodName : "triggerDoubleStar"});
 			actor.addBuff(new buffs_ReflectBuff(2));
 			break;
 		case 6:
-			haxe_Log.trace("✨ " + actor.name + " 凑齐【双六】！恢复 90 血！",{ fileName : "GameEngine.hx", lineNumber : 578, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("✨ " + actor.name + " 凑齐【双六】！恢复 90 血！",{ fileName : "GameEngine.hx", lineNumber : 634, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyHeal(actor,90,model_HealType.RECOVERY);
 			break;
 		case 7:
-			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双七】！30 点物伤 + 3 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 573, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("🎉 " + actor.name + " 凑齐【双七】！30 点物伤 + 3 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 629, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.applyDamage(actor,dmgTarget,30,model_DamageType.PHYSICAL);
 			dmgTarget.addBuff(new buffs_PoisonBuff(3));
 			break;
 		case 8:
 			if(actor.bigRound88Used >= 2) {
-				haxe_Log.trace("⚠️ " + actor.name + " 凑齐【双八】，但本大回合已触发过 2 次，跳过。",{ fileName : "GameEngine.hx", lineNumber : 563, className : "GameEngine", methodName : "triggerDoubleStar"});
+				haxe_Log.trace("⚠️ " + actor.name + " 凑齐【双八】，但本大回合已触发过 2 次，跳过。",{ fileName : "GameEngine.hx", lineNumber : 619, className : "GameEngine", methodName : "triggerDoubleStar"});
 			} else {
 				actor.bigRound88Used++;
-				haxe_Log.trace("🎉 " + actor.name + " 凑齐【双八】！获得 1 次再动 + 120 点物法盾！（本大回合第 " + actor.bigRound88Used + "/2 次）",{ fileName : "GameEngine.hx", lineNumber : 566, className : "GameEngine", methodName : "triggerDoubleStar"});
+				haxe_Log.trace("🎉 " + actor.name + " 凑齐【双八】！获得 1 次再动 + 120 点物法盾！（本大回合第 " + actor.bigRound88Used + "/2 次）",{ fileName : "GameEngine.hx", lineNumber : 622, className : "GameEngine", methodName : "triggerDoubleStar"});
 				actor.addBuff(new buffs_ExtraActionBuff(2));
 				this.applyShield(actor,model_ShieldType.BOTH_PHYSICAL_MAGIC,120,3);
 			}
@@ -586,13 +630,13 @@ GameEngine.prototype = {
 		case 9:
 			var count = this.countMultiplesOf3OnField();
 			var mult = Math.pow(1.5,count);
-			haxe_Log.trace("💥 " + actor.name + " 凑齐【双九】！场上有 " + count + " 个3的倍数(不含0)，基础60×1.5^" + count + "=" + (60 * mult | 0) + "（乌鸦+20会先加再乘）",{ fileName : "GameEngine.hx", lineNumber : 555, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("💥 " + actor.name + " 凑齐【双九】！场上有 " + count + " 个3的倍数(不含0)，基础50×1.5^" + count + "=" + (50 * mult | 0) + "（乌鸦+20会先加再乘）",{ fileName : "GameEngine.hx", lineNumber : 611, className : "GameEngine", methodName : "triggerDoubleStar"});
 			this.currentComboMultiplier = mult;
-			this.applyDamage(actor,dmgTarget,60,model_DamageType.PHYSICAL);
+			this.applyDamage(actor,dmgTarget,50,model_DamageType.PHYSICAL);
 			this.currentComboMultiplier = 1.0;
 			break;
 		default:
-			haxe_Log.trace("ℹ️ " + actor.name + " 凑齐了双 [" + num + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 606, className : "GameEngine", methodName : "triggerDoubleStar"});
+			haxe_Log.trace("ℹ️ " + actor.name + " 凑齐了双 [" + num + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 662, className : "GameEngine", methodName : "triggerDoubleStar"});
 		}
 	}
 	,triggerZeroCombo: function(actor,target,dmgTarget,otherValue) {
@@ -605,32 +649,32 @@ GameEngine.prototype = {
 		}
 		switch(otherValue) {
 		case 0:
-			haxe_Log.trace("💀 " + actor.name + " 触发 [0,0] 绝境！150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 640, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("💀 " + actor.name + " 触发 [0,0] 绝境！150 点真伤！",{ fileName : "GameEngine.hx", lineNumber : 696, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyDamage(actor,dmgTarget,150,model_DamageType.TRUE);
 			break;
 		case 2:case 3:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 御守组合：20 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 637, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 御守组合：20 点物法盾，3 回合！",{ fileName : "GameEngine.hx", lineNumber : 693, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyShield(actor,model_ShieldType.PHYSICAL,20,3);
 			break;
 		case 4:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,4] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 627, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,4] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 683, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyHeal(actor,30,model_HealType.RECOVERY);
 			break;
 		case 6:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 624, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,6] 医术组合！",{ fileName : "GameEngine.hx", lineNumber : 680, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyHeal(actor,30,model_HealType.RECOVERY);
 			break;
 		case 7:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0,7] 刺客组合：10 物伤 + 1 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 630, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0,7] 刺客组合：10 物伤 + 1 层中毒！",{ fileName : "GameEngine.hx", lineNumber : 686, className : "GameEngine", methodName : "triggerZeroCombo"});
 			this.applyDamage(actor,dmgTarget,10,model_DamageType.PHYSICAL);
 			dmgTarget.addBuff(new buffs_PoisonBuff(1));
 			break;
 		case 1:case 5:case 8:case 9:
-			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 破军组合：40 点物伤！",{ fileName : "GameEngine.hx", lineNumber : 634, className : "GameEngine", methodName : "triggerZeroCombo"});
-			this.applyDamage(actor,dmgTarget,40,model_DamageType.PHYSICAL);
+			haxe_Log.trace("✨ " + actor.name + " 触发 [0," + otherValue + "] 破军组合：50 点物伤！",{ fileName : "GameEngine.hx", lineNumber : 690, className : "GameEngine", methodName : "triggerZeroCombo"});
+			this.applyDamage(actor,dmgTarget,50,model_DamageType.PHYSICAL);
 			break;
 		default:
-			haxe_Log.trace("ℹ️ " + actor.name + " 触发 [0," + otherValue + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 643, className : "GameEngine", methodName : "triggerZeroCombo"});
+			haxe_Log.trace("ℹ️ " + actor.name + " 触发 [0," + otherValue + "]，暂无特效。",{ fileName : "GameEngine.hx", lineNumber : 699, className : "GameEngine", methodName : "triggerZeroCombo"});
 		}
 		actor.onExitZeroComboContext();
 	}
@@ -684,14 +728,33 @@ GameEngine.prototype = {
 			}
 		}
 		this._htIsEventMode = false;
-		haxe_Log.trace("🛡️ [帮抗快照] 共记录 " + this._htDamageSnapshot.length + " 笔伤害",{ fileName : "GameEngine.hx", lineNumber : 695, className : "GameEngine", methodName : "captureHelpTankDamage"});
+		haxe_Log.trace("🛡️ [帮抗快照] 共记录 " + this._htDamageSnapshot.length + " 笔伤害",{ fileName : "GameEngine.hx", lineNumber : 751, className : "GameEngine", methodName : "captureHelpTankDamage"});
 	}
-	,snapshotHelpTankVictimFromEvent: function(victim,actualDamage,type) {
+	,snapshotHelpTankVictimFromEvent: function(victim,penaltyBase,type) {
 		this._htVictim = victim;
-		this._htVictimHp = victim != null ? victim.hp + actualDamage : 0;
-		this._htVictimShields = [];
+		var ev = this._lastConsumedHelpTankEvent;
+		if(victim != null && ev != null && ev.victimName == victim.name && ev.restoreHp != null) {
+			this._htVictimHp = ev.restoreHp;
+			this._htVictimShields = [];
+			if(ev.restoreShields != null) {
+				var arr = ev.restoreShields;
+				var _g = 0;
+				while(_g < arr.length) {
+					var s = arr[_g];
+					++_g;
+					this._htVictimShields.push(new model_ShieldInstance(s.type,s.amount,s.duration));
+				}
+				this._htEventHasShieldSnapshot = true;
+			} else {
+				this._htEventHasShieldSnapshot = false;
+			}
+		} else {
+			this._htVictimHp = victim != null ? victim.hp + penaltyBase : 0;
+			this._htVictimShields = [];
+			this._htEventHasShieldSnapshot = false;
+		}
 		this._htIsEventMode = true;
-		this._htEventAmount = actualDamage;
+		this._htEventAmount = penaltyBase;
 		this._htEventType = type;
 	}
 	,resolveHelpTank: function(helperIdx) {
@@ -700,7 +763,7 @@ GameEngine.prototype = {
 		}
 		if(this._htVictim != null) {
 			this._htVictim.hp = this._htVictimHp;
-			if(!this._htIsEventMode) {
+			if(!this._htIsEventMode || this._htEventHasShieldSnapshot) {
 				this._htVictim.shieldList = [];
 				var _g = 0;
 				var _g1 = this._htVictimShields;
@@ -710,7 +773,7 @@ GameEngine.prototype = {
 					this._htVictim.shieldList.push(new model_ShieldInstance(s.type,s.amount,s.duration));
 				}
 			}
-			haxe_Log.trace("🛡️ [帮抗] " + this._htVictim.name + " 被队友接管伤害，恢复到攻击前状态（HP " + this._htVictimHp + "）",{ fileName : "GameEngine.hx", lineNumber : 737, className : "GameEngine", methodName : "resolveHelpTank"});
+			haxe_Log.trace("🛡️ [帮抗] " + this._htVictim.name + " 被队友接管伤害，恢复到攻击前状态（HP " + this._htVictimHp + "）",{ fileName : "GameEngine.hx", lineNumber : 810, className : "GameEngine", methodName : "resolveHelpTank"});
 		}
 		if(helperIdx >= 0 && helperIdx < this.turnManager.players.length) {
 			var helper = this.turnManager.players[helperIdx];
@@ -729,11 +792,13 @@ GameEngine.prototype = {
 						typeStr = "真实";
 						break;
 					}
-					haxe_Log.trace("🛡️ [帮抗开始-事件模式] " + helper.name + " 替队友承受：" + typeStr + " " + this._htEventAmount + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 751, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗开始-事件模式] " + helper.name + " 替队友承受：" + typeStr + " " + this._htEventAmount + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 824, className : "GameEngine", methodName : "resolveHelpTank"});
+					this.suppressHelpTankAutoEvents = true;
 					helper.handleIncomingDamage(null,penaltyAmt,this._htEventType);
-					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 753, className : "GameEngine", methodName : "resolveHelpTank"});
+					this.suppressHelpTankAutoEvents = false;
+					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 828, className : "GameEngine", methodName : "resolveHelpTank"});
 				} else if(this._htDamageSnapshot.length > 0) {
-					haxe_Log.trace("🛡️ [帮抗开始] " + helper.name + " 替队友承受以下伤害 ×1.5：",{ fileName : "GameEngine.hx", lineNumber : 755, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗开始] " + helper.name + " 替队友承受以下伤害 ×1.5：",{ fileName : "GameEngine.hx", lineNumber : 830, className : "GameEngine", methodName : "resolveHelpTank"});
 					var _g = 0;
 					var _g1 = this._htDamageSnapshot;
 					while(_g < _g1.length) {
@@ -753,14 +818,19 @@ GameEngine.prototype = {
 							typeStr = "真实";
 							break;
 						}
-						haxe_Log.trace("   → " + typeStr + " " + Std.string(rec.outputAmount) + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 764, className : "GameEngine", methodName : "resolveHelpTank"});
+						haxe_Log.trace("   → " + typeStr + " " + Std.string(rec.outputAmount) + " × 1.5 = " + penaltyAmt,{ fileName : "GameEngine.hx", lineNumber : 839, className : "GameEngine", methodName : "resolveHelpTank"});
+						this.suppressHelpTankAutoEvents = true;
 						helper.handleIncomingDamage(null,penaltyAmt,dt);
+						this.suppressHelpTankAutoEvents = false;
 					}
-					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 767, className : "GameEngine", methodName : "resolveHelpTank"});
+					haxe_Log.trace("🛡️ [帮抗结算] " + helper.name + " 剩余HP：" + helper.hp,{ fileName : "GameEngine.hx", lineNumber : 844, className : "GameEngine", methodName : "resolveHelpTank"});
 				}
 			}
 		}
 		this._htIsEventMode = false;
+		this._htEventHasShieldSnapshot = false;
+		this._lastConsumedHelpTankEvent = null;
+		this.suppressHelpTankAutoEvents = false;
 		this._htVictim = null;
 		this._htVictimShields = [];
 		this._htDamageSnapshot = [];
@@ -824,14 +894,6 @@ HxOverrides.dateStr = function(date) {
 	var mi = date.getMinutes();
 	var s = date.getSeconds();
 	return date.getFullYear() + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (d < 10 ? "0" + d : "" + d) + " " + (h < 10 ? "0" + h : "" + h) + ":" + (mi < 10 ? "0" + mi : "" + mi) + ":" + (s < 10 ? "0" + s : "" + s);
-};
-HxOverrides.remove = function(a,obj) {
-	var i = a.indexOf(obj);
-	if(i == -1) {
-		return false;
-	}
-	a.splice(i,1);
-	return true;
 };
 HxOverrides.now = function() {
 	return Date.now();
@@ -1279,11 +1341,7 @@ Main.invokeAction = function(actorIdx,actionName,params) {
 	return result;
 };
 Main.useCake = function(actorIdx,targetIdx,groupCount) {
-	var params = { targetIdx : targetIdx, groupCount : groupCount};
-	if(typeof invokeAction2 === 'function') {
-		return invokeAction2(actorIdx,"useCake",params,false,{ silent : true});
-	}
-	return Main.invokeAction(actorIdx,"useCake",params);
+	return Main.invokeAction(actorIdx,"useCake",{ targetIdx : targetIdx, groupCount : groupCount});
 };
 Main.doTouch = function(myHandIdx,targetHandIdx) {
 	if(Main.turnManager.gameOver) {
@@ -1510,28 +1568,25 @@ buffs_CrowBuff.prototype = $extend(model_Buff.prototype,{
 			return 20 * triggers;
 		}
 	}
+	,isOwnedBy: function(p) {
+		return this._yaYan == p;
+	}
 	,onTriggered: function(crowHeal,engine) {
 		var triggers = 1 + this.extraTriggers;
 		if(this._yaYan != null) {
 			var yaYan = js_Boot.__cast(this._yaYan , character_YaYan);
 			if(yaYan.hp <= 0) {
-				haxe_Log.trace("🦅 乌鸦触发：但鸦眼已阵亡，跳过回血与乌鸦积累",{ fileName : "./buffs/CrowBuff.hx", lineNumber : 51, className : "buffs.CrowBuff", methodName : "onTriggered"});
+				haxe_Log.trace("🦅 乌鸦触发：但鸦眼已阵亡，跳过回血与乌鸦积累",{ fileName : "./buffs/CrowBuff.hx", lineNumber : 55, className : "buffs.CrowBuff", methodName : "onTriggered"});
 				this.extraTriggers = 0;
 				return;
 			}
-			haxe_Log.trace("🦅 乌鸦触发：额外伤害 " + crowHeal + "，鸦眼回 " + crowHeal + " 血，获得 " + triggers + " 只乌鸦",{ fileName : "./buffs/CrowBuff.hx", lineNumber : 55, className : "buffs.CrowBuff", methodName : "onTriggered"});
+			haxe_Log.trace("🦅 乌鸦触发：额外伤害 " + crowHeal + "，鸦眼回 " + crowHeal + " 血，获得 " + triggers + " 只乌鸦",{ fileName : "./buffs/CrowBuff.hx", lineNumber : 59, className : "buffs.CrowBuff", methodName : "onTriggered"});
 			yaYan.crowCount += triggers;
 			engine.applyRawHeal(yaYan,crowHeal,model_HealType.RECOVERY,true);
 		}
 		this.extraTriggers = 0;
 	}
 	,onBigRoundEnd: function(owner) {
-		this.duration--;
-		this.name = "乌鸦诅咒(" + this.duration + "回合)";
-		haxe_Log.trace("🦅 [乌鸦buff] " + owner.name + " 大回合结束，剩余" + this.duration + "回合",{ fileName : "./buffs/CrowBuff.hx", lineNumber : 66, className : "buffs.CrowBuff", methodName : "onBigRoundEnd"});
-		if(this.duration <= 0) {
-			this.layers = 0;
-		}
 	}
 	,__class__: buffs_CrowBuff
 });
@@ -1992,6 +2047,17 @@ model_Player.prototype = {
 		if(amount <= 0) {
 			return { damageBeforeShield : 0, actualDamage : 0};
 		}
+		var __helpBeforeHp = this.hp;
+		var __helpBeforeShields = [];
+		if(GameEngine.instance != null) {
+			var _g = 0;
+			var _g1 = this.shieldList;
+			while(_g < _g1.length) {
+				var s = _g1[_g];
+				++_g;
+				__helpBeforeShields.push(new model_ShieldInstance(s.type,s.amount,s.duration));
+			}
+		}
 		var finalDamage = amount;
 		if(attacker != null && (GameEngine.instance == null || !GameEngine.instance._skipAttackerDealBuffs)) {
 			var _g = 0;
@@ -2068,6 +2134,10 @@ model_Player.prototype = {
 			this.cleanEmptyShields();
 		}
 		this.hp -= finalDamage;
+		if(GameEngine.instance != null) {
+			var src = attacker != null ? attacker.name : "伤害";
+			GameEngine.instance.maybeRegisterHelpTankEvent(this,attacker,damageBeforeShield,finalDamage,dmgType,src,__helpBeforeHp,__helpBeforeShields);
+		}
 		return { damageBeforeShield : damageBeforeShield, actualDamage : finalDamage};
 	}
 	,isValidTouch: function(handIdx,target,targetHandIdx) {
@@ -2324,7 +2394,7 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 	,onBigRoundEnd: function() {
 		model_Player.prototype.onBigRoundEnd.call(this);
 		this._stealCooldown = new haxe_ds_StringMap();
-		haxe_Log.trace("🎯 大乔：大回合结束，抢夺冷却全部重置。",{ fileName : "./character/DaQiao.hx", lineNumber : 261, className : "character.DaQiao", methodName : "onBigRoundEnd"});
+		haxe_Log.trace("🎯 大乔：大回合结束，抢夺冷却全部重置。",{ fileName : "./character/DaQiao.hx", lineNumber : 262, className : "character.DaQiao", methodName : "onBigRoundEnd"});
 	}
 	,handleAction: function(actionName,params,engine) {
 		if(actionName == "evolve") {
@@ -2374,9 +2444,9 @@ character_FaShi.prototype = $extend(model_Player.prototype,{
 		if(target.hp <= 0) {
 			return;
 		}
-		haxe_Log.trace("⚡ 法师【0组合·追加】对 " + target.name + " 造成 45 点法术伤害！",{ fileName : "./character/FaShi.hx", lineNumber : 49, className : "character.FaShi", methodName : "onAfterDealtDamage"});
+		haxe_Log.trace("⚡ 法师【0组合·追加】对 " + target.name + " 造成 50 点法术伤害！",{ fileName : "./character/FaShi.hx", lineNumber : 49, className : "character.FaShi", methodName : "onAfterDealtDamage"});
 		this._inZeroCombo = false;
-		engine.applyDamage(this,target,45,model_DamageType.MAGIC);
+		engine.applyDamage(this,target,50,model_DamageType.MAGIC);
 		this._inZeroCombo = true;
 		if(target.hp > 0) {
 			haxe_Log.trace("⚡ 法师给 " + target.name + " 附加 1 层【雷霆之怒】！",{ fileName : "./character/FaShi.hx", lineNumber : 56, className : "character.FaShi", methodName : "onAfterDealtDamage"});
@@ -2394,6 +2464,461 @@ character_FaShi.prototype = $extend(model_Player.prototype,{
 		engine.applyRawHeal(this,actualDamage,model_HealType.SUPPLY,true);
 	}
 	,__class__: character_FaShi
+});
+var character_KungFuPanda = function(id,name,camp) {
+	this._healingKingShields = false;
+	this._lastHealMode = "heal";
+	this._lastHealBase = 0;
+	this.pandaGuards = [0];
+	this.pandaMode = "heal";
+	this.kingShields = [];
+	model_Player.call(this,id,name,230,camp);
+	this.kingShields.push(150);
+	this.pandaGuards = [0];
+};
+character_KungFuPanda.__name__ = true;
+character_KungFuPanda.__super__ = model_Player;
+character_KungFuPanda.prototype = $extend(model_Player.prototype,{
+	thinnestShieldIdx: function() {
+		var best = -1;
+		var bestVal = 999999;
+		var _g = 0;
+		var _g1 = this.kingShields.length;
+		while(_g < _g1) {
+			var i = _g++;
+			if(this.kingShields[i] > 0 && this.kingShields[i] < bestVal) {
+				best = i;
+				bestVal = this.kingShields[i];
+			}
+		}
+		return best;
+	}
+	,cleanKingShields: function() {
+		var i = this.kingShields.length - 1;
+		while(i >= 0) {
+			if(this.kingShields[i] <= 0) {
+				this.kingShields.splice(i,1);
+			}
+			--i;
+		}
+		this.normalizePandaGuards();
+	}
+	,normalizePandaGuards: function() {
+		var seen_h = { };
+		var fixed = [];
+		var _g = 0;
+		var _g1 = this.pandaGuards;
+		while(_g < _g1.length) {
+			var g = _g1[_g];
+			++_g;
+			if(g != -1 && (g < 0 || g >= this.kingShields.length)) {
+				continue;
+			}
+			if(seen_h.hasOwnProperty(g)) {
+				continue;
+			}
+			seen_h[g] = true;
+			fixed.push(g);
+			if(fixed.length >= 4) {
+				break;
+			}
+		}
+		if(fixed.length == 0) {
+			var idx = this.thinnestShieldIdx();
+			fixed.push(idx >= 0 ? idx : -1);
+		}
+		this.pandaGuards = fixed;
+	}
+	,healMultiplier: function() {
+		var n = 0;
+		var _g = 0;
+		var _g1 = this.kingShields;
+		while(_g < _g1.length) {
+			var v = _g1[_g];
+			++_g;
+			if(v > 0) {
+				++n;
+			}
+		}
+		var n1 = n;
+		if(n1 <= 0) {
+			return 3.0;
+		}
+		if(n1 == 1) {
+			return 2.5;
+		}
+		if(n1 == 2) {
+			return 2.25;
+		}
+		return 2.0;
+	}
+	,repairAllKingShieldsShared: function(totalAmount) {
+		if(totalAmount <= 0 || this.kingShields.length == 0) {
+			return;
+		}
+		var n = this.kingShields.length;
+		var base = totalAmount / n | 0;
+		var rem = totalAmount % n;
+		var _g = 0;
+		var _g1 = n;
+		while(_g < _g1) {
+			var i = _g++;
+			var amount = base + (i < rem ? 1 : 0);
+			if(amount <= 0) {
+				continue;
+			}
+			this.kingShields[i] += amount;
+			haxe_Log.trace("🐼 回血流：金刚罩" + (i + 1) + " 获得 " + amount + " 点补给修复（总量" + totalAmount + "/" + n + "个罩），当前 " + this.kingShields[i],{ fileName : "./character/KungFuPanda.hx", lineNumber : 96, className : "character.KungFuPanda", methodName : "repairAllKingShieldsShared"});
+		}
+	}
+	,calculateFinalHeal: function(baseAmount,type) {
+		var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
+		this._lastHealBase = baseAmount;
+		this._lastHealMode = this.pandaMode;
+		if(this.pandaMode == "heal") {
+			var m = this.healMultiplier();
+			var boosted = Math.ceil(base * m);
+			var tmp = "🐼 回血流：本体回复 " + base + " × " + m + " = " + boosted + "（金刚罩数 ";
+			var n = 0;
+			var _g = 0;
+			var _g1 = this.kingShields;
+			while(_g < _g1.length) {
+				var v = _g1[_g];
+				++_g;
+				if(v > 0) {
+					++n;
+				}
+			}
+			haxe_Log.trace(tmp + n + "）",{ fileName : "./character/KungFuPanda.hx", lineNumber : 109, className : "character.KungFuPanda", methodName : "calculateFinalHeal"});
+			return boosted;
+		}
+		haxe_Log.trace("🐼 回盾流：本体回复不额外加成，" + baseAmount + " → " + base,{ fileName : "./character/KungFuPanda.hx", lineNumber : 113, className : "character.KungFuPanda", methodName : "calculateFinalHeal"});
+		return base;
+	}
+	,onAfterHeal: function(actualHeal,type,engine) {
+		if(this._healingKingShields || actualHeal <= 0) {
+			return;
+		}
+		if(this._lastHealBase <= 0) {
+			return;
+		}
+		this._healingKingShields = true;
+		if(this._lastHealMode == "heal") {
+			this.repairAllKingShieldsShared(60);
+		} else {
+			var amount = this._lastHealBase + 10;
+			var _g = 0;
+			var _g1 = this.kingShields.length;
+			while(_g < _g1) {
+				var i = _g++;
+				this.kingShields[i] += amount;
+				haxe_Log.trace("🐼 回盾流：金刚罩" + (i + 1) + " 获得 " + amount + " 点补给修复，当前 " + this.kingShields[i],{ fileName : "./character/KungFuPanda.hx", lineNumber : 130, className : "character.KungFuPanda", methodName : "onAfterHeal"});
+			}
+		}
+		this._healingKingShields = false;
+	}
+	,calculateOutputDamage: function(baseAmount,type) {
+		if(type != model_DamageType.PHYSICAL) {
+			return baseAmount;
+		}
+		if(this.pandaMode == "heal") {
+			var reduced = baseAmount * 0.5 | 0;
+			haxe_Log.trace("🐼 回血流：物理攻击 " + baseAmount + " ×0.5 = " + reduced,{ fileName : "./character/KungFuPanda.hx", lineNumber : 140, className : "character.KungFuPanda", methodName : "calculateOutputDamage"});
+			return reduced;
+		}
+		var boosted = baseAmount * 2 | 0;
+		haxe_Log.trace("🐼 回盾流：物理攻击 " + baseAmount + " ×2 = " + boosted,{ fileName : "./character/KungFuPanda.hx", lineNumber : 144, className : "character.KungFuPanda", methodName : "calculateOutputDamage"});
+		return boosted;
+	}
+	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
+		if(this.pandaMode == "heal" && type == model_DamageType.PHYSICAL && actualDamage > 0) {
+			var supply = actualDamage * 2;
+			haxe_Log.trace("🐼 回血流：造成 " + actualDamage + " 物伤 → 获得 " + supply + " 补给",{ fileName : "./character/KungFuPanda.hx", lineNumber : 151, className : "character.KungFuPanda", methodName : "onAfterDealtDamage"});
+			engine.applyRawHeal(this,supply,model_HealType.SUPPLY,true);
+		}
+	}
+	,addShield: function(type,amount,duration) {
+		if(this.pandaMode == "heal" && type == model_ShieldType.PHYSICAL) {
+			var boosted = amount * 2;
+			haxe_Log.trace("🐼 回血流：获得物理护盾 " + amount + "/" + duration + " → " + boosted + "/" + (duration + 1),{ fileName : "./character/KungFuPanda.hx", lineNumber : 159, className : "character.KungFuPanda", methodName : "addShield"});
+			model_Player.prototype.addShield.call(this,type,boosted,duration + 1);
+			return;
+		}
+		model_Player.prototype.addShield.call(this,type,amount,duration);
+	}
+	,handleIncomingDamage: function(attacker,amount,dmgType) {
+		if(amount <= 0) {
+			return { damageBeforeShield : 0, actualDamage : 0};
+		}
+		var __helpBeforeHp = this.hp;
+		var __helpBeforeShields = [];
+		if(GameEngine.instance != null) {
+			var _g = 0;
+			var _g1 = this.shieldList;
+			while(_g < _g1.length) {
+				var s = _g1[_g];
+				++_g;
+				__helpBeforeShields.push(new model_ShieldInstance(s.type,s.amount,s.duration));
+			}
+		}
+		var finalDamage = amount;
+		if(attacker != null && (GameEngine.instance == null || !GameEngine.instance._skipAttackerDealBuffs)) {
+			var _g = 0;
+			var _g1 = attacker.buffList;
+			while(_g < _g1.length) {
+				var b = _g1[_g];
+				++_g;
+				finalDamage = b.onDealDamage(attacker,this,finalDamage,dmgType);
+			}
+			attacker.cleanEmptyBuffs();
+		} else if(attacker != null) {
+			attacker.cleanEmptyBuffs();
+		}
+		if(dmgType != model_DamageType.TRUE) {
+			var _g = 0;
+			var _g1 = this.buffList;
+			while(_g < _g1.length) {
+				var b = _g1[_g];
+				++_g;
+				finalDamage = b.onTakeDamage(this,attacker,finalDamage,dmgType);
+			}
+			if(finalDamage <= 0) {
+				this.cleanEmptyBuffs();
+				return { damageBeforeShield : 0, actualDamage : 0};
+			}
+		}
+		var damageBeforeShield = finalDamage;
+		while(finalDamage > 0) {
+			var valid = [];
+			var _g = 0;
+			var _g1 = this.shieldList;
+			while(_g < _g1.length) {
+				var shield = _g1[_g];
+				++_g;
+				if(shield.amount <= 0) {
+					continue;
+				}
+				var canBlock = false;
+				switch(dmgType._hx_index) {
+				case 0:
+					if(shield.type == model_ShieldType.PHYSICAL || shield.type == model_ShieldType.BOTH_PHYSICAL_MAGIC || shield.type == model_ShieldType.TRUE) {
+						canBlock = true;
+					}
+					break;
+				case 1:
+					if(shield.type == model_ShieldType.MAGIC || shield.type == model_ShieldType.BOTH_PHYSICAL_MAGIC || shield.type == model_ShieldType.TRUE) {
+						canBlock = true;
+					}
+					break;
+				case 2:
+					if(shield.type == model_ShieldType.TRUE) {
+						canBlock = true;
+					}
+					break;
+				}
+				if(canBlock) {
+					valid.push(shield);
+				}
+			}
+			if(valid.length == 0) {
+				break;
+			}
+			valid.sort(function(a,b) {
+				return a.duration - b.duration;
+			});
+			var s = valid[0];
+			if(s.amount >= finalDamage) {
+				s.amount -= finalDamage;
+				finalDamage = 0;
+			} else {
+				finalDamage -= s.amount;
+				s.amount = 0;
+			}
+			var i = this.shieldList.length - 1;
+			while(i >= 0) {
+				if(this.shieldList[i].amount <= 0) {
+					this.shieldList.splice(i,1);
+				}
+				--i;
+			}
+		}
+		if(finalDamage <= 0) {
+			return { damageBeforeShield : damageBeforeShield, actualDamage : 0};
+		}
+		this.cleanKingShields();
+		this.normalizePandaGuards();
+		var landedDamage = finalDamage;
+		var guards = this.pandaGuards.slice();
+		var n = guards.length;
+		var baseShare = finalDamage / n | 0;
+		var rem = finalDamage % n;
+		var bodyDamage = 0;
+		var _g = 0;
+		var _g1 = guards.length;
+		while(_g < _g1) {
+			var i = _g++;
+			var g = guards[i];
+			var share = baseShare + (i < rem ? 1 : 0);
+			if(share <= 0) {
+				continue;
+			}
+			if(g == -1) {
+				bodyDamage += share;
+				haxe_Log.trace("🐼 本体参与抗伤，分摊 " + share + " 点伤害",{ fileName : "./character/KungFuPanda.hx", lineNumber : 244, className : "character.KungFuPanda", methodName : "handleIncomingDamage"});
+			} else if(g >= 0 && g < this.kingShields.length) {
+				var shieldDamage = dmgType == model_DamageType.TRUE ? Math.ceil(share * 1.5) : share;
+				var before = this.kingShields[g];
+				var lost = Math.min(before,shieldDamage) | 0;
+				this.kingShields[g] -= lost;
+				haxe_Log.trace("🐼 金刚罩" + (g + 1) + " 分摊 " + share + " 伤害" + (dmgType == model_DamageType.TRUE ? "（真伤打罩×1.5=" + shieldDamage + "）" : "") + "，扣 " + lost + "，溢出作废。剩 " + this.kingShields[g],{ fileName : "./character/KungFuPanda.hx", lineNumber : 250, className : "character.KungFuPanda", methodName : "handleIncomingDamage"});
+			}
+		}
+		if(bodyDamage > 0) {
+			this.hp -= bodyDamage;
+			haxe_Log.trace("🐼 本体合计扣血 " + bodyDamage,{ fileName : "./character/KungFuPanda.hx", lineNumber : 256, className : "character.KungFuPanda", methodName : "handleIncomingDamage"});
+		}
+		this.cleanKingShields();
+		if(GameEngine.instance != null) {
+			var src = attacker != null ? attacker.name : "伤害";
+			GameEngine.instance.maybeRegisterHelpTankEvent(this,attacker,damageBeforeShield,landedDamage,dmgType,src,__helpBeforeHp,__helpBeforeShields);
+		}
+		return { damageBeforeShield : damageBeforeShield, actualDamage : landedDamage};
+	}
+	,makeKingShield: function() {
+		this.cleanKingShields();
+		if(this.kingShields.length >= 7) {
+			return "错误：金刚罩已达上限7个";
+		}
+		if(this.hp <= 110) {
+			return "错误：血量不足，无法扣110血获得金刚罩";
+		}
+		this.hp -= 110;
+		this.kingShields.push(70);
+		var newIdx = this.kingShields.length - 1;
+		if(this.pandaGuards.indexOf(newIdx) < 0) {
+			if(this.pandaGuards.length >= 4) {
+				this.pandaGuards.shift();
+			}
+			this.pandaGuards.push(newIdx);
+		}
+		this.normalizePandaGuards();
+		haxe_Log.trace("🐼 扣除110HP，生成 70HP 金刚罩" + this.kingShields.length + "。当前HP " + this.hp,{ fileName : "./character/KungFuPanda.hx", lineNumber : 279, className : "character.KungFuPanda", methodName : "makeKingShield"});
+		return "金刚罩生成成功";
+	}
+	,setPandaMode: function(mode) {
+		if(mode != "heal" && mode != "shield") {
+			return "错误：未知模态";
+		}
+		this.pandaMode = mode;
+		haxe_Log.trace("🐼 切换模态：" + (mode == "heal" ? "回血流" : "回盾流"),{ fileName : "./character/KungFuPanda.hx", lineNumber : 286, className : "character.KungFuPanda", methodName : "setPandaMode"});
+		return "模态切换成功";
+	}
+	,setPandaGuardExclusive: function(guard) {
+		this.cleanKingShields();
+		if(guard != -1 && (guard < 0 || guard >= this.kingShields.length)) {
+			return "错误：金刚罩不存在";
+		}
+		this.pandaGuards = [guard];
+		this.normalizePandaGuards();
+		if(guard == -1) {
+			return "已设置仅本体抗伤";
+		} else {
+			return "已设置仅金刚罩" + (guard + 1) + "抗伤";
+		}
+	}
+	,togglePandaGuard: function(guard) {
+		this.cleanKingShields();
+		if(guard != -1 && (guard < 0 || guard >= this.kingShields.length)) {
+			return "错误：金刚罩不存在";
+		}
+		var pos = this.pandaGuards.indexOf(guard);
+		if(pos >= 0) {
+			this.pandaGuards.splice(pos,1);
+			this.normalizePandaGuards();
+			if(guard == -1) {
+				return "已取消本体抗伤";
+			} else {
+				return "已取消金刚罩" + (guard + 1) + "抗伤";
+			}
+		}
+		if(this.pandaGuards.length >= 4) {
+			return "错误：最多选择4个抗伤单位";
+		}
+		this.pandaGuards.push(guard);
+		this.normalizePandaGuards();
+		if(guard == -1) {
+			return "已加入本体抗伤";
+		} else {
+			return "已加入金刚罩" + (guard + 1) + "抗伤";
+		}
+	}
+	,handleAction: function(actionName,params,engine) {
+		if(actionName == "pandaMakeShield") {
+			return this.makeKingShield();
+		}
+		if(actionName == "pandaSetMode") {
+			return this.setPandaMode(Std.string(params.mode));
+		}
+		if(actionName == "pandaSetGuard") {
+			return this.setPandaGuardExclusive(params.guard);
+		}
+		if(actionName == "pandaToggleGuard") {
+			return this.togglePandaGuard(params.guard);
+		}
+		return model_Player.prototype.handleAction.call(this,actionName,params,engine);
+	}
+	,getCustomDisplay: function() {
+		this.cleanKingShields();
+		var modeName = this.pandaMode == "heal" ? "回血流" : "回盾流";
+		var parts = [];
+		var _g = 0;
+		var _g1 = this.kingShields.length;
+		while(_g < _g1) {
+			var i = _g++;
+			var mark = this.pandaGuards.indexOf(i) >= 0 ? "★" : "";
+			parts.push("" + mark + "罩" + (i + 1) + ":" + this.kingShields[i]);
+		}
+		if(parts.length == 0) {
+			parts.push("无罩");
+		}
+		var guardParts = [];
+		var _g = 0;
+		var _g1 = this.pandaGuards;
+		while(_g < _g1.length) {
+			var g = _g1[_g];
+			++_g;
+			guardParts.push(g == -1 ? "本体" : "罩" + (g + 1));
+		}
+		return "🐼 <b>" + modeName + "</b> | 抗伤:<b>" + guardParts.join("+") + "</b> | 金刚罩: " + parts.join(" ");
+	}
+	,getCustomActions: function() {
+		this.cleanKingShields();
+		var actions = [];
+		actions.push({ label : this.pandaMode == "heal" ? "切回盾流" : "切回血流", color : "#722ed1", enabled : true, onClickJS : this.pandaMode == "heal" ? "invokeAction2(__IDX__, \"pandaSetMode\", {mode:\"shield\"})" : "invokeAction2(__IDX__, \"pandaSetMode\", {mode:\"heal\"})"});
+		actions.push({ label : "扣110造罩(" + this.kingShields.length + "/7)", color : "#fa8c16", enabled : this.hp > 110 && this.kingShields.length < 7, onClickJS : "invokeAction2(__IDX__, \"pandaMakeShield\", {})"});
+		actions.push({ label : (this.pandaGuards.indexOf(-1) >= 0 ? "✓ " : "") + "本体抗伤", color : this.pandaGuards.indexOf(-1) >= 0 ? "#1890ff" : "#ffffff", enabled : true, onClickJS : "invokeAction2(__IDX__, \"pandaToggleGuard\", {guard:-1})"});
+		var _g = 0;
+		var _g1 = this.kingShields.length;
+		while(_g < _g1) {
+			var i = _g++;
+			var selected = this.pandaGuards.indexOf(i) >= 0;
+			actions.push({ label : (selected ? "✓ " : "") + ("罩" + (i + 1) + "抗伤"), color : selected ? "#1890ff" : "#ffffff", enabled : true, onClickJS : "invokeAction2(__IDX__, \"pandaToggleGuard\", {guard:" + i + "})"});
+		}
+		return actions;
+	}
+	,getSnapshotExtras: function() {
+		this.cleanKingShields();
+		var guardParts = [];
+		var _g = 0;
+		var _g1 = this.pandaGuards;
+		while(_g < _g1.length) {
+			var g = _g1[_g];
+			++_g;
+			guardParts.push(g == -1 ? "本体" : "罩" + (g + 1));
+		}
+		return ["🐼" + (this.pandaMode == "heal" ? "回血流" : "回盾流") + " 金刚罩:" + this.kingShields.join("/") + " 抗伤:" + guardParts.join("+")];
+	}
+	,__class__: character_KungFuPanda
 });
 var character_RenZhe = function(id,name,camp) {
 	this._prevHand1 = 1;
@@ -2735,6 +3260,7 @@ character_XiaoQiao.prototype = $extend(model_Player.prototype,{
 });
 var character_YaYan = function(id,name,camp) {
 	this._inSkillEffect = false;
+	this.crowCurseTurns = 0;
 	this.useDemonSword = false;
 	this.useBurningArrow = false;
 	this.crowCount = 0;
@@ -2743,7 +3269,113 @@ var character_YaYan = function(id,name,camp) {
 character_YaYan.__name__ = true;
 character_YaYan.__super__ = model_Player;
 character_YaYan.prototype = $extend(model_Player.prototype,{
-	onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
+	isTargetCampMember: function(p,targetCamp) {
+		if(p == null) {
+			return false;
+		}
+		if(targetCamp == "enemy") {
+			return p.camp != this.camp;
+		} else {
+			return p.camp == this.camp;
+		}
+	}
+	,campHasCrowBuff: function(engine,targetCamp) {
+		if(engine == null || engine.turnManager == null) {
+			return false;
+		}
+		var _g = 0;
+		var _g1 = engine.turnManager.players;
+		while(_g < _g1.length) {
+			var p = _g1[_g];
+			++_g;
+			if(p == null || p.hp <= 0 || !this.isTargetCampMember(p,targetCamp)) {
+				continue;
+			}
+			var _g2 = 0;
+			var _g3 = p.buffList;
+			while(_g2 < _g3.length) {
+				var b = _g3[_g2];
+				++_g2;
+				if(((b) instanceof buffs_CrowBuff)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	,hasAvailableCrowCurseCamp: function(engine) {
+		if(this.campHasCrowBuff(engine,"enemy")) {
+			return !this.campHasCrowBuff(engine,"ally");
+		} else {
+			return true;
+		}
+	}
+	,countOwnedCrowBuffs: function(engine) {
+		if(engine == null || engine.turnManager == null) {
+			return 0;
+		}
+		var count = 0;
+		var _g = 0;
+		var _g1 = engine.turnManager.players;
+		while(_g < _g1.length) {
+			var p = _g1[_g];
+			++_g;
+			if(p == null || p.hp <= 0) {
+				continue;
+			}
+			var _g2 = 0;
+			var _g3 = p.buffList;
+			while(_g2 < _g3.length) {
+				var b = _g3[_g2];
+				++_g2;
+				if(((b) instanceof buffs_CrowBuff) && (js_Boot.__cast(b , buffs_CrowBuff)).isOwnedBy(this)) {
+					++count;
+				}
+			}
+		}
+		return count;
+	}
+	,tickOwnedCrowBuffs: function(engine) {
+		if(engine == null || engine.turnManager == null) {
+			return;
+		}
+		var removed = false;
+		var still = false;
+		var _g = 0;
+		var _g1 = engine.turnManager.players;
+		while(_g < _g1.length) {
+			var p = _g1[_g];
+			++_g;
+			if(p == null) {
+				continue;
+			}
+			var i = p.buffList.length - 1;
+			while(i >= 0) {
+				var b = p.buffList[i];
+				if(((b) instanceof buffs_CrowBuff) && (js_Boot.__cast(b , buffs_CrowBuff)).isOwnedBy(this)) {
+					var cb = js_Boot.__cast(b , buffs_CrowBuff);
+					cb.duration--;
+					if(cb.duration <= 0) {
+						p.buffList.splice(i,1);
+						removed = true;
+						haxe_Log.trace("🦅 乌鸦诅咒随鸦眼行动节奏结束 → 从 " + p.name + " 移除",{ fileName : "./character/YaYan.hx", lineNumber : 85, className : "character.YaYan", methodName : "tickOwnedCrowBuffs"});
+					} else {
+						still = true;
+					}
+				}
+				--i;
+			}
+		}
+		this.crowCurseTurns = still ? 1 : 0;
+		if(removed) {
+			haxe_Log.trace("🦅 乌鸦诅咒有一组结束；没有乌鸦buff的阵营现在可重新施加",{ fileName : "./character/YaYan.hx", lineNumber : 94, className : "character.YaYan", methodName : "tickOwnedCrowBuffs"});
+		}
+	}
+	,shouldSkipZeroTurnsDecrement: function() {
+		this.tickOwnedCrowBuffs(GameEngine.instance);
+		return false;
+	}
+	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
 		if(this._inSkillEffect || type != model_DamageType.PHYSICAL) {
 			return;
 		}
@@ -2753,14 +3385,14 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 			var baseMagic = (Math.abs(mySum - targetSum) | 0) * 10;
 			var magicDmg = this.useDemonSword ? baseMagic * 2 : baseMagic;
 			if(magicDmg > 0) {
-				haxe_Log.trace("🦅 灼燃箭法伤：|" + mySum + "-" + targetSum + "|×10" + (this.useDemonSword ? " ×2" : "") + "=" + magicDmg,{ fileName : "./character/YaYan.hx", lineNumber : 47, className : "character.YaYan", methodName : "onAfterDealtDamage"});
+				haxe_Log.trace("🦅 灼燃箭法伤：|" + mySum + "-" + targetSum + "|×10" + (this.useDemonSword ? " ×2" : "") + "=" + magicDmg,{ fileName : "./character/YaYan.hx", lineNumber : 113, className : "character.YaYan", methodName : "onAfterDealtDamage"});
 				this._inSkillEffect = true;
 				engine.applyRawDamage(this,target,magicDmg,model_DamageType.MAGIC);
 				this._inSkillEffect = false;
 				engine.applyRawHeal(this,magicDmg,model_HealType.SUPPLY,true);
-				haxe_Log.trace("🦅 灼燃箭补给鸦眼：+" + magicDmg + "血",{ fileName : "./character/YaYan.hx", lineNumber : 52, className : "character.YaYan", methodName : "onAfterDealtDamage"});
+				haxe_Log.trace("🦅 灼燃箭补给鸦眼：+" + magicDmg + "血",{ fileName : "./character/YaYan.hx", lineNumber : 118, className : "character.YaYan", methodName : "onAfterDealtDamage"});
 			}
-			haxe_Log.trace("🦅 灼燃箭自耗：-60 物理",{ fileName : "./character/YaYan.hx", lineNumber : 55, className : "character.YaYan", methodName : "onAfterDealtDamage"});
+			haxe_Log.trace("🦅 灼燃箭自耗：-60 物理",{ fileName : "./character/YaYan.hx", lineNumber : 121, className : "character.YaYan", methodName : "onAfterDealtDamage"});
 			this._inSkillEffect = true;
 			this.handleIncomingDamage(null,60,model_DamageType.PHYSICAL);
 			this._inSkillEffect = false;
@@ -2769,7 +3401,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 	,onTurnEnd: function() {
 		model_Player.prototype.onTurnEnd.call(this);
 		if(this.useDemonSword) {
-			haxe_Log.trace("🦅 魔王剑代价：-150 物理",{ fileName : "./character/YaYan.hx", lineNumber : 66, className : "character.YaYan", methodName : "onTurnEnd"});
+			haxe_Log.trace("🦅 魔王剑代价：-150 物理",{ fileName : "./character/YaYan.hx", lineNumber : 132, className : "character.YaYan", methodName : "onTurnEnd"});
 			this.handleIncomingDamage(null,150,model_DamageType.PHYSICAL);
 		}
 		this.useBurningArrow = false;
@@ -2777,6 +3409,10 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 	}
 	,getCustomDisplay: function() {
 		var s = "🦅 乌鸦：" + this.crowCount + " 只";
+		var ownedBuffs = this.countOwnedCrowBuffs(GameEngine.instance);
+		if(ownedBuffs > 0) {
+			s += " | 🐦诅咒持续中×" + ownedBuffs;
+		}
 		if(this.useBurningArrow) {
 			s += " | 🔥灼燃";
 		}
@@ -2786,7 +3422,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 		return s;
 	}
 	,getCustomActions: function() {
-		return [{ label : "🐦 乌鸦诅咒（-40血）", color : "#722ed1", enabled : this.hp > 40, onClickJS : "showCrowCurseDialog(__IDX__); render2();"},{ label : (this.useBurningArrow ? "✓ " : "") + "灼燃箭（-60）", color : this.useBurningArrow ? "#cf1322" : "#595959", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleBurningArrow', {});"},{ label : (this.useDemonSword ? "✓ " : "") + "魔王剑（6🦅）", color : this.useDemonSword ? "#d4380d" : "#595959", enabled : this.crowCount >= 6 && this.useBurningArrow, onClickJS : "invokeAction2(__IDX__, 'toggleDemonSword', {});"}];
+		return [{ label : "🐦 乌鸦诅咒（-40血）", color : "#722ed1", enabled : this.hp > 40 && this.hasAvailableCrowCurseCamp(GameEngine.instance), onClickJS : "showCrowCurseDialog(__IDX__); render2();"},{ label : (this.useBurningArrow ? "✓ " : "") + "灼燃箭（-60）", color : this.useBurningArrow ? "#cf1322" : "#595959", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleBurningArrow', {});"},{ label : (this.useDemonSword ? "✓ " : "") + "魔王剑（6🦅）", color : this.useDemonSword ? "#d4380d" : "#595959", enabled : this.crowCount >= 6 && this.useBurningArrow, onClickJS : "invokeAction2(__IDX__, 'toggleDemonSword', {});"}];
 	}
 	,handleAction: function(actionName,params,engine) {
 		switch(actionName) {
@@ -2795,41 +3431,32 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 				return "错误：HP不足（需>40血）";
 			}
 			var targetCamp = params != null && params.camp != null ? params.camp : "enemy";
+			if(targetCamp != "enemy" && targetCamp != "ally") {
+				targetCamp = "enemy";
+			}
+			if(this.campHasCrowBuff(engine,targetCamp)) {
+				if(targetCamp == "enemy") {
+					return "错误：敌方阵营已有乌鸦诅咒，不能重复添加";
+				} else {
+					return "错误：己方阵营已有乌鸦诅咒，不能重复添加";
+				}
+			}
 			this.hp -= 40;
-			haxe_Log.trace("🦅 鸦眼释放乌鸦诅咒！自扣40血（剩" + this.hp + "），目标：" + targetCamp,{ fileName : "./character/YaYan.hx", lineNumber : 112, className : "character.YaYan", methodName : "handleAction"});
+			haxe_Log.trace("🦅 鸦眼释放乌鸦诅咒！自扣40血（剩" + this.hp + "），目标：" + targetCamp,{ fileName : "./character/YaYan.hx", lineNumber : 186, className : "character.YaYan", methodName : "handleAction"});
 			if(engine.turnManager != null) {
 				var _g = 0;
 				var _g1 = engine.turnManager.players;
 				while(_g < _g1.length) {
 					var p = _g1[_g];
 					++_g;
-					if(p.hp <= 0) {
+					if(p.hp <= 0 || !this.isTargetCampMember(p,targetCamp)) {
 						continue;
-					}
-					var isEnemy = p.camp != this.camp;
-					var isAlly = p.camp == this.camp;
-					var include = targetCamp == "enemy" ? isEnemy : isAlly;
-					if(!include) {
-						continue;
-					}
-					var old = null;
-					var _g2 = 0;
-					var _g3 = p.buffList;
-					while(_g2 < _g3.length) {
-						var b = _g3[_g2];
-						++_g2;
-						if(((b) instanceof buffs_CrowBuff)) {
-							old = b;
-							break;
-						}
-					}
-					if(old != null) {
-						HxOverrides.remove(p.buffList,old);
 					}
 					p.addBuff(new buffs_CrowBuff(2,this));
-					haxe_Log.trace("🦅 乌鸦诅咒 → " + p.name + "（2回合）",{ fileName : "./character/YaYan.hx", lineNumber : 126, className : "character.YaYan", methodName : "handleAction"});
+					haxe_Log.trace("🦅 乌鸦诅咒 → " + p.name + "（跟随鸦眼行动节奏）",{ fileName : "./character/YaYan.hx", lineNumber : 191, className : "character.YaYan", methodName : "handleAction"});
 				}
 			}
+			this.crowCurseTurns = this.countOwnedCrowBuffs(engine) > 0 ? 1 : 0;
 			return "ok";
 		case "injectCrowTriggers":
 			var tIdx = params != null && params.targetIdx != null ? params.targetIdx | 0 : -1;
@@ -2845,7 +3472,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 				++_g;
 				if(((b) instanceof buffs_CrowBuff)) {
 					(js_Boot.__cast(b , buffs_CrowBuff)).extraTriggers = extra;
-					haxe_Log.trace("🦅 注入乌鸦触发+" + extra + "到" + tp.name,{ fileName : "./character/YaYan.hx", lineNumber : 160, className : "character.YaYan", methodName : "handleAction"});
+					haxe_Log.trace("🦅 注入乌鸦触发+" + extra + "到" + tp.name,{ fileName : "./character/YaYan.hx", lineNumber : 226, className : "character.YaYan", methodName : "handleAction"});
 					break;
 				}
 			}
@@ -2855,7 +3482,7 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 			if(!this.useBurningArrow) {
 				this.useDemonSword = false;
 			}
-			haxe_Log.trace("🦅 灼燃箭：" + (this.useBurningArrow ? "开启" : "关闭"),{ fileName : "./character/YaYan.hx", lineNumber : 134, className : "character.YaYan", methodName : "handleAction"});
+			haxe_Log.trace("🦅 灼燃箭：" + (this.useBurningArrow ? "开启" : "关闭"),{ fileName : "./character/YaYan.hx", lineNumber : 200, className : "character.YaYan", methodName : "handleAction"});
 			return "ok";
 		case "toggleDemonSword":
 			if(!this.useBurningArrow) {
@@ -2867,11 +3494,11 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 			if(!this.useDemonSword) {
 				this.useDemonSword = true;
 				this.crowCount -= 6;
-				haxe_Log.trace("🦅 魔王剑激活！消耗6只乌鸦（剩" + this.crowCount + "）",{ fileName : "./character/YaYan.hx", lineNumber : 143, className : "character.YaYan", methodName : "handleAction"});
+				haxe_Log.trace("🦅 魔王剑激活！消耗6只乌鸦（剩" + this.crowCount + "）",{ fileName : "./character/YaYan.hx", lineNumber : 209, className : "character.YaYan", methodName : "handleAction"});
 			} else {
 				this.useDemonSword = false;
 				this.crowCount += 6;
-				haxe_Log.trace("🦅 魔王剑取消，退还6只乌鸦（剩" + this.crowCount + "）",{ fileName : "./character/YaYan.hx", lineNumber : 147, className : "character.YaYan", methodName : "handleAction"});
+				haxe_Log.trace("🦅 魔王剑取消，退还6只乌鸦（剩" + this.crowCount + "）",{ fileName : "./character/YaYan.hx", lineNumber : 213, className : "character.YaYan", methodName : "handleAction"});
 			}
 			return "ok";
 		}
@@ -2936,6 +3563,29 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		}
 		model_Player.prototype.addShield.call(this,type,amount,duration);
 	}
+	,strengthenHumanPhysicalShields: function() {
+		if(this.modal != "ren") {
+			return;
+		}
+		var changed = false;
+		var _g = 0;
+		var _g1 = this.shieldList;
+		while(_g < _g1.length) {
+			var shield = _g1[_g];
+			++_g;
+			if(shield.amount <= 0) {
+				continue;
+			}
+			if(shield.type == model_ShieldType.PHYSICAL) {
+				shield.amount += 15;
+				shield.duration += 1;
+				changed = true;
+			}
+		}
+		if(changed) {
+			haxe_Log.trace("☯️ 人模态抗伤修行：现有所有物理盾 +15 厚度、+1 回合。",{ fileName : "./character/YinYangShi.hx", lineNumber : 97, className : "character.YinYangShi", methodName : "strengthenHumanPhysicalShields"});
+		}
+	}
 	,switchModal: function(newModal,engine) {
 		if(newModal != "yin" && newModal != "yang" && newModal != "ren") {
 			return "错误：未知模态 " + newModal;
@@ -2956,17 +3606,17 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			if(shieldBefore == 0) {
 				var enemies = this.countEnemies();
 				var extraPenalty = 25 * enemies;
-				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾已为0，额外惩罚 " + extraPenalty + " 点物伤（25×敌人数" + enemies + "）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 93, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾已为0，额外惩罚 " + extraPenalty + " 点物伤（25×敌人数" + enemies + "）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 123, className : "character.YinYangShi", methodName : "switchModal"});
 				var result = this.handleIncomingDamage(null,extraPenalty,model_DamageType.PHYSICAL);
-				haxe_Log.trace("☯️ 互切惩罚实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 95, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 互切惩罚实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 125, className : "character.YinYangShi", methodName : "switchModal"});
 			} else {
-				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾 " + shieldBefore + " 归零，自身受到 " + penalty + " 点物伤。",{ fileName : "./character/YinYangShi.hx", lineNumber : 97, className : "character.YinYangShi", methodName : "switchModal"});
+				haxe_Log.trace("☯️ 阴阳直接互切！特殊护盾 " + shieldBefore + " 归零，自身受到 " + penalty + " 点物伤。",{ fileName : "./character/YinYangShi.hx", lineNumber : 127, className : "character.YinYangShi", methodName : "switchModal"});
 				if(penalty > 0) {
 					var result = this.handleIncomingDamage(null,penalty,model_DamageType.PHYSICAL);
-					haxe_Log.trace("☯️ 互切自伤实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 100, className : "character.YinYangShi", methodName : "switchModal"});
+					haxe_Log.trace("☯️ 互切自伤实际扣血：" + result.actualDamage,{ fileName : "./character/YinYangShi.hx", lineNumber : 130, className : "character.YinYangShi", methodName : "switchModal"});
 				}
 			}
-			haxe_Log.trace("☯️ 切换至【" + (newModal == "yin" ? "阴" : "阳") + "】模态。",{ fileName : "./character/YinYangShi.hx", lineNumber : 103, className : "character.YinYangShi", methodName : "switchModal"});
+			haxe_Log.trace("☯️ 切换至【" + (newModal == "yin" ? "阴" : "阳") + "】模态。",{ fileName : "./character/YinYangShi.hx", lineNumber : 133, className : "character.YinYangShi", methodName : "switchModal"});
 			return "切换成功";
 		}
 		if(oldModal == "ren" && (newModal == "yin" || newModal == "yang")) {
@@ -2974,18 +3624,20 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var enemies = this.countEnemies();
 			var shieldAmount = 25 * enemies;
 			this.specialShield = shieldAmount;
-			haxe_Log.trace("☯️ 人→" + (newModal == "yin" ? "阴" : "阳") + "！获得特殊物法护盾 " + shieldAmount + "（敌人数 " + enemies + "×25）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 113, className : "character.YinYangShi", methodName : "switchModal"});
+			haxe_Log.trace("☯️ 人→" + (newModal == "yin" ? "阴" : "阳") + "！获得特殊物法护盾 " + shieldAmount + "（敌人数 " + enemies + "×25）。",{ fileName : "./character/YinYangShi.hx", lineNumber : 143, className : "character.YinYangShi", methodName : "switchModal"});
 			return "切换成功";
 		}
 		if((oldModal == "yin" || oldModal == "yang") && newModal == "ren") {
-			var shieldBefore1 = this.specialShield;
-			var convertAmount = shieldBefore1 / 2 | 0;
+			var shieldBefore = this.specialShield;
+			var healAmount = shieldBefore / 2 | 0;
 			this.specialShield = 0;
 			this.modal = newModal;
-			haxe_Log.trace("☯️ " + (oldModal == "yin" ? "阴" : "阳") + "→人！特殊护盾 " + shieldBefore1 + " 清空，回复 " + convertAmount + " 血，并转化为 " + convertAmount + " 点3回合物理护盾。",{ fileName : "./character/YinYangShi.hx", lineNumber : 137, className : "character.YinYangShi", methodName : "switchModal"});
-			if(convertAmount > 0) {
-				engine.applyRawHeal(this,convertAmount,model_HealType.RECOVERY,false);
-				engine.applyShield(this,model_ShieldType.PHYSICAL,convertAmount,3,true);
+			haxe_Log.trace("☯️ " + (oldModal == "yin" ? "阴" : "阳") + "→人！特殊护盾 " + shieldBefore + " 清空，回复 " + healAmount + " 血，并转化为 " + shieldBefore + " 点2回合物理护盾。",{ fileName : "./character/YinYangShi.hx", lineNumber : 153, className : "character.YinYangShi", methodName : "switchModal"});
+			if(healAmount > 0) {
+				engine.applyRawHeal(this,healAmount,model_HealType.RECOVERY,false);
+			}
+			if(shieldBefore > 0) {
+				engine.applyShield(this,model_ShieldType.PHYSICAL,shieldBefore,2,true);
 			}
 			return "切换成功";
 		}
@@ -2999,8 +3651,10 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var decay = 10 * enemies;
 			if(this.specialShield > 0) {
 				this.specialShield = Math.max(0,this.specialShield - decay) | 0;
-				haxe_Log.trace("☯️ 阴阳师特殊护盾衰减 " + decay + "（敌人×10），剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 153, className : "character.YinYangShi", methodName : "shouldSkipZeroTurnsDecrement"});
+				haxe_Log.trace("☯️ 阴阳师特殊护盾衰减 " + decay + "（敌人×10），剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 189, className : "character.YinYangShi", methodName : "shouldSkipZeroTurnsDecrement"});
 			}
+		} else if(this.modal == "ren") {
+			this.strengthenHumanPhysicalShields();
 		}
 		return false;
 	}
@@ -3008,12 +3662,12 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		var inputAmount = amount;
 		if(this.modal == "yin" || this.modal == "yang") {
 			var boosted = amount * 1.5 | 0;
-			haxe_Log.trace("☯️ 阴阳师【" + (this.modal == "yin" ? "阴" : "阳") + "】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + boosted + "（×1.5）",{ fileName : "./character/YinYangShi.hx", lineNumber : 169, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+			haxe_Log.trace("☯️ 阴阳师【" + (this.modal == "yin" ? "阴" : "阳") + "】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + boosted + "（×1.5）",{ fileName : "./character/YinYangShi.hx", lineNumber : 207, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 			inputAmount = boosted;
 		} else if(this.modal == "ren") {
 			if(dmgType == model_DamageType.PHYSICAL || dmgType == model_DamageType.MAGIC || dmgType == model_DamageType.TRUE) {
 				var reduced = amount * 3 / 4 | 0;
-				haxe_Log.trace("☯️ 阴阳师【人】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + reduced + "（物法真伤减少1/4）",{ fileName : "./character/YinYangShi.hx", lineNumber : 175, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+				haxe_Log.trace("☯️ 阴阳师【人】受到 " + Std.string(dmgType) + " 伤害，" + amount + " → " + reduced + "（物法真伤减少1/4）",{ fileName : "./character/YinYangShi.hx", lineNumber : 213, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 				inputAmount = reduced;
 			}
 		}
@@ -3021,7 +3675,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var absorbed = Math.min(this.specialShield,inputAmount) | 0;
 			this.specialShield -= absorbed;
 			inputAmount -= absorbed;
-			haxe_Log.trace("☯️ 特殊护盾抵挡 " + absorbed + " 点伤害，剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 185, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
+			haxe_Log.trace("☯️ 特殊护盾抵挡 " + absorbed + " 点伤害，剩余 " + this.specialShield + "。",{ fileName : "./character/YinYangShi.hx", lineNumber : 223, className : "character.YinYangShi", methodName : "handleIncomingDamage"});
 		}
 		return model_Player.prototype.handleIncomingDamage.call(this,attacker,inputAmount,dmgType);
 	}
@@ -3032,15 +3686,15 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		switch(this.modal) {
 		case "ren":
 			var halved = baseAmount * 0.5 | 0;
-			haxe_Log.trace("☯️ 人模态输出 ×0.5：" + baseAmount + " → " + halved,{ fileName : "./character/YinYangShi.hx", lineNumber : 212, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 人模态输出 ×0.5：" + baseAmount + " → " + halved,{ fileName : "./character/YinYangShi.hx", lineNumber : 250, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return halved;
 		case "yang":
 			this._pendingYangBase = baseAmount;
-			haxe_Log.trace("☯️ 阳模态：伤害将转为回复，输出置0（基础值 " + baseAmount + " 将×3.5回复）",{ fileName : "./character/YinYangShi.hx", lineNumber : 208, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 阳模态：伤害将转为回复，输出置0（基础值 " + baseAmount + " 将×3.5回复）",{ fileName : "./character/YinYangShi.hx", lineNumber : 246, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return 0;
 		case "yin":
 			var boosted = baseAmount * 3.5 | 0;
-			haxe_Log.trace("☯️ 阴模态输出 ×3.5：" + baseAmount + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 203, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("☯️ 阴模态输出 ×3.5：" + baseAmount + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 241, className : "character.YinYangShi", methodName : "calculateOutputDamage"});
 			return boosted;
 		default:
 			return baseAmount;
@@ -3054,16 +3708,16 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		case "ren":
 			var base2 = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
 			var boosted2 = Math.ceil(base2 * 1.5);
-			haxe_Log.trace("☯️ 人模态回复 ×1.5：" + base2 + " → " + boosted2,{ fileName : "./character/YinYangShi.hx", lineNumber : 241, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 人模态回复 ×1.5：" + base2 + " → " + boosted2,{ fileName : "./character/YinYangShi.hx", lineNumber : 279, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return boosted2;
 		case "yang":
 			var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
 			var boosted = Math.ceil(base * 3.5);
-			haxe_Log.trace("☯️ 阳模态回复 ×3.5：" + base + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 236, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 阳模态回复 ×3.5：" + base + " → " + boosted,{ fileName : "./character/YinYangShi.hx", lineNumber : 274, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return boosted;
 		case "yin":
 			this._pendingYinBase = baseAmount;
-			haxe_Log.trace("☯️ 阴模态：回复将转为物伤，拦截为0（基础值 " + baseAmount + " 将×3.5转为物伤）",{ fileName : "./character/YinYangShi.hx", lineNumber : 231, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
+			haxe_Log.trace("☯️ 阴模态：回复将转为物伤，拦截为0（基础值 " + baseAmount + " 将×3.5转为物伤）",{ fileName : "./character/YinYangShi.hx", lineNumber : 269, className : "character.YinYangShi", methodName : "calculateFinalHeal"});
 			return 0;
 		default:
 			return model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
@@ -3075,7 +3729,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		}
 		if(this.modal == "yang" && this._pendingYangBase > 0) {
 			var healAmount = this._pendingYangBase * 3.5 | 0;
-			haxe_Log.trace("☯️ 阳模态：本次「基础」伤害 " + this._pendingYangBase + " × 3.5 = " + healAmount + "，转为回复！",{ fileName : "./character/YinYangShi.hx", lineNumber : 255, className : "character.YinYangShi", methodName : "onAfterDealtDamage"});
+			haxe_Log.trace("☯️ 阳模态：本次「基础」伤害 " + this._pendingYangBase + " × 3.5 = " + healAmount + "，转为回复！",{ fileName : "./character/YinYangShi.hx", lineNumber : 293, className : "character.YinYangShi", methodName : "onAfterDealtDamage"});
 			this._pendingYangBase = 0;
 			this._inYangDmgConvert = true;
 			engine.applyRawHeal(this,healAmount,model_HealType.RECOVERY,false);
@@ -3092,7 +3746,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 			var dmgAmount = this._pendingYinBase * 3.5 | 0;
 			var enemy = engine.findEnemyTarget(this);
 			if(enemy != null) {
-				haxe_Log.trace("☯️ 阴模态：本次「基础」回复 " + this._pendingYinBase + " × 3.5 = " + dmgAmount + "，转为物伤！",{ fileName : "./character/YinYangShi.hx", lineNumber : 274, className : "character.YinYangShi", methodName : "onAfterHeal"});
+				haxe_Log.trace("☯️ 阴模态：本次「基础」回复 " + this._pendingYinBase + " × 3.5 = " + dmgAmount + "，转为物伤！",{ fileName : "./character/YinYangShi.hx", lineNumber : 312, className : "character.YinYangShi", methodName : "onAfterHeal"});
 				this._pendingYinBase = 0;
 				this._inYinHealConvert = true;
 				engine.applyRawDamage(this,enemy,dmgAmount,model_DamageType.PHYSICAL);
@@ -3112,7 +3766,7 @@ character_YinYangShi.prototype = $extend(model_Player.prototype,{
 		var modalName;
 		switch(this.modal) {
 		case "ren":
-			modalName = "☯️人（输出×0.5，回复×1.5，物法真伤-1/4，物理盾+15/+1）";
+			modalName = "☯️人（输出×0.5，回复×1.5，物法真伤-1/4，物理盾成长+15/+1）";
 			break;
 		case "yang":
 			modalName = "☯️阳（回复×3.5，伤害→回复，受伤×1.5）";
@@ -3232,7 +3886,7 @@ character_ZangShi.prototype = $extend(model_Player.prototype,{
 	,onBigRoundEnd: function() {
 		model_Player.prototype.onBigRoundEnd.call(this);
 		if(this.cakeEventsThisRound > 0) {
-			haxe_Log.trace("🔄 " + this.name + " 草莓蛋糕计数重置（上回合计 " + this.cakeEventsThisRound + "/8）。",{ fileName : "./character/ZangShi.hx", lineNumber : 137, className : "character.ZangShi", methodName : "onBigRoundEnd"});
+			haxe_Log.trace("🔄 " + this.name + " 草莓蛋糕计数重置（上回合计 " + this.cakeEventsThisRound + "/8）。",{ fileName : "./character/ZangShi.hx", lineNumber : 138, className : "character.ZangShi", methodName : "onBigRoundEnd"});
 		}
 		this.cakeEventsThisRound = 0;
 	}
@@ -3250,7 +3904,7 @@ character_ZangShi.prototype = $extend(model_Player.prototype,{
 		var damage = 10 * groupCount;
 		var supply = 10 * groupCount;
 		this.cakes -= cost;
-		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身补给 " + supply + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 156, className : "character.ZangShi", methodName : "useCake"});
+		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身补给 " + supply + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 157, className : "character.ZangShi", methodName : "useCake"});
 		this._inCakeCast = true;
 		engine.applyDamage(this,target,damage,model_DamageType.MAGIC);
 		engine.applyRawHeal(this,supply,model_HealType.RECOVERY,false);
@@ -3445,7 +4099,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 	,onBigRoundEnd: function() {
 		model_Player.prototype.onBigRoundEnd.call(this);
 		if(this.rageAddedThisRound > 0) {
-			haxe_Log.trace("🐗 张飞怒气计数重置（上回合获得 " + this.rageAddedThisRound + "/4 层）",{ fileName : "./character/ZhangFei.hx", lineNumber : 193, className : "character.ZhangFei", methodName : "onBigRoundEnd"});
+			haxe_Log.trace("🐗 张飞怒气计数重置（上回合获得 " + this.rageAddedThisRound + "/4 层）",{ fileName : "./character/ZhangFei.hx", lineNumber : 194, className : "character.ZhangFei", methodName : "onBigRoundEnd"});
 		}
 		this.rageAddedThisRound = 0;
 	}
@@ -3465,7 +4119,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		if(this.hands[1] == 0 && this.zeroTurns1 > 0) {
 			this.zeroTurns1++;
 		}
-		haxe_Log.trace("🐗🔥 张飞进入【狂暴】！消耗 24 怒气，剩 " + this.rage + "。持续 3 回合。0使用回合数升级为3，已有0寿命+1",{ fileName : "./character/ZhangFei.hx", lineNumber : 210, className : "character.ZhangFei", methodName : "enterFrenzy"});
+		haxe_Log.trace("🐗🔥 张飞进入【狂暴】！消耗 24 怒气，剩 " + this.rage + "。持续 3 回合。0使用回合数升级为3，已有0寿命+1",{ fileName : "./character/ZhangFei.hx", lineNumber : 211, className : "character.ZhangFei", methodName : "enterFrenzy"});
 		return "成功进入狂暴";
 	}
 	,setModal: function(m) {
@@ -3473,7 +4127,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 			return "错误：模态值应为 1-3";
 		}
 		this.modal = m;
-		haxe_Log.trace("🐗 张飞切换为模态 " + m,{ fileName : "./character/ZhangFei.hx", lineNumber : 220, className : "character.ZhangFei", methodName : "setModal"});
+		haxe_Log.trace("🐗 张飞切换为模态 " + m,{ fileName : "./character/ZhangFei.hx", lineNumber : 221, className : "character.ZhangFei", methodName : "setModal"});
 		return "切换成功";
 	}
 	,handleAction: function(actionName,params,engine) {
@@ -3515,6 +4169,8 @@ var character_ZhaoYun = function(id,name,camp) {
 	this._prevHand1 = 1;
 	this._prevHand0 = 1;
 	this._inZeroCombo = false;
+	this.yStaleTurns = 0;
+	this.xStaleTurns = 0;
 	this.y = 10;
 	this.x = 20;
 	model_Player.call(this,id,name,200,camp);
@@ -3527,7 +4183,7 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 			return baseAmount;
 		}
 		var merged = baseAmount + this.x;
-		haxe_Log.trace("🐉 [赵云] 物伤合并：base(" + baseAmount + ") + x(" + this.x + ") = " + merged,{ fileName : "./character/ZhaoYun.hx", lineNumber : 59, className : "character.ZhaoYun", methodName : "calculateOutputDamage"});
+		haxe_Log.trace("🐉 [赵云] 物伤合并：base(" + baseAmount + ") + x(" + this.x + ") = " + merged,{ fileName : "./character/ZhaoYun.hx", lineNumber : 61, className : "character.ZhaoYun", methodName : "calculateOutputDamage"});
 		return merged;
 	}
 	,onAnyOutputDamage: function(attacker,target,outputDamage,type,engine) {
@@ -3539,13 +4195,14 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 		}
 		var raw = Math.max(10,outputDamage / 2) | 0;
 		var newY = Math.min(120,raw) | 0;
-		haxe_Log.trace("🐉 [赵云] 本次物理总输出 " + outputDamage + "，y：" + this.y + " → " + newY + "（输出/2，上限" + 120 + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 72, className : "character.ZhaoYun", methodName : "onAnyOutputDamage"});
+		haxe_Log.trace("🐉 [赵云] 本次物理总输出 " + outputDamage + "，y：" + this.y + " → " + newY + "（输出/2，上限" + 120 + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 74, className : "character.ZhaoYun", methodName : "onAnyOutputDamage"});
 		this.y = newY;
+		this.yStaleTurns = 0;
 	}
 	,calculateFinalHeal: function(baseAmount,type) {
 		var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
 		var total = base + this.y;
-		haxe_Log.trace("🐉 [赵云] 回血合并：" + base + " + y(" + this.y + ") = " + total + "（单段广播）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 82, className : "character.ZhaoYun", methodName : "calculateFinalHeal"});
+		haxe_Log.trace("🐉 [赵云] 回血合并：" + base + " + y(" + this.y + ") = " + total + "（单段广播）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 85, className : "character.ZhaoYun", methodName : "calculateFinalHeal"});
 		return total;
 	}
 	,onAnyHealHappened: function(healer,amount,type,isFromSkill,engine) {
@@ -3557,8 +4214,9 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 		}
 		var raw = Math.max(20,amount) | 0;
 		var newX = Math.min(120,raw) | 0;
-		haxe_Log.trace("🐉 [赵云] 本次总回血 " + amount + "，x：" + this.x + " → " + newX + "（总回血量，上限" + 120 + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 95, className : "character.ZhaoYun", methodName : "onAnyHealHappened"});
+		haxe_Log.trace("🐉 [赵云] 本次总回血 " + amount + "，x：" + this.x + " → " + newX + "（总回血量，上限" + 120 + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 98, className : "character.ZhaoYun", methodName : "onAnyHealHappened"});
 		this.x = newX;
+		this.xStaleTurns = 0;
 	}
 	,onEnterZeroComboContext: function() {
 		this._inZeroCombo = true;
@@ -3581,7 +4239,7 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 		this._prevHand0 = this.hands[0];
 		this._prevHand1 = this.hands[1];
 		if(this._inZeroCombo) {
-			haxe_Log.trace("🐉 赵云单手被动：0组合期间跳过（手值 " + Std.string(newVals) + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 130, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+			haxe_Log.trace("🐉 赵云单手被动：0组合期间跳过（手值 " + Std.string(newVals) + "）",{ fileName : "./character/ZhaoYun.hx", lineNumber : 134, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
 			return;
 		}
 		var _g = 0;
@@ -3589,19 +4247,42 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 			var v = newVals[_g];
 			++_g;
 			if(v == 8 || v == 4) {
-				haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：回复 10+y=" + (10 + this.y) + " 血",{ fileName : "./character/ZhaoYun.hx", lineNumber : 136, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+				haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：回复 10+y=" + (10 + this.y) + " 血",{ fileName : "./character/ZhaoYun.hx", lineNumber : 140, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
 				engine.applyHeal(this,10,model_HealType.RECOVERY);
 			} else if(v == 5 || v == 1 || v == 9) {
 				var target = engine.findEnemyTarget(this);
 				if(target != null && target.hp > 0) {
-					haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：造成 20+x=" + (20 + this.x) + " 物理伤害给 " + target.name,{ fileName : "./character/ZhaoYun.hx", lineNumber : 141, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
+					haxe_Log.trace("🐉 赵云单手 [" + v + "] 被动触发：造成 20+x=" + (20 + this.x) + " 物理伤害给 " + target.name,{ fileName : "./character/ZhaoYun.hx", lineNumber : 145, className : "character.ZhaoYun", methodName : "onAfterTouchResolved"});
 					engine.applyDamage(this,target,20,model_DamageType.PHYSICAL);
 				}
 			}
 		}
 	}
+	,onTurnEnd: function() {
+		model_Player.prototype.onTurnEnd.call(this);
+		if(this.x > 50) {
+			this.xStaleTurns++;
+			if(this.xStaleTurns >= 3) {
+				haxe_Log.trace("🐉 [赵云] x 三回合未更新，" + this.x + " → 50",{ fileName : "./character/ZhaoYun.hx", lineNumber : 162, className : "character.ZhaoYun", methodName : "onTurnEnd"});
+				this.x = 50;
+				this.xStaleTurns = 0;
+			}
+		} else {
+			this.xStaleTurns = 0;
+		}
+		if(this.y > 50) {
+			this.yStaleTurns++;
+			if(this.yStaleTurns >= 3) {
+				haxe_Log.trace("🐉 [赵云] y 三回合未更新，" + this.y + " → 50",{ fileName : "./character/ZhaoYun.hx", lineNumber : 172, className : "character.ZhaoYun", methodName : "onTurnEnd"});
+				this.y = 50;
+				this.yStaleTurns = 0;
+			}
+		} else {
+			this.yStaleTurns = 0;
+		}
+	}
 	,getCustomDisplay: function() {
-		return "🐉 x = <b>" + this.x + "</b>（物伤加成）| y = <b>" + this.y + "</b>（回血加成）";
+		return "🐉 x = <b>" + this.x + "</b>（物伤加成）| y = <b>" + this.y + "</b>（回血加成）| 未更新：x " + this.xStaleTurns + "/3，y " + this.yStaleTurns + "/3";
 	}
 	,getSnapshotExtras: function() {
 		return ["🐉x=" + this.x + "(物伤加成),y=" + this.y + "(回血加成)"];
@@ -3610,259 +4291,6 @@ character_ZhaoYun.prototype = $extend(model_Player.prototype,{
 		return true;
 	}
 	,__class__: character_ZhaoYun
-});
-
-var character_KungFuPanda = function(id,name,camp) {
-	this._healingKingShields = false;
-	this._lastHealMode = "heal";
-	this._lastHealBase = 0;
-	this.defaultGuard = 0;
-	this.pandaMode = "heal";
-	this.kingShields = [];
-	model_Player.call(this,id,name,230,camp);
-	this.kingShields.push(150);
-};
-character_KungFuPanda.__name__ = true;
-character_KungFuPanda.__super__ = model_Player;
-character_KungFuPanda.prototype = $extend(model_Player.prototype,{
-	aliveShieldCount: function() {
-		var n = 0;
-		var _g = 0;
-		var _g1 = this.kingShields;
-		while(_g < _g1.length) {
-			var v = _g1[_g++];
-			if(v > 0) ++n;
-		}
-		return n;
-	}
-	,cleanKingShields: function() {
-		var i = this.kingShields.length - 1;
-		while(i >= 0) {
-			if(this.kingShields[i] <= 0) this.kingShields.splice(i,1);
-			--i;
-		}
-		if(this.kingShields.length == 0) this.defaultGuard = -1;
-		else if(this.defaultGuard >= this.kingShields.length) this.defaultGuard = this.kingShields.length - 1;
-	}
-	,healMultiplier: function() {
-		var n = this.aliveShieldCount();
-		if(n <= 0) return 3.0;
-		if(n == 1) return 2.5;
-		if(n == 2) return 2.25;
-		return 2.0;
-	}
-	,repairAllKingShieldsShared: function(totalAmount) {
-		if(totalAmount <= 0 || this.kingShields.length == 0) return;
-		var n = this.kingShields.length;
-		var base = totalAmount / n | 0;
-		var rem = totalAmount % n;
-		var _g = 0;
-		var _g1 = n;
-		while(_g < _g1) {
-			var i = _g++;
-			var amount = base + (i < rem ? 1 : 0);
-			if(amount <= 0) continue;
-			this.kingShields[i] += amount;
-			haxe_Log.trace("🐼 回血流：金刚罩" + (i + 1) + " 获得 " + amount + " 点补给修复（总量" + totalAmount + "/" + n + "个罩），当前 " + this.kingShields[i],{ fileName : "./character/KungFuPanda.hx", lineNumber : 66, className : "character.KungFuPanda", methodName : "repairAllKingShieldsShared"});
-		}
-	}
-	,calculateFinalHeal: function(baseAmount,type) {
-		var base = model_Player.prototype.calculateFinalHeal.call(this,baseAmount,type);
-		this._lastHealBase = baseAmount;
-		this._lastHealMode = this.pandaMode;
-		if(this.pandaMode == "heal") {
-			var m = this.healMultiplier();
-			var boosted = Math.ceil(base * m);
-			haxe_Log.trace("🐼 回血流：本体回复 " + base + " × " + m + " = " + boosted + "（金刚罩数 " + this.aliveShieldCount() + "）",{ fileName : "./character/KungFuPanda.hx", lineNumber : 77, className : "character.KungFuPanda", methodName : "calculateFinalHeal"});
-			return boosted;
-		}
-		haxe_Log.trace("🐼 回盾流：本体回复不额外加成，" + baseAmount + " → " + base,{ fileName : "./character/KungFuPanda.hx", lineNumber : 82, className : "character.KungFuPanda", methodName : "calculateFinalHeal"});
-		return base;
-	}
-	,onAfterHeal: function(actualHeal,type,engine) {
-		if(this._healingKingShields || actualHeal <= 0) return;
-		if(this._lastHealBase <= 0) return;
-		this._healingKingShields = true;
-		if(this._lastHealMode == "heal") {
-			this.repairAllKingShieldsShared(60);
-		} else {
-			var amount = this._lastHealBase + 10;
-			var _g = 0;
-			var _g1 = this.kingShields.length;
-			while(_g < _g1) {
-				var i = _g++;
-				this.kingShields[i] += amount;
-				haxe_Log.trace("🐼 回盾流：金刚罩" + (i + 1) + " 获得 " + amount + " 点补给修复，当前 " + this.kingShields[i],{ fileName : "./character/KungFuPanda.hx", lineNumber : 98, className : "character.KungFuPanda", methodName : "onAfterHeal"});
-			}
-		}
-		this._healingKingShields = false;
-	}
-	,calculateOutputDamage: function(baseAmount,type) {
-		if(type != model_DamageType.PHYSICAL) return baseAmount;
-		if(this.pandaMode == "heal") {
-			var reduced = baseAmount * 0.5 | 0;
-			haxe_Log.trace("🐼 回血流：物理攻击 " + baseAmount + " ×0.5 = " + reduced,{ fileName : "./character/KungFuPanda.hx", lineNumber : 108, className : "character.KungFuPanda", methodName : "calculateOutputDamage"});
-			return reduced;
-		}
-		var boosted = baseAmount * 2 | 0;
-		haxe_Log.trace("🐼 回盾流：物理攻击 " + baseAmount + " ×2 = " + boosted,{ fileName : "./character/KungFuPanda.hx", lineNumber : 112, className : "character.KungFuPanda", methodName : "calculateOutputDamage"});
-		return boosted;
-	}
-	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
-		if(this.pandaMode == "heal" && type == model_DamageType.PHYSICAL && actualDamage > 0) {
-			var supply = actualDamage * 2;
-			haxe_Log.trace("🐼 回血流：造成 " + actualDamage + " 物伤 → 获得 " + supply + " 补给",{ fileName : "./character/KungFuPanda.hx", lineNumber : 120, className : "character.KungFuPanda", methodName : "onAfterDealtDamage"});
-			engine.applyRawHeal(this,supply,model_HealType.SUPPLY,true);
-		}
-	}
-	,addShield: function(type,amount,duration) {
-		if(this.pandaMode == "heal" && type == model_ShieldType.PHYSICAL) {
-			var boosted = amount * 2;
-			haxe_Log.trace("🐼 回血流：获得物理护盾 " + amount + "/" + duration + " → " + boosted + "/" + (duration + 1),{ fileName : "./character/KungFuPanda.hx", lineNumber : 128, className : "character.KungFuPanda", methodName : "addShield"});
-			model_Player.prototype.addShield.call(this,type,boosted,duration + 1);
-			return;
-		}
-		model_Player.prototype.addShield.call(this,type,amount,duration);
-	}
-	,handleIncomingDamage: function(attacker,amount,dmgType) {
-		if(amount <= 0) return { damageBeforeShield : 0, actualDamage : 0};
-		var finalDamage = amount;
-		if(attacker != null && (GameEngine.instance == null || !GameEngine.instance._skipAttackerDealBuffs)) {
-			var _g = 0;
-			var _g1 = attacker.buffList;
-			while(_g < _g1.length) finalDamage = _g1[_g++].onDealDamage(attacker,this,finalDamage,dmgType);
-			attacker.cleanEmptyBuffs();
-		} else if(attacker != null) attacker.cleanEmptyBuffs();
-		if(dmgType != model_DamageType.TRUE) {
-			var _g = 0;
-			var _g1 = this.buffList;
-			while(_g < _g1.length) finalDamage = _g1[_g++].onTakeDamage(this,attacker,finalDamage,dmgType);
-			if(finalDamage <= 0) {
-				this.cleanEmptyBuffs();
-				return { damageBeforeShield : 0, actualDamage : 0};
-			}
-		}
-		var damageBeforeShield = finalDamage;
-		while(finalDamage > 0) {
-			var valid = [];
-			var _g = 0;
-			var _g1 = this.shieldList;
-			while(_g < _g1.length) {
-				var shield = _g1[_g++];
-				if(shield.amount <= 0) continue;
-				var canBlock = false;
-				switch(dmgType._hx_index) {
-				case 0:
-					if(shield.type == model_ShieldType.PHYSICAL || shield.type == model_ShieldType.BOTH_PHYSICAL_MAGIC || shield.type == model_ShieldType.TRUE) canBlock = true;
-					break;
-				case 1:
-					if(shield.type == model_ShieldType.MAGIC || shield.type == model_ShieldType.BOTH_PHYSICAL_MAGIC || shield.type == model_ShieldType.TRUE) canBlock = true;
-					break;
-				case 2:
-					if(shield.type == model_ShieldType.TRUE) canBlock = true;
-					break;
-				}
-				if(canBlock) valid.push(shield);
-			}
-			if(valid.length == 0) break;
-			valid.sort(function(a,b) { return a.duration - b.duration; });
-			var s = valid[0];
-			if(s.amount >= finalDamage) {
-				s.amount -= finalDamage;
-				finalDamage = 0;
-			} else {
-				finalDamage -= s.amount;
-				s.amount = 0;
-			}
-			var i = this.shieldList.length - 1;
-			while(i >= 0) {
-				if(this.shieldList[i].amount <= 0) this.shieldList.splice(i,1);
-				--i;
-			}
-		}
-		if(finalDamage <= 0) return { damageBeforeShield : damageBeforeShield, actualDamage : 0};
-		this.cleanKingShields();
-		if(this.kingShields.length > 0 && this.defaultGuard >= 0) {
-			var idx = this.defaultGuard;
-			if(idx >= this.kingShields.length) idx = this.kingShields.length - 1;
-			var shieldDamage = dmgType == model_DamageType.TRUE ? Math.ceil(finalDamage * 1.5) : finalDamage;
-			var before = this.kingShields[idx];
-			var lost = Math.min(before,shieldDamage) | 0;
-			this.kingShields[idx] -= lost;
-			haxe_Log.trace("🐼 金刚罩" + (idx + 1) + " 承受 " + finalDamage + " 伤害" + (dmgType == model_DamageType.TRUE ? "（真伤打罩×1.5=" + shieldDamage + "）" : "") + "，扣 " + lost + "，溢出作废。剩 " + this.kingShields[idx],{ fileName : "./character/KungFuPanda.hx", lineNumber : 218, className : "character.KungFuPanda", methodName : "handleIncomingDamage"});
-			this.cleanKingShields();
-			return { damageBeforeShield : damageBeforeShield, actualDamage : 0};
-		}
-		this.hp -= finalDamage;
-		haxe_Log.trace("🐼 默认本体抗伤，扣血 " + finalDamage,{ fileName : "./character/KungFuPanda.hx", lineNumber : 226, className : "character.KungFuPanda", methodName : "handleIncomingDamage"});
-		return { damageBeforeShield : damageBeforeShield, actualDamage : finalDamage};
-	}
-	,makeKingShield: function() {
-		this.cleanKingShields();
-		if(this.kingShields.length >= 7) return "错误：金刚罩已达上限7个";
-		if(this.hp <= 110) return "错误：血量不足，无法扣110血获得金刚罩";
-		this.hp -= 110;
-		this.kingShields.push(70);
-		this.defaultGuard = this.kingShields.length - 1;
-		haxe_Log.trace("🐼 扣除110HP，生成 70HP 金刚罩" + this.kingShields.length + "。当前HP " + this.hp,{ fileName : "./character/KungFuPanda.hx", lineNumber : 237, className : "character.KungFuPanda", methodName : "makeKingShield"});
-		return "金刚罩生成成功";
-	}
-	,setPandaMode: function(mode) {
-		if(mode != "heal" && mode != "shield") return "错误：未知模态";
-		this.pandaMode = mode;
-		haxe_Log.trace("🐼 切换模态：" + (mode == "heal" ? "回血流" : "回盾流"),{ fileName : "./character/KungFuPanda.hx", lineNumber : 244, className : "character.KungFuPanda", methodName : "setPandaMode"});
-		return "模态切换成功";
-	}
-	,setDefaultGuard: function(guard) {
-		this.cleanKingShields();
-		if(guard == -1) {
-			this.defaultGuard = -1;
-			return "已设置默认本体抗伤";
-		}
-		if(guard < 0 || guard >= this.kingShields.length) return "错误：金刚罩不存在";
-		this.defaultGuard = guard;
-		return "已设置默认金刚罩" + (guard + 1) + "抗伤";
-	}
-	,handleAction: function(actionName,params,engine) {
-		if(actionName == "pandaMakeShield") return this.makeKingShield();
-		if(actionName == "pandaSetMode") return this.setPandaMode(Std.string(params.mode));
-		if(actionName == "pandaSetGuard") return this.setDefaultGuard(params.guard);
-		return model_Player.prototype.handleAction.call(this,actionName,params,engine);
-	}
-	,getCustomDisplay: function() {
-		this.cleanKingShields();
-		var modeName = this.pandaMode == "heal" ? "回血流" : "回盾流";
-		var parts = [];
-		var _g = 0;
-		var _g1 = this.kingShields.length;
-		while(_g < _g1) {
-			var i = _g++;
-			var mark = this.defaultGuard == i ? "★" : "";
-			parts.push(mark + "罩" + (i + 1) + ":" + this.kingShields[i]);
-		}
-		if(parts.length == 0) parts.push("无罩");
-		var guardName = this.defaultGuard == -1 ? "本体" : "罩" + (this.defaultGuard + 1);
-		return "🐼 <b>" + modeName + "</b> | 默认抗伤:<b>" + guardName + "</b> | 金刚罩: " + parts.join(" ");
-	}
-	,getCustomActions: function() {
-		this.cleanKingShields();
-		var actions = [];
-		actions.push({ label : this.pandaMode == "heal" ? "切回盾流" : "切回血流", color : "#722ed1", enabled : true, onClickJS : this.pandaMode == "heal" ? "invokeAction2(__IDX__, 'pandaSetMode', {mode:'shield'})" : "invokeAction2(__IDX__, 'pandaSetMode', {mode:'heal'})"});
-		actions.push({ label : "扣110造罩(" + this.kingShields.length + "/7)", color : "#fa8c16", enabled : this.hp > 110 && this.kingShields.length < 7, onClickJS : "invokeAction2(__IDX__, 'pandaMakeShield', {})"});
-		actions.push({ label : "默认本体抗伤", color : this.defaultGuard == -1 ? "#52c41a" : "#595959", enabled : true, onClickJS : "invokeAction2(__IDX__, 'pandaSetGuard', {guard:-1})"});
-		var _g = 0;
-		var _g1 = this.kingShields.length;
-		while(_g < _g1) {
-			var i = _g++;
-			actions.push({ label : "默认罩" + (i + 1) + "抗伤", color : this.defaultGuard == i ? "#52c41a" : "#13c2c2", enabled : true, onClickJS : "invokeAction2(__IDX__, 'pandaSetGuard', {guard:" + i + "})"});
-		}
-		return actions;
-	}
-	,getSnapshotExtras: function() {
-		this.cleanKingShields();
-		return ["🐼" + (this.pandaMode == "heal" ? "回血流" : "回盾流") + " 金刚罩:" + this.kingShields.join("/") + " 默认:" + (this.defaultGuard == -1 ? "本体" : "罩" + (this.defaultGuard + 1))];
-	}
-	,__class__: character_KungFuPanda
 });
 var haxe_IMap = function() { };
 haxe_IMap.__name__ = true;

@@ -16,7 +16,7 @@ import model.HealType;
  *   - 鸦眼RECOVERY回血 = 乘算后的额外增量（finalWithCrow - finalWithout）
  *   - 鸦眼获得乌鸦计数（触发次数个）
  *
- * 持续2回合（通过 onTurnEnd 递减），不叠加。
+ * 持续由鸦眼自己的行动节奏控制：每个 CrowBuff 各自记录剩余行动计数，释放后到下下次鸦眼行动开始时移除，不按大回合递减。
  */
 class CrowBuff extends Buff {
 
@@ -41,6 +41,10 @@ class CrowBuff extends Buff {
         };
     }
 
+    public function isOwnedBy(p:Dynamic):Bool {
+        return _yaYan == p;
+    }
+
     /** GameEngine 在算出 finalAmount 后调用：回调鸦眼回血 + 获取乌鸦 */
     public function onTriggered(crowHeal:Int, engine:GameEngine):Void {
         var triggers = 1 + extraTriggers;
@@ -61,9 +65,6 @@ class CrowBuff extends Buff {
     }
 
     override public function onBigRoundEnd(owner:Player):Void {
-        duration--;
-        this.name = "乌鸦诅咒(" + duration + "回合)";
-        trace('🦅 [乌鸦buff] ${owner.name} 大回合结束，剩余${duration}回合');
-        if (duration <= 0) this.layers = 0;
+        // 不再按大回合衰减；由 YaYan.shouldSkipZeroTurnsDecrement() 在鸦眼自己的行动开始时按 duration 移除。
     }
 }

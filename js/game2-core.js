@@ -27,6 +27,14 @@ function invokeAction2(actorIdx, actionName, params, fromRemote, options) {
         return '已发送操作请求';
     }
 
+    var aliveBeforeAction = [];
+    if (Main.turnManager && Main.turnManager.players) {
+        for (var ai = 0; ai < Main.turnManager.players.length; ai++) {
+            var pp = Main.turnManager.players[ai];
+            aliveBeforeAction.push(pp && pp.hp > 0);
+        }
+    }
+
     var result = Main.invokeAction(actorIdx, actionName, params);
     if (typeof result === 'string' && result.indexOf('错误') === 0) {
         if (!options.silent && typeof showCardToast2 === 'function') showCardToast2(actorIdx, result, true);
@@ -41,6 +49,11 @@ function invokeAction2(actorIdx, actionName, params, fromRemote, options) {
             actionName: actionName,
             params: params
         });
+    }
+
+    // 主动技能也可能造成致死伤害（蛋糕、雷霆、反弹、第二目标等），统一补做帮抗检测。
+    if (typeof checkAllDeathsForHelpTank === 'function' && checkAllDeathsForHelpTank(fromRemote, aliveBeforeAction)) {
+        return result;
     }
 
     if (!options.noRender) {
@@ -194,6 +207,64 @@ function checkAllDeathsForHelpTank(fromRemote, aliveBefore) {
     return false;
 }
 
+
+function _snapshotPlayerForHelpSim2(p) {
+    return {
+        hp: p.hp,
+        shieldList: (p.shieldList || []).map(function(sh) {
+            return { type: sh.type, amount: sh.amount, duration: sh.duration };
+        }),
+        buffLayers: (p.buffList || []).map(function(b) { return b.layers; }),
+        kingShields: p.kingShields ? p.kingShields.slice() : null,
+        pandaGuards: p.pandaGuards ? p.pandaGuards.slice() : null
+    };
+}
+
+function _restorePlayerForHelpSim2(p, snap) {
+    p.hp = snap.hp;
+    if (p.shieldList) {
+        p.shieldList.length = 0;
+        for (var i = 0; i < snap.shieldList.length; i++) {
+            var sh = snap.shieldList[i];
+            p.shieldList.push(new model_ShieldInstance(sh.type, sh.amount, sh.duration));
+        }
+    }
+    if (p.buffList) {
+        for (var j = 0; j < p.buffList.length && j < snap.buffLayers.length; j++) {
+            p.buffList[j].layers = snap.buffLayers[j];
+        }
+    }
+    if (snap.kingShields && p.kingShields) p.kingShields = snap.kingShields.slice();
+    if (snap.pandaGuards && p.pandaGuards) p.pandaGuards = snap.pandaGuards.slice();
+}
+
+function canHelperSurviveHelpTank2(helperIdx, records, fallbackPenalty) {
+    var helper = Main.turnManager.players[helperIdx];
+    if (!helper || helper.hp <= 0) return false;
+    var snap = _snapshotPlayerForHelpSim2(helper);
+    var oldSuppress = Main.engine.suppressHelpTankAutoEvents;
+    Main.engine.suppressHelpTankAutoEvents = true;
+    try {
+        if (records && records.length) {
+            for (var i = 0; i < records.length; i++) {
+                var rec = records[i];
+                var amt = Math.ceil((rec.amount || rec.outputAmount || 0) * 1.5);
+                if (amt > 0) helper.handleIncomingDamage(null, amt, rec.type || rec.damageType);
+                if (helper.hp <= 0) break;
+            }
+        } else if (fallbackPenalty !== undefined) {
+            // 没有伤害类型时只能退回旧逻辑。
+            helper.hp -= fallbackPenalty;
+        }
+        return helper.hp > 0;
+    } catch (e) {
+        return (fallbackPenalty || 0) < snap.hp;
+    } finally {
+        _restorePlayerForHelpSim2(helper, snap);
+        Main.engine.suppressHelpTankAutoEvents = oldSuppress;
+    }
+}
+
 // ── 帮抗濒死检测（单个角色）──
 // 返回 true 表示已弹出帮抗窗，调用方应 return（回合暂停，等待玩家选择）
 // 返回 false 表示无需帮抗，调用方继续后续流程
@@ -211,12 +282,15 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride, eventRec
     var seats = (victimCamp === 'hero') ? [0, 2] : [1, 3];
 
     var totalPenalty;
+    var helpRecords = null;
     if (eventRecord) {
+        helpRecords = [{ amount: eventRecord.amount, type: eventRecord.damageType }];
         totalPenalty = Math.ceil(eventRecord.amount * 1.5);
     } else if (penaltyOverride !== undefined) {
         totalPenalty = penaltyOverride;
     } else {
         var log = Main.engine.lastTouchDamageLog || [];
+        helpRecords = log;
         totalPenalty = 0;
         for (var j = 0; j < log.length; j++) totalPenalty += Math.ceil(log[j].outputAmount * 1.5);
     }
@@ -226,8 +300,8 @@ function tryHelpTankOrPause(dmgTargetIdx2, fromRemote, penaltyOverride, eventRec
         var si = seats[i];
         if (si === dmgTargetIdx2) continue;
         if (!players[si] || players[si].hp <= 0) continue;
-        // 帮抗者帮抗后不能也死（粗略估计：总惩罚伤害 < 帮抗者当前HP）
-        if (totalPenalty < players[si].hp) helperIdx = si;
+        // 帮抗者帮抗后必须仍能活；这里会临时模拟自身减伤/护盾，再完整恢复。
+        if (canHelperSurviveHelpTank2(si, helpRecords, totalPenalty)) helperIdx = si;
         break;
     }
     if (helperIdx < 0) return false;

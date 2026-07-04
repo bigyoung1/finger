@@ -38,15 +38,15 @@ class FaShi extends Player {
         _inZeroCombo = false;
     }
 
-    // ── (1) 物伤造成后追加 45 法伤 + 1 层雷霆 ──
+    // ── (1) 物伤造成后追加 50 法伤 + 1 层雷霆 ──
     override public function onAfterDealtDamage(target:Player, damageBeforeShield:Int, actualDamage:Int, type:DamageType, engine:GameEngine):Void {
         // 只在"0组合上下文"内追加，避免雷霆本身的反伤再触发追加
         if (!_inZeroCombo) return;
         if (type != PHYSICAL) return;
         if (target.hp <= 0) return;
 
-        // 1. 追加 45 法伤（走标准伤害流程，会被法盾/物法盾抵挡）
-        trace('⚡ 法师【0组合·追加】对 ${target.name} 造成 45 点法术伤害！');
+        // 1. 追加 50 法伤（走标准伤害流程，会被法盾/物法盾抵挡）
+        trace('⚡ 法师【0组合·追加】对 ${target.name} 造成 50 点法术伤害！');
         _inZeroCombo = false;
         engine.applyDamage(this, target, 50, MAGIC);
         _inZeroCombo = true;

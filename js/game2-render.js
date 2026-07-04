@@ -1,7 +1,7 @@
 
 // 角色图片映射（文件名和角色ID对应）
 var _AVATAR_MAP = {
-    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师','杨大力':'杨大力', '功夫熊猫':'功夫熊猫',
+    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师','杨大力':'杨大力',
     '孙悟空': '孙悟空', '忍者': '忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼',
     '赵云': '赵云', '功夫熊猫': '功夫熊猫'
 };
@@ -120,23 +120,29 @@ function _doRender2() {
         custEl.style.display = custHtml ? 'block' : 'none';
         if (custHtml) custEl.innerHTML = custHtml;
 
-        // 自定义按钮（只在当前行动者回合显示）
+        // 自定义按钮：普通角色只在自己行动回合显示；功夫熊猫“抗伤单位”按钮可任意时刻切换。
         var actEl = document.getElementById('actions2v_' + i);
         actEl.innerHTML = '';
         // 联机时只给我实际控制的角色显示自定义操作按钮（蛋糕/模态切换等）
         var isMyChar = !ONLINE.active || (ONLINE.charControl[i] === ONLINE.slotIdx);
-        if (i === curIdx && !gameOver && !dead && p.getCustomActions && isMyChar) {
+        if (!gameOver && !dead && p.getCustomActions && isMyChar) {
             p.getCustomActions().forEach(function(a) {
                 if (!a.enabled) return;
-                var btn = document.createElement('button');
-                btn.textContent = a.label;
-                btn.style.cssText = 'margin:3px 3px 0 0;background:' + a.color +
-                    ';color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;';
                 var jsCode = a.onClickJS.replace(/__IDX__/g, String(i));
-                // 兼容未重新编译的 main.js：把旧按钮里的 Main.invokeAction(...) 统一导向 invokeAction2(...)，确保联机广播。
                 if (typeof invokeAction2 === 'function') {
                     jsCode = jsCode.replace(/Main\.invokeAction\(/g, 'invokeAction2(');
                 }
+                var isPandaGuard = (p.name === '功夫熊猫') && jsCode.indexOf('pandaToggleGuard') >= 0;
+                // 模态/造罩仍只能在功夫熊猫自己的行动回合点；抗伤按钮随时可点。
+                if (i !== curIdx && !isPandaGuard) return;
+
+                var btn = document.createElement('button');
+                btn.textContent = a.label;
+                var isWhite = String(a.color).toLowerCase() === '#ffffff' || String(a.color).toLowerCase() === 'white';
+                btn.style.cssText = 'margin:3px 3px 0 0;background:' + a.color +
+                    ';color:' + (isWhite ? '#262626' : 'white') +
+                    ';border:' + (isWhite ? '1px solid #d9d9d9' : 'none') +
+                    ';padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:bold;';
                 btn.onclick = function() { eval(jsCode); };
                 actEl.appendChild(btn);
             });
