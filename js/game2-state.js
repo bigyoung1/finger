@@ -60,9 +60,8 @@ function setDelegate(playerIdx, delegate, fromRemote) {
         var mSel = document.getElementById('aiModel' + playerIdx);
         if (mSel) mSel.value = 'deepseek';
     }
-    if (ONLINE.active && !fromRemote && !ONLINE.isHost()) {
-        ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });
-        return;
+    if (ONLINE.active && !fromRemote && ONLINE.rememberDelegate) {
+        ONLINE.rememberDelegate(playerIdx, delegate);
     }
     applyDelegateLocal(playerIdx, delegate, controller);
     if (!fromRemote) ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });

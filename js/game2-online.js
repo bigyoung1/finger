@@ -6,13 +6,14 @@ var ONLINE = {
     active:    false,
     slotIdx:   -1,                   // 0~3，我是哪个 slot
     charControl: [0, 1, 0, 1],       // charControl[i] = 控制第 i 个角色的 slotIdx，或 'AI'
+    delegateLocks: [false, false, false, false], // 玩家主动开启的托管锁；断线/重连/切后台不能自动取消
     waitingRemoteHelpTank: false,
     _authorityActionId: null,
     _runningHostRequest: false,
 
     // 房主权威：所有会改变战斗状态的动作只由房主执行；非房主只发请求。
     authoritativeTypes: {
-        attack: true, invokeAction: true, wukong02: true, toggleTank: true, delegate: true,
+        attack: true, invokeAction: true, wukong02: true, toggleTank: true,
         helpTank: true, steal: true, cake: true, crowCurse: true
     },
 
@@ -84,12 +85,64 @@ var ONLINE = {
     },
 };
 
+// ── 托管锁：只要玩家主动点了“托管”，就持久保存；除非再次主动点击，否则重连/切后台不取消 ──
+ONLINE.delegateStorageKey = function() {
+    var room = (window.NET && NET.roomCode) ? NET.roomCode : 'local';
+    return 'fingerGameDelegateLocks:' + room;
+};
+
+ONLINE.saveDelegateLocks = function() {
+    try {
+        sessionStorage.setItem(ONLINE.delegateStorageKey(), JSON.stringify(ONLINE.delegateLocks || [false, false, false, false]));
+    } catch (e) {}
+};
+
+ONLINE.loadDelegateLocks = function() {
+    try {
+        var raw = sessionStorage.getItem(ONLINE.delegateStorageKey());
+        if (!raw) return;
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length >= 4) {
+            ONLINE.delegateLocks = [!!arr[0], !!arr[1], !!arr[2], !!arr[3]];
+        }
+    } catch (e) {}
+};
+
+ONLINE.applyRuntimeCharControl = function(charControl) {
+    if (!charControl || !charControl.slice) return;
+    ONLINE.loadDelegateLocks();
+    ONLINE.charControl = charControl.slice();
+    for (var i = 0; i < 4; i++) {
+        if (ONLINE.delegateLocks && ONLINE.delegateLocks[i]) ONLINE.charControl[i] = 'AI';
+    }
+};
+
+ONLINE.rememberDelegate = function(playerIdx, delegated) {
+    if (!ONLINE.delegateLocks) ONLINE.delegateLocks = [false, false, false, false];
+    if (playerIdx >= 0 && playerIdx < 4) {
+        ONLINE.delegateLocks[playerIdx] = !!delegated;
+        ONLINE.saveDelegateLocks();
+    }
+};
+
+ONLINE.resendDelegateLocks = function() {
+    if (!ONLINE.active || !window.NET) return;
+    ONLINE.loadDelegateLocks();
+    for (var i = 0; i < 4; i++) {
+        if (ONLINE.delegateLocks && ONLINE.delegateLocks[i] && ONLINE.charControl[i] !== 'AI') {
+            ONLINE.charControl[i] = 'AI';
+            NET.sendAction({ type: 'delegate', playerIdx: i, delegate: true, controller: 'AI', model: 'deepseek' });
+        }
+    }
+};
+
+
 ONLINE.applyAction = function(payload, fromRemote) {
     if (!payload || !payload.type) return;
     switch (payload.type) {
         case 'charConfig':
             ONLINE.active      = true;
-            ONLINE.charControl = payload.charControl.slice();
+            ONLINE.applyRuntimeCharControl(payload.charControl);
             if (payload.aiCharModel && window.AI_CHAR_MODEL) {
                 payload.aiCharModel.forEach(function(m, i) {
                     AI_CHAR_MODEL[i] = m;
@@ -235,7 +288,7 @@ NET.onDisconnect = function() {
 NET.onRejoined = function(msg) {
     ONLINE.slotIdx = NET.slotIdx;
     if (msg && msg.runtimeCharControl) {
-        ONLINE.charControl = msg.runtimeCharControl.slice();
+        ONLINE.applyRuntimeCharControl(msg.runtimeCharControl);
     }
     setOnlineStatus('✅ 已重连到房间 ' + NET.roomCode + '（Slot' + (NET.slotIdx + 1) + '）');
     if (typeof setHint2 === 'function') setHint2('✅ 已重连，可以继续操作');
@@ -243,12 +296,13 @@ NET.onRejoined = function(msg) {
     if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
     if (typeof updateTankButtons === 'function') updateTankButtons();
     if (typeof refreshHandStyles2 === 'function') refreshHandStyles2();
+    ONLINE.resendDelegateLocks();
     if (window.AI && AI.scheduleCheck) AI.scheduleCheck('rejoined', 500, true);
 };
 
 NET.onSlotRejoined = function(slotIdx, charControl) {
     if (!ONLINE.active) return;
-    if (charControl) ONLINE.charControl = charControl.slice();
+    if (charControl) ONLINE.applyRuntimeCharControl(charControl);
     var name = (NET.roomState && NET.roomState.slotNames && NET.roomState.slotNames[slotIdx]) || ('Slot' + (slotIdx + 1));
     setHint2('✅ ' + name + ' 已重连');
     if (window.AI) AI.refreshControlled();

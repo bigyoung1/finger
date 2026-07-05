@@ -654,7 +654,11 @@ function onCtrlChange(e) {
     var ctrlVal = val === 'AI' ? 'AI' : parseInt(val);
     // 更新模型选择器可见性
     updateAiModelVisibility(charIdx);
-    if (window.ONLINE) ONLINE.charControl[charIdx] = ctrlVal;
+    if (window.ONLINE) {
+        // 手动改控制下拉框视为主动接管，清除该角色的托管锁。
+        if (ctrlVal !== 'AI' && ONLINE.rememberDelegate) ONLINE.rememberDelegate(charIdx, false);
+        ONLINE.charControl[charIdx] = ctrlVal;
+    }
     if (window.AI && AI.refreshControlled) AI.refreshControlled();
     if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
     // 所有联机玩家修改后广播给其他人；同时同步完整大厅配置，避免新加入/不同窗口选角分叉。
