@@ -47,31 +47,54 @@ function toggleTank(playerIdx, fromRemote) {
 }
 
 function toggleDelegate(playerIdx) {
-    var delegated = ONLINE.active ? (ONLINE.charControl[playerIdx] === 'AI') : !!(window.AI && AI.controlled && AI.controlled[playerIdx]);
+    var delegated = ONLINE.active ? !!(ONLINE.delegateFlags && ONLINE.delegateFlags[playerIdx]) : !!(window.AI && AI.controlled && AI.controlled[playerIdx]);
     setDelegate(playerIdx, !delegated);
 }
 
 function setDelegate(playerIdx, delegate, fromRemote) {
     delegate = !!delegate;
-    var controller = delegate ? 'AI' : (ONLINE.active ? ONLINE.slotIdx : 'local');
+    var controller = 'local';
+    if (ONLINE.active) {
+        if (!ONLINE.ownerControl) ONLINE.ownerControl = ONLINE.charControl.slice();
+        if (delegate) {
+            var cur = ONLINE.charControl[playerIdx];
+            if (cur !== 'AI') ONLINE.ownerControl[playerIdx] = cur;
+            controller = ONLINE.ownerControl[playerIdx];
+        } else {
+            controller = (ONLINE.ownerControl[playerIdx] !== undefined && ONLINE.ownerControl[playerIdx] !== 'AI') ? ONLINE.ownerControl[playerIdx] : ONLINE.slotIdx;
+        }
+    }
     if (delegate && window.AI_CHAR_MODEL) {
         AI_CHAR_MODEL[playerIdx] = 'deepseek';
         if (window.AI_MODEL_CONFIG) AI_MODEL_CONFIG['p' + playerIdx] = 'deepseek';
         var mSel = document.getElementById('aiModel' + playerIdx);
         if (mSel) mSel.value = 'deepseek';
     }
-    if (ONLINE.active && !fromRemote && ONLINE.rememberDelegate) {
-        ONLINE.rememberDelegate(playerIdx, delegate);
+    if (ONLINE.active && !fromRemote && !ONLINE.isHost()) {
+        ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });
+        return;
     }
     applyDelegateLocal(playerIdx, delegate, controller);
     if (!fromRemote) ONLINE.sendAction({ type: "delegate", playerIdx: playerIdx, delegate: delegate, controller: controller, model: 'deepseek' });
 }
 
-function applyDelegateLocal(playerIdx, delegate, controller) {
+function applyDelegateLocal(playerIdx, delegate, controller, fromRemote) {
     delegate = !!delegate;
-    controller = delegate ? 'AI' : controller;
     if (ONLINE.active) {
-        ONLINE.charControl[playerIdx] = controller;
+        if (!ONLINE.ownerControl) ONLINE.ownerControl = ONLINE.charControl.slice();
+        if (!ONLINE.delegateFlags) ONLINE.delegateFlags = [false, false, false, false];
+        if (delegate) {
+            if (controller !== undefined && controller !== null && controller !== 'AI') ONLINE.ownerControl[playerIdx] = parseInt(controller);
+            else if (ONLINE.charControl[playerIdx] !== 'AI') ONLINE.ownerControl[playerIdx] = ONLINE.charControl[playerIdx];
+            ONLINE.delegateFlags[playerIdx] = true;
+            ONLINE.charControl[playerIdx] = 'AI';
+        } else {
+            ONLINE.delegateFlags[playerIdx] = false;
+            var back = (controller !== undefined && controller !== null && controller !== 'AI') ? parseInt(controller) : ONLINE.ownerControl[playerIdx];
+            if (back === undefined || isNaN(back)) back = ONLINE.slotIdx;
+            ONLINE.ownerControl[playerIdx] = back;
+            ONLINE.charControl[playerIdx] = back;
+        }
     } else if (window.AI) {
         AI.controlled = AI.controlled || {};
         AI.providerMap = AI.providerMap || {};
@@ -89,7 +112,7 @@ function applyDelegateLocal(playerIdx, delegate, controller) {
     }
     var sel = document.getElementById('ctrlSelect' + playerIdx);
     if (sel) {
-        var v = controller === 'AI' ? 'AI' : String(controller);
+        var v = (ONLINE.active && ONLINE.delegateFlags && ONLINE.delegateFlags[playerIdx] && ONLINE.ownerControl) ? String(ONLINE.ownerControl[playerIdx]) : (ONLINE.active ? String(ONLINE.charControl[playerIdx]) : (controller === 'AI' ? 'AI' : String(controller)));
         if (typeof rebuildCtrlOptions === 'function') rebuildCtrlOptions(sel, v);
         else sel.value = v;
         if (typeof updateAiModelVisibility === 'function') updateAiModelVisibility(playerIdx);
@@ -108,7 +131,7 @@ function updateDelegateButtons() {
     for (var i = 0; i < 4; i++) {
         var btn = document.getElementById('delegateBtn' + i);
         if (!btn) continue;
-        var delegated = ONLINE.active ? (ONLINE.charControl[i] === 'AI') : !!(window.AI && AI.controlled && AI.controlled[i]);
+        var delegated = ONLINE.active ? !!(ONLINE.delegateFlags && ONLINE.delegateFlags[i]) : !!(window.AI && AI.controlled && AI.controlled[i]);
         btn.textContent = delegated ? '🤖 已托管' : '🤖 托管';
         btn.className = 'delegate-btn' + (delegated ? ' active' : '');
         btn.title = delegated ? 'AI 正在托管；点击可由当前玩家接管' : '交给 AI 托管（默认 DeepSeek）';

@@ -290,25 +290,6 @@ function decoratePayload(payload, meta) {
     return copy;
 }
 
-
-function applyRuntimeControlPayload(room, payload) {
-    if (!room || !payload) return;
-    if (!room.runtimeCharControl) room.runtimeCharControl = [0, 1, 0, 1];
-    if (!room.delegatedAI) room.delegatedAI = [false, false, false, false];
-    if (payload.type !== 'ctrlUpdate' && payload.type !== 'delegate') return;
-    const ci = Number(payload.charIdx ?? payload.playerIdx);
-    if (!Number.isInteger(ci) || ci < 0 || ci >= 4) return;
-
-    if (payload.type === 'delegate') {
-        const delegated = !!payload.delegate;
-        room.delegatedAI[ci] = delegated;
-        room.runtimeCharControl[ci] = delegated ? 'AI' : (payload.controller === 'AI' ? 'AI' : Number(payload.controller));
-    } else {
-        room.delegatedAI[ci] = false;
-        room.runtimeCharControl[ci] = payload.controller === 'AI' ? 'AI' : Number(payload.controller);
-    }
-}
-
 // 房间状态摘要（slot 占用情况），用于让所有人看到谁在线
 function roomSummary(room) {
     return {
@@ -318,7 +299,8 @@ function roomSummary(room) {
         lobbyConfig: room.lobbyConfig || null,
         gameConfig: room.gameConfig || null,
         runtimeCharControl: room.runtimeCharControl ? room.runtimeCharControl.slice() : null,
-        delegatedAI: room.delegatedAI ? room.delegatedAI.slice() : null,
+        ownerControl: room.ownerControl ? room.ownerControl.slice() : null,
+        delegateFlags: room.delegateFlags ? room.delegateFlags.slice() : null,
     };
 }
 
@@ -351,7 +333,8 @@ wss.on('connection', (ws) => {
                     lobbyConfig: null,
                     gameConfig: null,
                     runtimeCharControl: [0, 1, 0, 1],
-                    delegatedAI: [false, false, false, false],
+                    ownerControl: [0, 1, 0, 1],
+                    delegateFlags: [false, false, false, false],
                 };
                 const sessionId = genSessionId();
                 rooms[code].slotSessions[0] = sessionId;
@@ -407,6 +390,8 @@ wss.on('connection', (ws) => {
                 if (!room) break;
                 room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, msg.config || {});
                 if (room.lobbyConfig.charControl) room.runtimeCharControl = room.lobbyConfig.charControl.slice();
+                if (room.lobbyConfig.ownerControl) room.ownerControl = room.lobbyConfig.ownerControl.slice();
+                if (room.lobbyConfig.delegateFlags) room.delegateFlags = room.lobbyConfig.delegateFlags.slice();
                 const seq = nextRoomSeq(room);
                 broadcastAll(room, { type: 'lobbyUpdate', fromSlot: ws.slotIdx, seq, config: room.lobbyConfig });
                 break;
@@ -423,6 +408,8 @@ wss.on('connection', (ws) => {
                 room.gameConfig = msg.config || room.lobbyConfig || {};
                 room.lobbyConfig = Object.assign({}, room.lobbyConfig || {}, room.gameConfig || {});
                 if (room.gameConfig.charControl) room.runtimeCharControl = room.gameConfig.charControl.slice();
+                if (room.gameConfig.ownerControl) room.ownerControl = room.gameConfig.ownerControl.slice();
+                if (room.gameConfig.delegateFlags) room.delegateFlags = room.gameConfig.delegateFlags.slice();
                 const seq = nextRoomSeq(room);
                 broadcastAll(room, { type: 'startGameConfig', fromSlot: ws.slotIdx, seq, config: room.gameConfig });
                 break;
@@ -435,7 +422,34 @@ wss.on('connection', (ws) => {
                     send(ws, { type: 'actionAck', actionId, duplicate: true });
                     break;
                 }
-                applyRuntimeControlPayload(room, msg.payload);
+                if (msg.payload && (msg.payload.type === 'ctrlUpdate' || msg.payload.type === 'delegate')) {
+                    if (!room.runtimeCharControl) room.runtimeCharControl = [0, 1, 0, 1];
+                    if (!room.ownerControl) room.ownerControl = room.runtimeCharControl.slice();
+                    if (!room.delegateFlags) room.delegateFlags = [false, false, false, false];
+                    const ci = Number(msg.payload.charIdx ?? msg.payload.playerIdx);
+                    if (Number.isInteger(ci) && ci >= 0 && ci < 4) {
+                        if (msg.payload.type === 'delegate') {
+                            if (msg.payload.delegate) {
+                                if (msg.payload.controller !== 'AI') room.ownerControl[ci] = Number(msg.payload.controller);
+                                room.delegateFlags[ci] = true;
+                                room.runtimeCharControl[ci] = 'AI';
+                            } else {
+                                const back = msg.payload.controller === 'AI' ? room.ownerControl[ci] : Number(msg.payload.controller);
+                                room.ownerControl[ci] = back;
+                                room.delegateFlags[ci] = false;
+                                room.runtimeCharControl[ci] = back;
+                            }
+                        } else if (msg.payload.keepDelegated && msg.payload.controller !== 'AI') {
+                            room.ownerControl[ci] = Number(msg.payload.controller);
+                            room.delegateFlags[ci] = true;
+                            room.runtimeCharControl[ci] = 'AI';
+                        } else {
+                            room.ownerControl[ci] = msg.payload.controller === 'AI' ? 'AI' : Number(msg.payload.controller);
+                            room.delegateFlags[ci] = msg.payload.controller === 'AI';
+                            room.runtimeCharControl[ci] = msg.payload.controller === 'AI' ? 'AI' : Number(msg.payload.controller);
+                        }
+                    }
+                }
                 const seq = nextRoomSeq(room);
                 const payload = decoratePayload(msg.payload, {
                     actionId,
@@ -460,8 +474,6 @@ wss.on('connection', (ws) => {
                     send(ws, { type: 'actionAck', actionId, duplicate: true, requested: true });
                     break;
                 }
-                // 兼容旧客户端：如果托管/控制权仍走房主请求，也先把服务端运行时控制权记住，避免切后台重连后被旧控制权覆盖。
-                applyRuntimeControlPayload(room, msg.payload);
                 send(host, {
                     type: 'actionRequest',
                     fromSlot: ws.slotIdx,

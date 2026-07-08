@@ -654,16 +654,26 @@ function onCtrlChange(e) {
     var ctrlVal = val === 'AI' ? 'AI' : parseInt(val);
     // 更新模型选择器可见性
     updateAiModelVisibility(charIdx);
+    var keepDelegated = false;
     if (window.ONLINE) {
-        // 手动改控制下拉框视为主动接管，清除该角色的托管锁。
-        if (ctrlVal !== 'AI' && ONLINE.rememberDelegate) ONLINE.rememberDelegate(charIdx, false);
-        ONLINE.charControl[charIdx] = ctrlVal;
+        if (!ONLINE.ownerControl) ONLINE.ownerControl = ONLINE.charControl.slice();
+        if (!ONLINE.delegateFlags) ONLINE.delegateFlags = [false, false, false, false];
+        if (ONLINE.delegateFlags[charIdx] && ctrlVal !== 'AI') {
+            // 托管中改下拉框，只改“托管结束后归还给谁”，不取消托管。
+            ONLINE.ownerControl[charIdx] = ctrlVal;
+            ONLINE.charControl[charIdx] = 'AI';
+            keepDelegated = true;
+        } else {
+            ONLINE.ownerControl[charIdx] = ctrlVal;
+            ONLINE.delegateFlags[charIdx] = (ctrlVal === 'AI');
+            ONLINE.charControl[charIdx] = ctrlVal;
+        }
     }
     if (window.AI && AI.refreshControlled) AI.refreshControlled();
     if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
     // 所有联机玩家修改后广播给其他人；同时同步完整大厅配置，避免新加入/不同窗口选角分叉。
     if (ONLINE && NET.roomState != null) {
-        NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal });
+        NET.sendAction({ type: 'ctrlUpdate', charIdx: charIdx, controller: ctrlVal, keepDelegated: keepDelegated });
         // 如果切成 AI，顺便广播当前选的模型
         if (val === 'AI') {
             NET.sendAction({ type: 'aiModelUpdate', charIdx: charIdx, model: AI_CHAR_MODEL[charIdx] });
@@ -677,6 +687,10 @@ function getCurrentCharControl() {
     var arr = [];
     for (var i = 0; i < 4; i++) {
         var sel = document.getElementById('ctrlSelect' + i);
+        if (window.ONLINE && ONLINE.delegateFlags && ONLINE.delegateFlags[i]) {
+            arr.push('AI');
+            continue;
+        }
         var v = sel ? sel.value : String((i===0||i===2)?0:1);
         arr.push(v === 'AI' ? 'AI' : parseInt(v));
     }
@@ -697,6 +711,8 @@ function collectLobbyConfig2() {
     return {
         charIds: getCurrentCharIds2(),
         charControl: getCurrentCharControl(),
+        ownerControl: window.ONLINE && ONLINE.ownerControl ? ONLINE.ownerControl.slice() : getCurrentCharControl(),
+        delegateFlags: window.ONLINE && ONLINE.delegateFlags ? ONLINE.delegateFlags.slice() : [false,false,false,false],
         aiCharModel: (window.AI_CHAR_MODEL || ['minimax','minimax','deepseek','deepseek']).slice(),
         formation: Object.assign({}, window._setupFormation || { hero: 'dual_half', rebel: 'dual_half' }),
         tankIdx: Object.assign({}, window._setupTankIdx || { hero: 0, rebel: 1 })
@@ -744,10 +760,13 @@ function applyLobbyConfig2(config) {
 
         if (config.charControl && window.ONLINE) {
             ONLINE.charControl = config.charControl.slice();
+            ONLINE.ownerControl = (config.ownerControl || config.charControl || ONLINE.ownerControl || [0,1,0,1]).slice();
+            ONLINE.delegateFlags = (config.delegateFlags || config.charControl.map(function(v){ return v === 'AI'; })).slice();
             for (var i = 0; i < 4; i++) {
                 var csel = document.getElementById('ctrlSelect' + i);
                 if (csel) {
-                    rebuildCtrlOptions(csel, String(config.charControl[i]));
+                    var shownCtrl = (ONLINE.delegateFlags && ONLINE.delegateFlags[i] && ONLINE.ownerControl) ? ONLINE.ownerControl[i] : config.charControl[i];
+                    rebuildCtrlOptions(csel, String(shownCtrl));
                     updateAiModelVisibility(i);
                 }
             }
@@ -856,7 +875,17 @@ NET.onRemoteAction = function(payload, fromSlot, seq, actionId) {
         // 同步 ONLINE.charControl（游戏中掉线接管也走这里）
         if (window.ONLINE) {
             var ctrlVal = payload.controller === 'AI' ? 'AI' : parseInt(payload.controller);
-            ONLINE.charControl[payload.charIdx] = ctrlVal;
+            if (!ONLINE.ownerControl) ONLINE.ownerControl = ONLINE.charControl.slice();
+            if (!ONLINE.delegateFlags) ONLINE.delegateFlags = [false, false, false, false];
+            if (payload.keepDelegated && ctrlVal !== 'AI') {
+                ONLINE.ownerControl[payload.charIdx] = ctrlVal;
+                ONLINE.delegateFlags[payload.charIdx] = true;
+                ONLINE.charControl[payload.charIdx] = 'AI';
+            } else {
+                ONLINE.ownerControl[payload.charIdx] = ctrlVal;
+                ONLINE.delegateFlags[payload.charIdx] = (ctrlVal === 'AI');
+                ONLINE.charControl[payload.charIdx] = ctrlVal;
+            }
             if (window.AI) AI.refreshControlled();
             if (typeof updateDelegateButtons === 'function') updateDelegateButtons();
         }
@@ -910,6 +939,8 @@ function startOnlineGame(configOrId0, id1, id2, id3) {
     var config = (typeof configOrId0 === 'object') ? configOrId0 : {
         charIds: [configOrId0, id1, id2, id3],
         charControl: getCurrentCharControl(),
+        ownerControl: window.ONLINE && ONLINE.ownerControl ? ONLINE.ownerControl.slice() : getCurrentCharControl(),
+        delegateFlags: window.ONLINE && ONLINE.delegateFlags ? ONLINE.delegateFlags.slice() : [false,false,false,false],
         aiCharModel: AI_CHAR_MODEL.slice(),
         formation: Object.assign({}, _setupFormation),
         tankIdx: Object.assign({}, _setupTankIdx)
@@ -919,6 +950,8 @@ function startOnlineGame(configOrId0, id1, id2, id3) {
     ONLINE.active = true;
     ONLINE.slotIdx = NET.slotIdx;
     ONLINE.charControl = (config.charControl || getCurrentCharControl()).slice();
+    ONLINE.ownerControl = (config.ownerControl || getCurrentCharControl()).slice();
+    ONLINE.delegateFlags = (config.delegateFlags || ONLINE.charControl.map(function(v){ return v === 'AI'; })).slice();
     resetRuntimeLocks2();
     setupTrace2v2();
     var lp = document.getElementById('logPanel2');

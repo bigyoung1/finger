@@ -1858,7 +1858,7 @@ character_CharacterRegistry.init = function() {
 		return new character_YinYangShi(id,"阴阳师",camp);
 	});
 	character_CharacterRegistry.register("yangdali","💪 杨大力 (沙包 1000HP)",1000,function(id,camp) {
-		return new model_Player(id,"杨大力",1000,camp);
+		return new character_Yangdali(id,"杨大力",camp);
 	});
 	character_CharacterRegistry.register("yayan","🦅 鸦眼 (输出 140HP)",140,function(id,camp) {
 		return new character_YaYan(id,"鸦眼",camp);
@@ -1868,6 +1868,9 @@ character_CharacterRegistry.init = function() {
 	});
 	character_CharacterRegistry.register("gongfupanda","🐼 功夫熊猫 (坦克/半肉 230HP)",230,function(id,camp) {
 		return new character_KungFuPanda(id,"功夫熊猫",camp);
+	});
+	character_CharacterRegistry.register("shentounainai","🕵️ 神偷奶爸 (坦克/半肉 320HP)",320,function(id,camp) {
+		return new character_ShenTouNaiBa(id,"神偷奶爸",camp);
 	});
 };
 character_CharacterRegistry.register = function(id,displayName,hp,factory) {
@@ -3055,6 +3058,78 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 	}
 	,__class__: character_RenZhe
 });
+var character_ShenTouNaiBa = function(id,name,camp) {
+	this.transferMode = false;
+	this.x = 0;
+	model_Player.call(this,id,name,320,camp);
+};
+character_ShenTouNaiBa.__name__ = true;
+character_ShenTouNaiBa.__super__ = model_Player;
+character_ShenTouNaiBa.prototype = $extend(model_Player.prototype,{
+	onTurnEnd: function() {
+		model_Player.prototype.onTurnEnd.call(this);
+		if(this.hp <= 0 || GameEngine.instance == null) {
+			return;
+		}
+		var heal = 0;
+		if(this.hands[0] == 6 && this.hands[1] == 6) {
+			heal = 20;
+		} else if(this.hands[0] == 6 || this.hands[1] == 6) {
+			heal = 10;
+		}
+		if(heal > 0) {
+			haxe_Log.trace("🕵️ 神偷奶爸回复 " + heal + "（RECOVERY）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 37, className : "character.ShenTouNaiBa", methodName : "onTurnEnd"});
+			GameEngine.instance.applyRawHeal(this,heal,model_HealType.RECOVERY,false);
+		}
+	}
+	,handleIncomingDamage: function(attacker,amount,dmgType) {
+		if(dmgType == model_DamageType.PHYSICAL) {
+			var immune = amount / 2 | 0;
+			this.x = amount - immune;
+			haxe_Log.trace("🕵️ 神偷奶爸物免：" + amount + " -> " + immune + "，x=" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 52, className : "character.ShenTouNaiBa", methodName : "handleIncomingDamage"});
+			return model_Player.prototype.handleIncomingDamage.call(this,attacker,immune,dmgType);
+		}
+		return model_Player.prototype.handleIncomingDamage.call(this,attacker,amount,dmgType);
+	}
+	,calculateOutputDamage: function(baseAmount,type) {
+		if(type == model_DamageType.PHYSICAL && this.x > 0) {
+			haxe_Log.trace("🕵️ 神偷奶爸追加物伤：" + baseAmount + "+" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 60, className : "character.ShenTouNaiBa", methodName : "calculateOutputDamage"});
+			return baseAmount + this.x;
+		}
+		return baseAmount;
+	}
+	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
+		if(type != model_DamageType.PHYSICAL || actualDamage <= 0 || this.x <= 0) {
+			return;
+		}
+		var supply = Math.min(this.x,actualDamage) | 0;
+		if(supply > 0) {
+			haxe_Log.trace("🕵️ 神偷奶爸攻击补给：" + supply + "（x=" + this.x + ",实际伤害=" + actualDamage + "）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 70, className : "character.ShenTouNaiBa", methodName : "onAfterDealtDamage"});
+			engine.applyRawHeal(this,supply,model_HealType.SUPPLY,true);
+		}
+	}
+	,toggleTransfer: function() {
+		this.transferMode = !this.transferMode;
+		if(this.transferMode) {
+			return "已开启伤害转移模式（满足条件后选择目标）";
+		} else {
+			return "已关闭伤害转移模式";
+		}
+	}
+	,handleAction: function(actionName,params,engine) {
+		if(actionName == "toggleTransfer") {
+			return this.toggleTransfer();
+		}
+		return model_Player.prototype.handleAction.call(this,actionName,params,engine);
+	}
+	,getCustomDisplay: function() {
+		return "🕵️ x=<b>" + this.x + "</b> | 转移：" + (this.transferMode ? "开启" : "关闭");
+	}
+	,getCustomActions: function() {
+		return [{ label : this.transferMode ? "🔄关闭伤害转移" : "🔄开启伤害转移", color : this.transferMode ? "#52c41a" : "#fa8c16", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleTransfer', {})"}];
+	}
+	,__class__: character_ShenTouNaiBa
+});
 var character_SunWuKong = function(id,name,camp) {
 	this._inExtraEffect = false;
 	this.skipNextZeroDecrease = false;
@@ -3511,6 +3586,14 @@ character_YaYan.prototype = $extend(model_Player.prototype,{
 		return true;
 	}
 	,__class__: character_YaYan
+});
+var character_Yangdali = function(id,name,camp) {
+	model_Player.call(this,id,name,1000,camp);
+};
+character_Yangdali.__name__ = true;
+character_Yangdali.__super__ = model_Player;
+character_Yangdali.prototype = $extend(model_Player.prototype,{
+	__class__: character_Yangdali
 });
 var character_YinYangShi = function(id,name,camp) {
 	this._pendingYinBase = 0;

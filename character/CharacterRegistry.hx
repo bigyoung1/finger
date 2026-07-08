@@ -59,6 +59,9 @@ class CharacterRegistry {
         register("gongfupanda", "🐼 功夫熊猫 (坦克/半肉 230HP)", 230,
             (id, camp) -> new KungFuPanda(id, "功夫熊猫", camp));
 
+        register("shentounainai", "🕵️ 神偷奶爸 (坦克/半肉 320HP)", 320,
+            (id, camp) -> new ShenTouNaiBa(id, "神偷奶爸", camp));
+
         // 后续新角色只在这里 register 一行
     }
 
