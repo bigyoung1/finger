@@ -180,151 +180,341 @@ function executeWukong02(chosenTargetIdx, fromRemote) {
 }
 
 // ════════════════════════════════════════════════════════
-//  大乔抢夺弹窗
-//  - JS层用 _stealUsedThisTurn 记录"本轮已处理过的healer"
-//  - key = String(healerIdx)，value = true
-//  - 每次 render2 检测到行动者切换时，清除该行动者的记录
+//  抢血/抢补给弹窗（大乔 + 神偷奶爸）
+//  - 多弹窗并列显示，互不覆盖；每个弹窗5秒后自动消失。
+//  - 同一回血事件内，大乔弹窗优先级高于神偷奶爸；神偷弹窗必须等同事件的大乔弹窗处理/消失后才能点。
 // ════════════════════════════════════════════════════════
-window._stealUsedThisTurn = {};
+window._stealUsedThisTurn = window._stealUsedThisTurn || {};
+window._stealPromptSeq = window._stealPromptSeq || 0;
+window._naiBaPromptKeys = window._naiBaPromptKeys || {};
 
-// 固定的弹窗DOM（不动态创建，避免重复/找不到）
-// 大乔抢血弹窗：直接插入大乔卡片内部，position:absolute 相对卡片定位
-// 每次显示时移动到正确的卡片里
+function _ensureStealStack(thiefIdx) {
+    var card = document.getElementById('card2v_' + thiefIdx);
+    if (!card) return null;
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
 
-function _ensureStealOverlay() {
-    if (document.getElementById('stealOverlay')) return;
+    var stackId = 'stealStack_' + thiefIdx;
+    var stack = document.getElementById(stackId);
+    if (!stack) {
+        stack = document.createElement('div');
+        stack.id = stackId;
+        stack.className = 'steal-stack';
+        stack.style.cssText = [
+            'position:absolute',
+            'z-index:9999',
+            'top:6px',
+            'right:6px',
+            'display:flex',
+            'flex-direction:column',
+            'gap:4px',
+            'align-items:flex-end',
+            'max-width:calc(100% - 12px)',
+            'pointer-events:auto'
+        ].join(';');
+        card.appendChild(stack);
+    } else if (stack.parentNode !== card) {
+        card.appendChild(stack);
+    }
+    return stack;
+}
+
+function _hasHigherPriorityStealPrompt(eventId, priority) {
+    if (!eventId) return false;
+    var nodes = document.querySelectorAll('.steal-popup[data-event-id="' + eventId + '"]');
+    for (var i = 0; i < nodes.length; i++) {
+        var p = parseInt(nodes[i].getAttribute('data-priority') || '99', 10);
+        if (p < priority) return true;
+    }
+    return false;
+}
+
+function _removeStealPopup(id, key) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var timer = el._stealTimer;
+    if (timer) clearInterval(timer);
+    if (key && window._naiBaPromptKeys) delete window._naiBaPromptKeys[key];
+    if (el.parentNode) el.parentNode.removeChild(el);
+}
+
+function _showStackedStealPopup(opts) {
+    var stack = _ensureStealStack(opts.thiefIdx);
+    if (!stack) return;
+
+    window._stealPromptSeq += 1;
+    var id = 'stealPopup_' + window._stealPromptSeq;
     var div = document.createElement('div');
-    div.id = 'stealOverlay';
+    div.id = id;
+    div.className = 'steal-popup';
+    div.setAttribute('data-event-id', String(opts.eventId || 0));
+    div.setAttribute('data-priority', String(opts.priority || 9));
     div.style.cssText = [
-        'display:none',
-        'position:absolute',
-        'z-index:9999',
-        'top:6px',
-        'right:6px',
-        'padding:8px 12px',
-        'background:#fff0f6',
-        'border:2px solid #eb2f96',
+        'padding:8px 10px',
+        'background:' + (opts.background || '#fff0f6'),
+        'border:2px solid ' + (opts.border || '#eb2f96'),
         'border-radius:10px',
-        'font-size:13px',
-        'box-shadow:0 4px 16px rgba(235,47,150,0.25)',
-        'max-width:calc(100% - 12px)'
+        'font-size:12px',
+        'box-shadow:0 4px 14px rgba(0,0,0,0.16)',
+        'min-width:190px',
+        'max-width:260px'
     ].join(';');
+
     div.innerHTML = [
-        '<div id="stealDesc" style="color:#333;margin-bottom:6px;font-weight:bold;font-size:12px;"></div>',
-        '<div style="display:flex;gap:6px;align-items:center;">',
-        '  <button id="stealConfirmBtn" style="background:#eb2f96;color:white;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:12px;">是</button>',
-        '  <button id="stealCancelBtn" style="background:white;color:#555;border:1px solid #d9d9d9;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:12px;">否</button>',
-        '  <span style="color:#ff4d4f;font-size:12px;"><span id="stealCd">5</span>s</span>',
+        '<div style="color:#333;margin-bottom:6px;font-weight:bold;line-height:1.35;">' + opts.desc + '</div>',
+        '<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end;">',
+        '  <button class="steal-confirm" style="background:' + (opts.border || '#eb2f96') + ';color:white;border:none;padding:4px 10px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:12px;">抢夺</button>',
+        '  <button class="steal-cancel" style="background:white;color:#555;border:1px solid #d9d9d9;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:12px;">放弃</button>',
+        '  <span style="color:#ff4d4f;font-size:12px;"><span class="steal-cd">5</span>s</span>',
         '</div>'
     ].join('');
-    // 先挂到 body，_positionStealOverlay 会移到正确卡片里
-    document.body.appendChild(div);
+
+    stack.appendChild(div);
+
+    var cd = 5;
+    div._stealTimer = setInterval(function() {
+        cd--;
+        var cdEl = div.querySelector('.steal-cd');
+        if (cdEl) cdEl.textContent = cd;
+        if (cd <= 0) _removeStealPopup(id, opts.key);
+    }, 1000);
+
+    div.querySelector('.steal-confirm').onclick = function() {
+        if (_hasHigherPriorityStealPrompt(opts.eventId || 0, opts.priority || 9)) {
+            if (typeof flashHint2 === 'function') flashHint2('⚠️ 同一回血事件中，大乔抢夺优先，请先处理/等待大乔弹窗。');
+            return;
+        }
+        _removeStealPopup(id, opts.key);
+        var r = invokeAction2(opts.thiefIdx, opts.actionName, opts.params || {}, false, { silent: true });
+        if (typeof r === 'string' && r.indexOf('错误') === 0 && typeof flashHint2 === 'function') flashHint2(r);
+        if (typeof render2 === 'function') render2();
+    };
+    div.querySelector('.steal-cancel').onclick = function() {
+        _removeStealPopup(id, opts.key);
+    };
 }
 
-// 把弹窗节点移入大乔所在的卡片（position:absolute 相对卡片）
-function _positionStealOverlay(daQiaoIdx) {
-    var overlay = document.getElementById('stealOverlay');
-    var card    = document.getElementById('card2v_' + daQiaoIdx);
-    if (!overlay || !card) return;
-    // 确保卡片有 position:relative（CSS 已设置，这里保险起见再加）
-    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
-    // 移入卡片
-    if (overlay.parentNode !== card) card.appendChild(overlay);
-}
-
-// Haxe 调用此函数（全局）
-function showStealPrompt(daQiaoIdx, healerIdx, netHeal) {
-    // JS层冷却：同一大回合同一healer只弹一次
-    var key = String(healerIdx);
+// Haxe 调用：大乔监听 RECOVERY 后弹窗
+function showStealPrompt(daQiaoIdx, healerIdx, netHeal, eventId) {
+    eventId = eventId || 0;
+    var key = 'dq:' + daQiaoIdx + ':' + healerIdx;
     if (window._stealUsedThisTurn[key]) return;
     window._stealUsedThisTurn[key] = true;
 
-    // 联机：只有大乔的控制者能决定是否抢；AI 大乔只由房主自动决策并广播。
     if (ONLINE.active) {
         var daQiaoCtrl = ONLINE.charControl[daQiaoIdx];
         if (daQiaoCtrl !== 'AI' && daQiaoCtrl !== ONLINE.slotIdx) return;
         if (daQiaoCtrl === 'AI' && !ONLINE.isHost()) return;
     }
 
-    // AI 自战：自动决策（大乔血量 < 进化门槛或者抢了更好就抢）
-    const daQiao = Main.turnManager.players[daQiaoIdx];
-    if (window.AI && AI.enabled && AI.controlled && AI.controlled[daQiaoIdx]) {
-        // 大乔永远抢——抢血是她的核心机制。联机 AI 只允许房主执行并广播。
-        if (ONLINE.active && !ONLINE.isHost()) return;
-        clearInterval(G.stealTimer);
-        invokeAction2(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal }, false, { silent: true });
-        return;
-    }
-
-    _ensureStealOverlay();
-    _doShowSteal(daQiaoIdx, healerIdx, netHeal);
-}
-
-function _doShowSteal(daQiaoIdx, healerIdx, netHeal) {
-    _ensureStealOverlay();
-
     var players = Main.turnManager.players;
     var daQiao  = players[daQiaoIdx];
     var healer  = players[healerIdx];
+    if (!daQiao || !healer) return;
     var steal   = Math.floor(netHeal * 0.5) + (daQiao.isGodForm ? 10 : 0);
 
-    document.getElementById('stealDesc').innerHTML =
-        '🎯 抢 <b>' + healer.name + '</b> 回血 <b>' + netHeal + '</b>' +
-        ' → 得 <b style="color:#eb2f96">' + steal + '</b>' +
-        (daQiao.isGodForm ? '<span style="color:#eb2f96;font-size:11px"> +10</span>' : '');
+    if (window.AI && AI.enabled && AI.controlled && AI.controlled[daQiaoIdx]) {
+        if (ONLINE.active && !ONLINE.isHost()) return;
+        invokeAction2(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal, eventId: eventId }, false, { silent: true });
+        return;
+    }
 
-    _positionStealOverlay(daQiaoIdx);
-    var overlay = document.getElementById('stealOverlay');
-    overlay.style.display = 'block';
-
-    // 重置按钮（先clone清除旧事件，再重新绑定）
-    var oldConfirm = document.getElementById('stealConfirmBtn');
-    var oldCancel  = document.getElementById('stealCancelBtn');
-    var newConfirm = oldConfirm.cloneNode(true);
-    var newCancel  = oldCancel.cloneNode(true);
-    oldConfirm.parentNode.replaceChild(newConfirm, oldConfirm);
-    oldCancel.parentNode.replaceChild(newCancel, oldCancel);
-
-    // 倒计时
-    clearInterval(G.stealTimer);
-    var cd = 5;
-    document.getElementById('stealCd').textContent = cd;
-    G.stealTimer = setInterval(function() {
-        cd--;
-        var el = document.getElementById('stealCd');
-        if (el) el.textContent = cd;
-        if (cd <= 0) { _closeStealOverlay(); }
-    }, 1000);
-
-    document.getElementById('stealConfirmBtn').onclick = function() {
-        clearInterval(G.stealTimer);
-        _closeStealOverlay();
-        if (ONLINE.active && !ONLINE.isHost()) {
-            ONLINE.sendAction({ type: 'steal', choice: 'confirm', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
-            setHint2('⏳ 已提交大乔抢血，等待房主结算...');
-            return;
-        }
-        invokeAction2(daQiaoIdx, 'doSteal', { healerIdx: healerIdx, netHeal: netHeal }, false, { silent: true });
-        render2();
-    };
-    document.getElementById('stealCancelBtn').onclick = function() {
-        clearInterval(G.stealTimer);
-        _closeStealOverlay();
-        if (ONLINE.active) ONLINE.sendAction({ type: 'steal', choice: 'cancel', daQiaoIdx: daQiaoIdx, healerIdx: healerIdx, netHeal: netHeal });
-    };
+    _showStackedStealPopup({
+        thiefIdx: daQiaoIdx,
+        actionName: 'doSteal',
+        params: { healerIdx: healerIdx, netHeal: netHeal, eventId: eventId },
+        eventId: eventId,
+        priority: 1,
+        background: '#fff0f6',
+        border: '#eb2f96',
+        desc: '🎯 大乔抢 <b>' + healer.name + '</b> 回复 <b>' + netHeal + '</b>' +
+              ' → 得 <b style="color:#eb2f96">' + steal + '</b>' +
+              (daQiao.isGodForm ? '<span style="color:#eb2f96;font-size:11px"> +10</span>' : '')
+    });
 }
+window.showStealPrompt = showStealPrompt;
 
-function _closeStealOverlay() {
-    clearInterval(G.stealTimer);
-    var overlay = document.getElementById('stealOverlay');
-    if (overlay) overlay.style.display = 'none';
+// Haxe 调用：神偷奶爸监听 RECOVERY/SUPPLY 后弹窗
+function showNaiBaStealPrompt(naiBaIdx, healerIdx, netHeal, healType, eventId) {
+    eventId = eventId || 0;
+    healType = healType || 'RECOVERY';
+    var key = 'nb:' + naiBaIdx + ':' + healerIdx + ':' + eventId + ':' + healType;
+    if (window._naiBaPromptKeys[key]) return;
+    window._naiBaPromptKeys[key] = true;
 
+    if (ONLINE.active) {
+        var ctrl = ONLINE.charControl[naiBaIdx];
+        if (ctrl !== 'AI' && ctrl !== ONLINE.slotIdx) return;
+        if (ctrl === 'AI' && !ONLINE.isHost()) return;
+    }
+
+    var players = Main.turnManager.players;
+    var naiBa = players[naiBaIdx];
+    var healer = players[healerIdx];
+    if (!naiBa || !healer) return;
+    var steal = healType === 'SUPPLY' ? Math.max(0, netHeal - 1) : Math.floor(netHeal * 0.5);
+    if (steal <= 0) return;
+
+    var params = { healerIdx: healerIdx, netHeal: netHeal, healType: healType, eventId: eventId };
+    if (window.AI && AI.enabled && AI.controlled && AI.controlled[naiBaIdx]) {
+        if (ONLINE.active && !ONLINE.isHost()) return;
+        invokeAction2(naiBaIdx, 'doNaiBaSteal', params, false, { silent: true });
+        return;
+    }
+
+    _showStackedStealPopup({
+        thiefIdx: naiBaIdx,
+        actionName: 'doNaiBaSteal',
+        params: params,
+        eventId: eventId,
+        priority: 2,
+        key: key,
+        background: '#f6ffed',
+        border: '#52c41a',
+        desc: '🕵️ 神偷抢 <b>' + healer.name + '</b> ' + (healType === 'SUPPLY' ? '补给' : '回复') +
+              ' <b>' + netHeal + '</b> → 得 <b style="color:#389e0d">' + steal + '</b>' +
+              (healType === 'SUPPLY' ? '<span style="font-size:11px;color:#389e0d">（留1）</span>' : '<span style="font-size:11px;color:#389e0d">（抢半）</span>')
+    });
 }
+window.showNaiBaStealPrompt = showNaiBaStealPrompt;
 
 // render2 调用：当轮到 playerIdx 行动时，清除对他的冷却
 function clearStealCooldownForPlayer(playerIdx) {
-    delete window._stealUsedThisTurn[String(playerIdx)];
+    var suffix = ':' + playerIdx;
+    for (var k in window._stealUsedThisTurn) {
+        if (Object.prototype.hasOwnProperty.call(window._stealUsedThisTurn, k) && k.indexOf(suffix) >= 0) {
+            delete window._stealUsedThisTurn[k];
+        }
+    }
 }
+window.clearStealCooldownForPlayer = clearStealCooldownForPlayer;
+
+// 神偷奶爸伤害转移目标：用和孙悟空[0,2]同风格的目标选择弹窗；不再使用浏览器 prompt。
+function _isNaiBaPlayer(p) {
+    return !!p && (p.name === '神偷奶爸' || p.id === 'shentounainai');
+}
+
+function _handSum2(p) {
+    return (p && p.hands) ? ((p.hands[0] || 0) + (p.hands[1] || 0)) : 0;
+}
+
+function _canNaiBaTransferBeforeAttack(naiBaIdx, attackerIdx) {
+    var players = (Main && Main.turnManager && Main.turnManager.players) ? Main.turnManager.players : [];
+    var naiBa = players[naiBaIdx];
+    var attacker = players[attackerIdx];
+    if (!_isNaiBaPlayer(naiBa) || !attacker) return false;
+    if (naiBa.hp <= 0 || attacker.hp <= 0) return false;
+    if (!naiBa.transferMode) return false;
+    return _handSum2(naiBa) > _handSum2(attacker);
+}
+
+function shouldShowNaiBaTransferDialog(actorIdx, dmgTargetIdx) {
+    return _canNaiBaTransferBeforeAttack(dmgTargetIdx, actorIdx);
+}
+window.shouldShowNaiBaTransferDialog = shouldShowNaiBaTransferDialog;
+
+function _naiBaTransferLabel(idx) {
+    if (idx < 0) return '空气';
+    var players = (Main && Main.turnManager && Main.turnManager.players) ? Main.turnManager.players : [];
+    var p = players[idx];
+    return p ? (p.name + ' HP:' + p.hp) : '未知目标';
+}
+
+// Haxe 兜底调用：不能弹原生 prompt。若攻击前弹窗没有来得及设置目标，就默认空气，相当于只刷新 x。
+function selectNaiBaTransferTarget(naiBaIdx, attackerIdx) {
+    return -1;
+}
+window.selectNaiBaTransferTarget = selectNaiBaTransferTarget;
+
+function showNaiBaTransferTargetDialog(ctx) {
+    var players = (Main && Main.turnManager && Main.turnManager.players) ? Main.turnManager.players : [];
+    var naiBa = players[ctx.naiBaIdx];
+    var attacker = players[ctx.actorIdx];
+    var list = document.getElementById('naiBaTransferTargetList');
+    if (!list || !naiBa || !attacker) {
+        executeNaiBaTransferChoice(-1);
+        return;
+    }
+
+    G.naiBaTransferPending = ctx;
+    list.innerHTML = '';
+
+    var msg = document.getElementById('naiBaTransferTargetMsg');
+    if (msg) {
+        msg.innerHTML = '<b>' + naiBa.name + '</b> 即将受到 <b>' + attacker.name + '</b> 的物理攻击，选择转移目标：<br>' +
+            '<span style="color:#8c8c8c">选空气不会转移伤害，只刷新 x。</span>';
+    }
+
+    function addBtn(targetIdx, text, className) {
+        var btn = document.createElement('button');
+        btn.className = className || 'naiba-transfer-btn';
+        btn.textContent = text;
+        btn.onclick = function() { executeNaiBaTransferChoice(targetIdx); };
+        list.appendChild(btn);
+    }
+
+    addBtn(-1, '🌫️ 空气（只刷新 x）', 'naiba-transfer-btn air');
+    for (var i = 0; i < players.length; i++) {
+        if (!players[i] || players[i].hp <= 0) continue;
+        if (i === ctx.actorIdx) continue; // 不能把转移伤害打回攻击者本人
+        addBtn(i, '🎯 ' + players[i].name + '  HP:' + players[i].hp, 'naiba-transfer-btn');
+    }
+
+    var dlg = document.getElementById('naiBaTransferTargetDialog');
+    if (dlg) dlg.style.display = 'flex';
+}
+window.showNaiBaTransferTargetDialog = showNaiBaTransferTargetDialog;
+
+function executeNaiBaTransferChoice(targetIdx) {
+    var dlg = document.getElementById('naiBaTransferTargetDialog');
+    if (dlg) dlg.style.display = 'none';
+
+    var ctx = G.naiBaTransferPending;
+    G.naiBaTransferPending = null;
+    if (!ctx) return;
+
+    // 先写入神偷奶爸的“本次攻击者 -> 转移目标”，再继续原本攻击流程。
+    invokeAction2(ctx.naiBaIdx, 'setTransferTarget', {
+        attackerIdx: ctx.actorIdx,
+        targetIdx: targetIdx
+    }, false, { silent: true, noRender: true, noBroadcast: true });
+
+    if (typeof setHint2 === 'function') {
+        setHint2('🕵️ 神偷奶爸本次转移目标：' + _naiBaTransferLabel(targetIdx));
+    }
+
+    if (ctx.setupOnly) {
+        if (typeof render2 === 'function') render2();
+        return;
+    }
+
+    doAttack2(ctx.actorIdx, ctx.myHand, ctx.touchTargetIdx, ctx.touchHandIdx, ctx.dmgTargetIdx, ctx.fromRemote, true);
+}
+window.executeNaiBaTransferChoice = executeNaiBaTransferChoice;
+
+function cancelNaiBaTransferChoice() {
+    executeNaiBaTransferChoice(-1);
+}
+window.cancelNaiBaTransferChoice = cancelNaiBaTransferChoice;
+
+function openNaiBaTransferDialog(naiBaIdx) {
+    // 手动按钮保留，但也改成同样的选择弹窗：默认给“当前行动者”设置转移目标。
+    var actorIdx = Main && Main.turnManager ? Main.turnManager.currentPlayerIdx : -1;
+    if (actorIdx < 0) {
+        if (typeof flashHint2 === 'function') flashHint2('当前没有行动者，无法设置转移目标');
+        return;
+    }
+    showNaiBaTransferTargetDialog({
+        naiBaIdx: naiBaIdx,
+        actorIdx: actorIdx,
+        myHand: G.myHandIdx,
+        touchTargetIdx: actorIdx,
+        touchHandIdx: 0,
+        dmgTargetIdx: naiBaIdx,
+        fromRemote: false,
+        setupOnly: true
+    });
+}
+window.openNaiBaTransferDialog = openNaiBaTransferDialog;
 
 // ── 蛋糕弹窗 ──
 function openCakeDialog(actorIdx, cakesCount) {

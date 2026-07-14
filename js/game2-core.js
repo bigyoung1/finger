@@ -128,7 +128,7 @@ function onHandClick2(playerIdx, handIdx) {
 }
 
 // ── 执行攻击 ──
-function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx, fromRemote) {
+function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx, fromRemote, skipNaiBaTransferDialog) {
     var players       = Main.turnManager.players;
     var actor         = players[actorIdx];
     var touchTarget   = players[touchTargetIdx];
@@ -137,6 +137,24 @@ function doAttack2(actorIdx, myHand, touchTargetIdx, touchHandIdx, dmgTargetIdx,
 
     if (touchTarget.hands[touchHandIdx] === 0) {
         flashHint2('⚠️ 不能碰数字为0的手'); refreshHandStyles2(); return;
+    }
+
+    // 神偷奶爸伤害转移：在真正结算前，用普通游戏弹窗选择目标，不使用浏览器 prompt。
+    if (!skipNaiBaTransferDialog && typeof shouldShowNaiBaTransferDialog === 'function' &&
+        shouldShowNaiBaTransferDialog(actorIdx, dmgTargetIdx2)) {
+        if (typeof showNaiBaTransferTargetDialog === 'function') {
+            showNaiBaTransferTargetDialog({
+                naiBaIdx: dmgTargetIdx2,
+                actorIdx: actorIdx,
+                myHand: myHand,
+                touchTargetIdx: touchTargetIdx,
+                touchHandIdx: touchHandIdx,
+                dmgTargetIdx: dmgTargetIdx2,
+                fromRemote: !!fromRemote
+            });
+            refreshHandStyles2();
+            return;
+        }
     }
 
     // 联机稳定版：非房主不在本地计算攻击，只把意图发给房主。

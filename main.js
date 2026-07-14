@@ -26,6 +26,12 @@ var GameEngine = function() {
 	this.currentComboMultiplier = 1.0;
 	this.lastApplyDamageBase = 0;
 	this.isReflecting = false;
+	this.currentHealEventId = 0;
+	this._healEventSeq = 0;
+	this._healStealPools = {};
+	this.suppressNaiBaSteal = false;
+	this.currentAfterDamageTarget = null;
+	this.currentExtraAfterDealtActualDamage = 0;
 	GameEngine.instance = this;
 };
 GameEngine.__name__ = true;
@@ -114,6 +120,14 @@ GameEngine.prototype = {
 		if(this.turnManager == null) {
 			return;
 		}
+		var oldEventId = this.currentHealEventId || 0;
+		var eventId = 0;
+		if(amount > 0) {
+			this._healEventSeq++;
+			eventId = this._healEventSeq;
+			this._healStealPools[eventId] = amount;
+		}
+		this.currentHealEventId = eventId;
 		var _g = 0;
 		var _g1 = this.turnManager.players;
 		while(_g < _g1.length) {
@@ -124,6 +138,26 @@ GameEngine.prototype = {
 			}
 			p.onAnyHealHappened(healer,amount,type,isFromSkill,this);
 		}
+		this.currentHealEventId = oldEventId;
+	}
+	,consumeHealStealPool: function(eventId,desired,minLeft) {
+		if(minLeft == null) {
+			minLeft = 0;
+		}
+		if(desired <= 0) {
+			return 0;
+		}
+		if(eventId <= 0 || this._healStealPools[eventId] == null) {
+			return desired;
+		}
+		var remain = this._healStealPools[eventId];
+		var canTake = remain - minLeft;
+		if(canTake <= 0) {
+			return 0;
+		}
+		var actual = desired < canTake ? desired : canTake;
+		this._healStealPools[eventId] = remain - actual;
+		return actual;
 	}
 	,notifyShieldEvent: function(target,isFromSkill) {
 		if(isFromSkill == null) {
@@ -289,10 +323,17 @@ GameEngine.prototype = {
 			}
 			this.lastTouchDamageLog.push({ type : type, outputAmount : finalAmount, typeName : tName});
 		}
+		var oldExtraAfterDealt = this.currentExtraAfterDealtActualDamage;
+		this.currentExtraAfterDealtActualDamage = 0;
 		var result = target.handleIncomingDamage(actor,finalAmount,type);
+		var extraActual = this.currentExtraAfterDealtActualDamage;
+		this.currentExtraAfterDealtActualDamage = oldExtraAfterDealt;
 		this._skipAttackerDealBuffs = false;
 		if(actor != null) {
-			actor.onAfterDealtDamage(target,result.damageBeforeShield,result.actualDamage,type,this);
+			var oldAfterDamageTarget = this.currentAfterDamageTarget;
+			this.currentAfterDamageTarget = target;
+			actor.onAfterDealtDamage(target,result.damageBeforeShield,result.actualDamage + extraActual,type,this);
+			this.currentAfterDamageTarget = oldAfterDamageTarget;
 		}
 		if(result.actualDamage > 0 && target != null) {
 			var targetIdx = this.turnManager != null ? this.turnManager.players.indexOf(target) : -1;
@@ -2239,7 +2280,7 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 		}
 		this._stealCooldown.h[cooldownKey] = true;
 		haxe_Log.trace("🎯 大乔感知到 " + healer.name + " 回复了 " + amount + " 血，可抢夺 " + steal + " 血！（5秒内）",{ fileName : "./character/DaQiao.hx", lineNumber : 64, className : "character.DaQiao", methodName : "onAnyHealHappened"});
-		if(typeof showStealPrompt !== 'undefined') showStealPrompt(myIdx,healerIdx,amount);
+		if(typeof showStealPrompt !== 'undefined') showStealPrompt(myIdx,healerIdx,amount,engine.currentHealEventId);
 	}
 	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
 		if(type != model_DamageType.PHYSICAL || actualDamage <= 0) {
@@ -2324,11 +2365,15 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 		}
 		return steal;
 	}
-	,doSteal: function(healer,netHeal,engine) {
+	,doSteal: function(healer,netHeal,engine,eventId) {
+		if(eventId == null) {
+			eventId = 0;
+		}
 		if(healer == this) {
 			return "错误：不能抢自己的回血";
 		}
-		var steal = this.calcStealAmount(netHeal);
+		var desired = this.calcStealAmount(netHeal);
+		var steal = engine.consumeHealStealPool(eventId,desired,0);
 		if(steal <= 0) {
 			return "本次无可抢夺";
 		}
@@ -2346,7 +2391,7 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 				}
 			}
 		}
-		engine.applyRawHeal(this,steal,model_HealType.SUPPLY,true);
+		engine.applyRawHeal(this,steal,model_HealType.RECOVERY,true);
 		return "抢夺成功";
 	}
 	,getCustomDisplay: function() {
@@ -2409,8 +2454,12 @@ character_DaQiao.prototype = $extend(model_Player.prototype,{
 			}
 			var healerIdx = params.healerIdx;
 			var netHeal = params.netHeal;
+			var eventId = 0;
+			if(Object.prototype.hasOwnProperty.call(params,"eventId")) {
+				eventId = params.eventId;
+			}
 			var healer = engine.turnManager.players[healerIdx];
-			return this.doSteal(healer,netHeal,engine);
+			return this.doSteal(healer,netHeal,engine,eventId);
 		}
 		return model_Player.prototype.handleAction.call(this,actionName,params,engine);
 	}
@@ -2463,7 +2512,7 @@ character_FaShi.prototype = $extend(model_Player.prototype,{
 		if(actualDamage <= 0) {
 			return;
 		}
-		haxe_Log.trace("⚡ 法师雷霆回复 " + actualDamage + " 血！",{ fileName : "./character/FaShi.hx", lineNumber : 67, className : "character.FaShi", methodName : "onAnyThunderTick"});
+		haxe_Log.trace("⚡ 法师雷霆补给 " + actualDamage + " 血！",{ fileName : "./character/FaShi.hx", lineNumber : 67, className : "character.FaShi", methodName : "onAnyThunderTick"});
 		engine.applyRawHeal(this,actualDamage,model_HealType.SUPPLY,true);
 	}
 	,__class__: character_FaShi
@@ -3059,59 +3108,255 @@ character_RenZhe.prototype = $extend(model_Player.prototype,{
 	,__class__: character_RenZhe
 });
 var character_ShenTouNaiBa = function(id,name,camp) {
+	this.stolenTargetsThisBigRound = {};
+	this.transferTargets = {};
 	this.transferMode = false;
 	this.x = 0;
 	model_Player.call(this,id,name,320,camp);
 };
 character_ShenTouNaiBa.__name__ = true;
 character_ShenTouNaiBa.__super__ = model_Player;
+character_ShenTouNaiBa.resolvingTransfer = false;
 character_ShenTouNaiBa.prototype = $extend(model_Player.prototype,{
-	onTurnEnd: function() {
+	handSumOf: function(p) {
+		if(p == null) {
+			return 0;
+		}
+		return p.hands[0] + p.hands[1];
+	}
+	,getMyIdx: function(engine) {
+		if(engine == null || engine.turnManager == null) {
+			return -1;
+		}
+		var ps = engine.turnManager.players;
+		var _g = 0;
+		var _g1 = ps.length;
+		while(_g < _g1) {
+			var i = _g++;
+			if(ps[i] == this) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	,getPlayerIdx: function(p,engine) {
+		if(p == null || engine == null || engine.turnManager == null) {
+			return -1;
+		}
+		var ps = engine.turnManager.players;
+		var _g = 0;
+		var _g1 = ps.length;
+		while(_g < _g1) {
+			var i = _g++;
+			if(ps[i] == p) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	,onTurnEnd: function() {
 		model_Player.prototype.onTurnEnd.call(this);
 		if(this.hp <= 0 || GameEngine.instance == null) {
 			return;
 		}
 		var heal = 0;
-		if(this.hands[0] == 6 && this.hands[1] == 6) {
-			heal = 20;
-		} else if(this.hands[0] == 6 || this.hands[1] == 6) {
-			heal = 10;
+		if(this.hands[0] == 6) {
+			heal += 10;
+		}
+		if(this.hands[1] == 6) {
+			heal += 10;
 		}
 		if(heal > 0) {
-			haxe_Log.trace("🕵️ 神偷奶爸回复 " + heal + "（RECOVERY）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 37, className : "character.ShenTouNaiBa", methodName : "onTurnEnd"});
+			haxe_Log.trace("🕵️ 神偷奶爸回合末手值6回复 " + heal + "（RECOVERY）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 65, className : "character.ShenTouNaiBa", methodName : "onTurnEnd"});
 			GameEngine.instance.applyRawHeal(this,heal,model_HealType.RECOVERY,false);
 		}
 	}
+	,chooseTransferTargetIdx: function(attackerIdx,engine) {
+		if(Object.prototype.hasOwnProperty.call(this.transferTargets,attackerIdx)) {
+			return this.transferTargets[attackerIdx];
+		}
+		var myIdx = this.getMyIdx(engine);
+		if(myIdx < 0) {
+			return -1;
+		}
+		var choice = typeof selectNaiBaTransferTarget === 'function' ? selectNaiBaTransferTarget(myIdx,attackerIdx) : -1;
+		if(choice == null) {
+			return -1;
+		}
+		return choice | 0;
+	}
+	,applyTransferredDamage: function(attacker,targetIdx,amount,engine) {
+		if(engine == null || engine.turnManager == null || amount <= 0) {
+			return;
+		}
+		if(targetIdx < 0) {
+			haxe_Log.trace("🕵️ 神偷奶爸把 " + amount + " 点转移伤害丢向空气。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 89, className : "character.ShenTouNaiBa", methodName : "applyTransferredDamage"});
+			return;
+		}
+		var ps = engine.turnManager.players;
+		if(targetIdx >= ps.length) {
+			return;
+		}
+		var target = ps[targetIdx];
+		if(target == null || target.hp <= 0) {
+			return;
+		}
+		if(attacker != null && target == attacker) {
+			haxe_Log.trace("🕵️ 神偷奶爸不能把转移伤害打回攻击者本人，本次视为空气。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 94, className : "character.ShenTouNaiBa", methodName : "applyTransferredDamage"});
+			return;
+		}
+		var oldSuppressHelp = engine.suppressHelpTankAutoEvents;
+		var oldResolving = character_ShenTouNaiBa.resolvingTransfer;
+		engine.suppressHelpTankAutoEvents = true;
+		character_ShenTouNaiBa.resolvingTransfer = true;
+		var beforeHp = target.hp;
+		var result = engine.applyRawDamage(attacker,target,amount,model_DamageType.PHYSICAL);
+		character_ShenTouNaiBa.resolvingTransfer = oldResolving;
+		engine.suppressHelpTankAutoEvents = oldSuppressHelp;
+		if(target.hp <= 0) {
+			target.hp = 1;
+			haxe_Log.trace("🕵️ 神偷奶爸转移伤害不能打死人，" + target.name + " 被保留为 1 HP。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 109, className : "character.ShenTouNaiBa", methodName : "applyTransferredDamage"});
+		}
+		var actualLoss = beforeHp - target.hp;
+		if(actualLoss < 0) {
+			actualLoss = 0;
+		}
+		engine.currentExtraAfterDealtActualDamage += actualLoss;
+		haxe_Log.trace("🕵️ 神偷奶爸向 " + target.name + " 转移 " + amount + " 物伤，实际扣血 " + actualLoss + "（" + beforeHp + "->" + target.hp + "）。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 115, className : "character.ShenTouNaiBa", methodName : "applyTransferredDamage"});
+	}
 	,handleIncomingDamage: function(attacker,amount,dmgType) {
 		if(dmgType == model_DamageType.PHYSICAL) {
-			var immune = amount / 2 | 0;
-			this.x = amount - immune;
-			haxe_Log.trace("🕵️ 神偷奶爸物免：" + amount + " -> " + immune + "，x=" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 52, className : "character.ShenTouNaiBa", methodName : "handleIncomingDamage"});
-			return model_Player.prototype.handleIncomingDamage.call(this,attacker,immune,dmgType);
+			var engine = GameEngine.instance;
+			var attackerIdx = this.getPlayerIdx(attacker,engine);
+			var canTransfer = !character_ShenTouNaiBa.resolvingTransfer && this.transferMode && attacker != null && this.handSumOf(this) > this.handSumOf(attacker);
+			if(canTransfer) {
+				var share = Math.ceil(amount * 0.75) | 0;
+				if(share < 1 && amount > 0) {
+					share = 1;
+				}
+				this.x = share;
+				var targetIdx = this.chooseTransferTargetIdx(attackerIdx,engine);
+				haxe_Log.trace("🕵️ 神偷奶爸转移物伤：原" + amount + " → 自承" + share + " + 转移" + share + "，x=" + this.x + "。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 132, className : "character.ShenTouNaiBa", methodName : "handleIncomingDamage"});
+				var selfResult = model_Player.prototype.handleIncomingDamage.call(this,attacker,share,model_DamageType.PHYSICAL);
+				this.applyTransferredDamage(attacker,targetIdx,share,engine);
+				return selfResult;
+			}
+			var taken = amount / 2 | 0;
+			if(taken < 1 && amount > 0) {
+				taken = 1;
+			}
+			var immune = amount - taken;
+			this.x = immune;
+			haxe_Log.trace("🕵️ 神偷奶爸50%物免：" + amount + "->" + taken + "，免疫" + immune + "，x=" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 143, className : "character.ShenTouNaiBa", methodName : "handleIncomingDamage"});
+			return model_Player.prototype.handleIncomingDamage.call(this,attacker,taken,model_DamageType.PHYSICAL);
 		}
 		return model_Player.prototype.handleIncomingDamage.call(this,attacker,amount,dmgType);
 	}
 	,calculateOutputDamage: function(baseAmount,type) {
 		if(type == model_DamageType.PHYSICAL && this.x > 0) {
-			haxe_Log.trace("🕵️ 神偷奶爸追加物伤：" + baseAmount + "+" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 60, className : "character.ShenTouNaiBa", methodName : "calculateOutputDamage"});
+			haxe_Log.trace("🕵️ 神偷奶爸追加物伤：" + baseAmount + "+" + this.x,{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 151, className : "character.ShenTouNaiBa", methodName : "calculateOutputDamage"});
 			return baseAmount + this.x;
 		}
 		return baseAmount;
 	}
 	,onAfterDealtDamage: function(target,damageBeforeShield,actualDamage,type,engine) {
-		if(type != model_DamageType.PHYSICAL || actualDamage <= 0 || this.x <= 0) {
+		if(type != model_DamageType.PHYSICAL || this.x <= 0) {
 			return;
 		}
-		var supply = Math.min(this.x,actualDamage) | 0;
-		if(supply > 0) {
-			haxe_Log.trace("🕵️ 神偷奶爸攻击补给：" + supply + "（x=" + this.x + ",实际伤害=" + actualDamage + "）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 70, className : "character.ShenTouNaiBa", methodName : "onAfterDealtDamage"});
-			engine.applyRawHeal(this,supply,model_HealType.SUPPLY,true);
+		var heal = this.x / 2 | 0;
+		if(heal > 0) {
+			haxe_Log.trace("🕵️ 神偷奶爸物理攻击回复：" + heal + "（x=" + this.x + ",实际伤害=" + actualDamage + "）",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 151, className : "character.ShenTouNaiBa", methodName : "onAfterDealtDamage"});
+			engine.applyRawHeal(this,heal,model_HealType.RECOVERY,true);
 		}
+	}
+	,onAnyHealHappened: function(healer,amount,type,isFromSkill,engine) {
+		if(engine == null || engine.suppressNaiBaSteal) {
+			return;
+		}
+		if(healer == null || healer == this || this.hp <= 0 || amount <= 0) {
+			return;
+		}
+		var mySum = this.handSumOf(this);
+		if(mySum <= 0 || mySum % 7 != 0) {
+			return;
+		}
+		if(mySum <= this.handSumOf(healer)) {
+			return;
+		}
+		if(type == model_HealType.SUPPLY && engine.currentAfterDamageTarget == this) {
+			return;
+		}
+		var desired = this.calcNaiBaStealAmount(amount,type);
+		if(desired <= 0) {
+			return;
+		}
+		var myIdx = this.getMyIdx(engine);
+		var healerIdx = this.getPlayerIdx(healer,engine);
+		if(myIdx < 0 || healerIdx < 0) {
+			return;
+		}
+		if(Object.prototype.hasOwnProperty.call(this.stolenTargetsThisBigRound,healerIdx) && this.stolenTargetsThisBigRound[healerIdx]) {
+			return;
+		}
+		var typeStr = type == model_HealType.SUPPLY ? "SUPPLY" : "RECOVERY";
+		haxe_Log.trace("🕵️ 神偷奶爸感知到 " + healer.name + " " + typeStr + " " + amount + "，可抢 " + desired + "。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 189, className : "character.ShenTouNaiBa", methodName : "onAnyHealHappened"});
+		if(typeof showNaiBaStealPrompt !== 'undefined') showNaiBaStealPrompt(myIdx,healerIdx,amount,typeStr,engine.currentHealEventId);
+	}
+	,calcNaiBaStealAmount: function(netHeal,type) {
+		if(netHeal <= 0) {
+			return 0;
+		}
+		if(type == model_HealType.SUPPLY) {
+			return netHeal > 1 ? netHeal - 1 : 0;
+		}
+		return netHeal / 2 | 0;
+	}
+	,doNaiBaSteal: function(healer,netHeal,type,engine,eventId) {
+		if(eventId == null) {
+			eventId = 0;
+		}
+		if(healer == null) {
+			return "错误：目标不存在";
+		}
+		if(healer == this) {
+			return "错误：不能抢自己的回血/补给";
+		}
+		var mySum = this.handSumOf(this);
+		if(mySum <= 0 || mySum % 7 != 0) {
+			return "错误：双手合不是7的倍数";
+		}
+		if(mySum <= this.handSumOf(healer)) {
+			return "错误：双手合不大于目标，不能抢夺";
+		}
+		var healerIdx = this.getPlayerIdx(healer,engine);
+		if(healerIdx >= 0 && Object.prototype.hasOwnProperty.call(this.stolenTargetsThisBigRound,healerIdx) && this.stolenTargetsThisBigRound[healerIdx]) {
+			return "本大回合已抢过该角色";
+		}
+		var desired = this.calcNaiBaStealAmount(netHeal,type);
+		var minLeft = type == model_HealType.SUPPLY ? 1 : 0;
+		var steal = engine.consumeHealStealPool(eventId,desired,minLeft);
+		if(steal <= 0) {
+			return "本次无可抢夺";
+		}
+		healer.hp -= steal;
+		this.x = steal;
+		if(healerIdx >= 0) {
+			this.stolenTargetsThisBigRound[healerIdx] = true;
+		}
+		haxe_Log.trace("🕵️ 神偷奶爸从 " + healer.name + " 抢走 " + steal + " 点" + (type == model_HealType.SUPPLY ? "补给" : "回复") + "，x=" + this.x + "。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 206, className : "character.ShenTouNaiBa", methodName : "doNaiBaSteal"});
+		var oldSuppress = engine.suppressNaiBaSteal;
+		engine.suppressNaiBaSteal = true;
+		engine.applyRawHeal(this,steal,model_HealType.SUPPLY,true);
+		engine.suppressNaiBaSteal = oldSuppress;
+		return "抢夺成功";
+	}
+	,parseHealType: function(v) {
+		return Std.string(v) == "SUPPLY" ? model_HealType.SUPPLY : model_HealType.RECOVERY;
 	}
 	,toggleTransfer: function() {
 		this.transferMode = !this.transferMode;
 		if(this.transferMode) {
-			return "已开启伤害转移模式（满足条件后选择目标）";
+			return "已开启伤害转移模式（满足条件时选择目标，默认空气）";
 		} else {
 			return "已关闭伤害转移模式";
 		}
@@ -3120,13 +3365,43 @@ character_ShenTouNaiBa.prototype = $extend(model_Player.prototype,{
 		if(actionName == "toggleTransfer") {
 			return this.toggleTransfer();
 		}
+		if(actionName == "setTransferTarget") {
+			var attackerIdx = params.attackerIdx;
+			var targetIdx = params.targetIdx;
+			if(targetIdx == attackerIdx) {
+				targetIdx = -1;
+			}
+			this.transferTargets[attackerIdx] = targetIdx;
+			return "转移目标设置成功";
+		}
+		if(actionName == "doNaiBaSteal") {
+			if(engine.turnManager == null) {
+				return "错误：无引擎";
+			}
+			var healerIdx = params.healerIdx;
+			var netHeal = params.netHeal;
+			var eventId = 0;
+			if(Object.prototype.hasOwnProperty.call(params,"eventId")) {
+				eventId = params.eventId;
+			}
+			var type = this.parseHealType(params.healType);
+			if(healerIdx < 0 || healerIdx >= engine.turnManager.players.length) {
+				return "错误：目标索引无效";
+			}
+			return this.doNaiBaSteal(engine.turnManager.players[healerIdx],netHeal,type,engine,eventId);
+		}
 		return model_Player.prototype.handleAction.call(this,actionName,params,engine);
 	}
+	,onBigRoundEnd: function() {
+		model_Player.prototype.onBigRoundEnd.call(this);
+		this.stolenTargetsThisBigRound = {};
+		haxe_Log.trace("🕵️ 神偷奶爸：大回合结束，抢夺记录重置。",{ fileName : "./character/ShenTouNaiBa.hx", lineNumber : 245, className : "character.ShenTouNaiBa", methodName : "onBigRoundEnd"});
+	}
 	,getCustomDisplay: function() {
-		return "🕵️ x=<b>" + this.x + "</b> | 转移：" + (this.transferMode ? "开启" : "关闭");
+		return "🕵️ x=<b>" + this.x + "</b> | 转移：" + (this.transferMode ? "开启" : "关闭") + " | 合:" + (this.hands[0] + this.hands[1]);
 	}
 	,getCustomActions: function() {
-		return [{ label : this.transferMode ? "🔄关闭伤害转移" : "🔄开启伤害转移", color : this.transferMode ? "#52c41a" : "#fa8c16", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleTransfer', {})"}];
+		return [{ label : this.transferMode ? "🔄关闭伤害转移" : "🔄开启伤害转移", color : this.transferMode ? "#52c41a" : "#fa8c16", enabled : true, onClickJS : "invokeAction2(__IDX__, 'toggleTransfer', {})"},{ label : "🎯设置转移目标", color : "#1890ff", enabled : this.transferMode, onClickJS : "openNaiBaTransferDialog(__IDX__)"}];
 	}
 	,__class__: character_ShenTouNaiBa
 });
@@ -3988,12 +4263,12 @@ character_ZangShi.prototype = $extend(model_Player.prototype,{
 			return "错误：目标无效";
 		}
 		var damage = 10 * groupCount;
-		var supply = 10 * groupCount;
+		var heal = 10 * groupCount;
 		this.cakes -= cost;
-		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身补给 " + supply + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 157, className : "character.ZangShi", methodName : "useCake"});
+		haxe_Log.trace("🍓 " + this.name + " 消耗 " + cost + " 个草莓蛋糕，对 " + target.name + " 造成 " + damage + " 法伤，并自身回复 " + heal + " 血！",{ fileName : "./character/ZangShi.hx", lineNumber : 157, className : "character.ZangShi", methodName : "useCake"});
 		this._inCakeCast = true;
 		engine.applyDamage(this,target,damage,model_DamageType.MAGIC);
-		engine.applyRawHeal(this,supply,model_HealType.RECOVERY,false);
+		engine.applyRawHeal(this,heal,model_HealType.RECOVERY,false);
 		this._inCakeCast = false;
 		return "蛋糕释放成功";
 	}
@@ -4040,7 +4315,7 @@ character_ZhangFei.prototype = $extend(model_Player.prototype,{
 		model_Player.prototype.onTurnEnd.call(this);
 		var amount = this.frenzyTurns > 0 ? 20 : 10;
 		if(this.hp > 0 && GameEngine.instance != null) {
-			haxe_Log.trace("🐗 张飞行动结束补给 " + amount + " 血" + (this.frenzyTurns > 0 ? "（狂暴翻倍）" : ""),{ fileName : "./character/ZhangFei.hx", lineNumber : 48, className : "character.ZhangFei", methodName : "onTurnEnd"});
+			haxe_Log.trace("🐗 张飞行动结束回复 " + amount + " 血" + (this.frenzyTurns > 0 ? "（狂暴翻倍）" : ""),{ fileName : "./character/ZhangFei.hx", lineNumber : 48, className : "character.ZhangFei", methodName : "onTurnEnd"});
 			GameEngine.instance.applyRawHeal(this,amount,model_HealType.RECOVERY,false);
 		}
 		if(this.frenzyTurns > 0) {

@@ -11,7 +11,7 @@ import buffs.InvincibleBuff;
  * (1) 主动抢夺全场任意"回复"行为的50%（仅RECOVERY，补给不可抢）
  *     每次回复事件发生后5秒内可选择抢夺，不抢就放弃
  *     自己回血不能抢自己的；先到先得；友方也可抢
- * (2) 造成物伤时回复50%伤害值的血量（RECOVERY类型，可解毒，可被其他大乔抢）
+ * (2) 造成物伤时回复50%伤害值的血量（当前代码实现为RECOVERY，可解毒，可被大乔/神偷等监听）
  * (3) 进化为神大乔：当前HP突破300后，可选择扣300血进化
  *     进化效果：废弃(4)，每次抢夺额外+10血，物伤×1.5，受物伤-1/4
  * (4) 复活甲：死后获得InvincibleBuff 2回合，之后以50血复活（仅限一次）
@@ -63,8 +63,8 @@ class DaQiao extends Player {
         _stealCooldown.set(cooldownKey, true);
         trace('🎯 大乔感知到 ${healer.name} 回复了 ${amount} 血，可抢夺 ${steal} 血！（5秒内）');
         // 通知前端弹窗（非阻塞，游戏继续）
-        js.Syntax.code("if(typeof showStealPrompt !== 'undefined') showStealPrompt({0},{1},{2})",
-            myIdx, healerIdx, amount);
+        js.Syntax.code("if(typeof showStealPrompt !== 'undefined') showStealPrompt({0},{1},{2},{3})",
+            myIdx, healerIdx, amount, engine.currentHealEventId);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -176,9 +176,10 @@ class DaQiao extends Player {
      * @param netHeal 本次净回血量（由事件传过来）
      * @param engine 引擎
      */
-    public function doSteal(healer:Player, netHeal:Int, engine:GameEngine):String {
+    public function doSteal(healer:Player, netHeal:Int, engine:GameEngine, eventId:Int = 0):String {
         if (healer == this) return "错误：不能抢自己的回血";
-        var steal = calcStealAmount(netHeal);
+        var desired = calcStealAmount(netHeal);
+        var steal = engine.consumeHealStealPool(eventId, desired, 0);
         if (steal <= 0) return "本次无可抢夺";
 
         healer.hp -= steal;
@@ -191,8 +192,8 @@ class DaQiao extends Player {
             }
         }
 
-        // 大乔自己获得这部分：用 SUPPLY 类型（不解毒、不被其他大乔再抢、不更新孙悟空y）
-        engine.applyRawHeal(this, steal, SUPPLY, true);
+        
+        engine.applyRawHeal(this, steal, RECOVERY, true);
 
         return "抢夺成功";
     }
@@ -268,12 +269,14 @@ class DaQiao extends Player {
             return evolve();}
         
         if (actionName == "doSteal") {
-            // 期望 params: { healerIdx:Int, netHeal:Int }
+            // 期望 params: { healerIdx:Int, netHeal:Int, eventId:Int }
             if (engine.turnManager == null) return "错误：无引擎";
             var healerIdx:Int = params.healerIdx;
             var netHeal:Int = params.netHeal;
+            var eventId:Int = 0;
+            if (Reflect.hasField(params, "eventId")) eventId = params.eventId;
             var healer = engine.turnManager.players[healerIdx];
-            return doSteal(healer, netHeal, engine);
+            return doSteal(healer, netHeal, engine, eventId);
         }
         return super.handleAction(actionName, params, engine);
     

@@ -371,6 +371,18 @@ function doTrainStop() {
     </div>
 </div>
 
+<!-- 神偷奶爸伤害转移选目标 -->
+<div class="overlay" id="naiBaTransferTargetDialog">
+    <div class="dialog-box">
+        <h3>🕵️ 伤害转移 — 选择目标</h3>
+        <p id="naiBaTransferTargetMsg" style="font-size:12px;color:#555;line-height:1.6">选择要转移给谁：</p>
+        <div id="naiBaTransferTargetList"></div>
+        <div style="text-align:right;margin-top:12px">
+            <button onclick="cancelNaiBaTransferChoice()" style="background:#f5f5f5;color:#333;border:1px solid #d9d9d9;padding:6px 16px;border-radius:4px;cursor:pointer">取消/空气</button>
+        </div>
+    </div>
+</div>
+
 <!-- 蛋糕弹窗 -->
 <div class="overlay" id="cakeDialog2">
     <div class="dialog-box">

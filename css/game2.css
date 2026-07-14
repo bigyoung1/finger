@@ -111,6 +111,14 @@ h1{text-align:center;color:#1890ff;font-size:20px;margin-bottom:12px}
 .wukong-target-btn{padding:9px 14px;border:2px solid #722ed1;background:#f9f0ff;color:#722ed1;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px}
 .wukong-target-btn:hover{background:#722ed1;color:white}
 
+/* 神偷奶爸转移弹窗 */
+#naiBaTransferTargetDialog .dialog-box h3{color:#fa8c16}
+#naiBaTransferTargetList{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+.naiba-transfer-btn{padding:9px 14px;border:2px solid #fa8c16;background:#fff7e6;color:#d46b08;border-radius:5px;cursor:pointer;font-weight:bold;font-size:13px;text-align:left}
+.naiba-transfer-btn:hover{background:#fa8c16;color:white}
+.naiba-transfer-btn.air{border-color:#52c41a;background:#f6ffed;color:#389e0d}
+.naiba-transfer-btn.air:hover{background:#52c41a;color:white}
+
 /* 蛋糕弹窗 */
 #cakeDialog2 .dialog-box h3{color:#eb2f96}
 

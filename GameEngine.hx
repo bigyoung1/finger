@@ -19,6 +19,21 @@ class GameEngine {
     public static var instance:GameEngine;
     public var isReflecting:Bool = false; // 防止反弹伤害无限循环（替代ReflectBuff的静态变量）
 
+    // ── 回血/补给抢夺事件池 ──
+    // 每次实际回血/补给落地后创建一个短生命周期事件。大乔/神偷奶爸弹窗点击时
+    // 通过 consumeHealStealPool 按剩余池子扣减，保证“大乔先抢、神偷再抢剩余量”。
+    @:keep public var currentHealEventId:Int = 0;
+    private var _healEventSeq:Int = 0;
+    private var _healStealPools:Map<Int, Int> = new Map<Int, Int>();
+    public var suppressNaiBaSteal:Bool = false; // 神偷奶爸自己抢来的 SUPPLY 不再触发神偷抢夺，避免递归循环
+
+    // ── 伤害后收益上下文 ──
+    // 角色 onAfterDealtDamage 内触发回血/补给时，可通过这里知道本次攻击主目标。
+    // 神偷奶爸用它避免“别人打自己获得的补给”又被自己抢走。
+    @:keep public var currentAfterDamageTarget:Player = null;
+    // 由特殊承伤逻辑（神偷奶爸转移）把额外目标的实际扣血汇总到攻击者收益里。
+    @:keep public var currentExtraAfterDealtActualDamage:Int = 0;
+
     // ── 帮抗伤害记录 ──
     // handleTouch 期间自动记录对 dmgTarget 造成的每一笔伤害（type + 输出值）
     public var lastApplyDamageBase:Int = 0;
@@ -132,14 +147,40 @@ class GameEngine {
      * @param healer 回血目标
      * @param amount 实际回血量
      * @param type   回血类型
-     * @param isFromSkill 是否来自技能内部调用（如毒伤反向、藏师补给）—— 这类事件不算蛋糕来源
+     * @param isFromSkill 是否来自技能内部调用（如毒伤反向、藏师技能回血）—— 这类事件不算蛋糕来源
      */
     public function notifyHealEvent(healer:Player, amount:Int, type:HealType, isFromSkill:Bool = false) {
         if (turnManager == null) return;
+        var oldEventId = currentHealEventId;
+        var eventId = 0;
+        if (amount > 0) {
+            _healEventSeq++;
+            eventId = _healEventSeq;
+            _healStealPools.set(eventId, amount);
+        }
+        currentHealEventId = eventId;
         for (p in turnManager.players) {
             if (p.hp <= 0) continue;
             p.onAnyHealHappened(healer, amount, type, isFromSkill, this);
         }
+        currentHealEventId = oldEventId;
+    }
+
+    /**
+     * 消费某次回血/补给事件的可抢池。
+     * @param eventId notifyHealEvent 创建的事件ID；旧弹窗传0时退化为直接返回 desired。
+     * @param desired 本角色按规则想抢的数量。
+     * @param minLeft 至少给原回血者保留的事件剩余额（神偷抢补给时为1）。
+     */
+    @:keep public function consumeHealStealPool(eventId:Int, desired:Int, minLeft:Int = 0):Int {
+        if (desired <= 0) return 0;
+        if (eventId <= 0 || !_healStealPools.exists(eventId)) return desired;
+        var remain = _healStealPools.get(eventId);
+        var canTake = remain - minLeft;
+        if (canTake <= 0) return 0;
+        var actual = desired < canTake ? desired : canTake;
+        _healStealPools.set(eventId, remain - actual);
+        return actual;
     }
 
     /**
@@ -287,14 +328,21 @@ class GameEngine {
         }
 
         // 3. 走标准抗伤
+        var oldExtraAfterDealt = currentExtraAfterDealtActualDamage;
+        currentExtraAfterDealtActualDamage = 0;
         var result = target.handleIncomingDamage(actor, finalAmount, type);
+        var extraActual = currentExtraAfterDealtActualDamage;
+        currentExtraAfterDealtActualDamage = oldExtraAfterDealt;
 
         // reset 标记（必须在 handleIncomingDamage 之后）
         _skipAttackerDealBuffs = false;
 
-        // 4. 触发攻击者钩子
+        // 4. 触发攻击者钩子。神偷奶爸转移伤害造成的额外实际扣血也计入攻击者收益。
         if (actor != null) {
-            actor.onAfterDealtDamage(target, result.damageBeforeShield, result.actualDamage, type, this);
+            var oldAfterDamageTarget = currentAfterDamageTarget;
+            currentAfterDamageTarget = target;
+            actor.onAfterDealtDamage(target, result.damageBeforeShield, result.actualDamage + extraActual, type, this);
+            currentAfterDamageTarget = oldAfterDamageTarget;
         }
 
         // 5. 通知 VFX：伤害类型（实际扣到血后才通知，避免被盾全挡时也显示斩击）
