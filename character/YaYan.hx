@@ -22,6 +22,7 @@ import buffs.CrowBuff;
  *   灼燃箭 extraTriggers 再+2（共+4），法伤和回血×2
  *   行动结束扣150物理
  */
+@:gameCharacter("yayan", "鸦眼", "输出", "🦅")
 class YaYan extends Player {
 
     @:keep public var crowCount:Int = 0;

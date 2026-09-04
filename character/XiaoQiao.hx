@@ -14,6 +14,7 @@ import model.ShieldType;
  * (3) 0 可停留 3 回合（initTurns = 3）
  * (4) 获得的物理护盾升级为"物法护盾"，厚度 ×1.5，持续 +1 回合
  */
+@:gameCharacter("xiaoqiao", "小乔", "半肉", "🌸")
 class XiaoQiao extends Player {
 
     public function new(id:String, name:String, camp:Camp) {

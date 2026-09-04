@@ -584,7 +584,7 @@
       </div>
       <div class="combo-card">
         <div class="cc-head">【8,8】额外行动</div>
-        <div class="cc-body">获得 <b>2 次额外行动机会</b></div>
+        <div class="cc-body">获得 <b>2 次额外行动机会</b>和 <b>120 点物法盾</b>；每大回合最多触发 2 次</div>
       </div>
       <div class="combo-card">
         <div class="cc-head">【9,9】爆发</div>
@@ -822,7 +822,7 @@
         <ul>
           <li>造成物伤时，<b>额外附带 50% 法伤</b>，并回复法伤的实际扣血量</li>
           <li>出现 7 时，给对方叠 1 层中毒</li>
-          <li>场上敌方中毒层数越多，<b>忍者获得越高的物法减伤</b>（最高 78%）</li>
+          <li>场上其他存活角色的中毒层数越多，<b>忍者获得越高的物法减伤</b>（前 3 层每层 15%，之后每层 10%，最高 75%）</li>
           <li>敌方中毒扣血时，忍者同步回血</li>
         </ul>
         <div class="ch-note">💡 叠毒越多越难打死，和毒层共同成长的打法</div>
@@ -836,7 +836,7 @@
         <div class="ch-meta">
           <div class="ch-name">张飞</div>
           <span class="ch-tag tag-tank">坦克</span>
-          <div class="ch-hp">HP 560</div>
+          <div class="ch-hp">HP 460</div>
         </div>
       </div>
       <div class="ch-body">
@@ -901,12 +901,13 @@
         <div class="ch-meta">
           <div class="ch-name">赵云</div>
           <span class="ch-tag tag-half">半肉</span>
-          <div class="ch-hp">成长型半肉</div>
+          <div class="ch-hp">HP 200 · 成长型半肉</div>
         </div>
       </div>
       <div class="ch-body">
         <ul>
-          <li>追踪并利用成长值 <b>x / y</b>，适合作为持续作战位</li>
+          <li>造成物伤后用总输出的一半更新 y；回血后用总回血更新 x</li>
+          <li>单手新变为 4/8 时回血，变为 1/5/9 时造成物伤；0 组合期间不重复触发</li>
           <li>x / y 可以在战斗中叠高，但如果连续 3 个自己的回合没有更新，且数值 &gt; 50，就会回落到 50</li>
           <li>攻击廉价、节奏灵活，但需要不断更新成长值，不能永久囤着超高爆发</li>
         </ul>
@@ -934,6 +935,47 @@
           <li><b>回盾流</b>：回复时修复所有金刚罩，物理伤害 ×2</li>
         </ul>
         <div class="ch-note">💡 把伤害摊给多个单位，或牺牲一个薄罩吃掉爆发，是熊猫的核心操作</div>
+      </div>
+    </div>
+
+    <!-- 杨大力 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <img class="ch-avatar-img" src="image/杨大力.png" alt="杨大力">
+        <div class="ch-meta">
+          <div class="ch-name">杨大力</div>
+          <span class="ch-tag tag-tank">沙包</span>
+          <div class="ch-hp">HP 1000</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>没有主动或被动技能，完整使用公共碰手、组合、护盾与回血规则</li>
+          <li>用于新手练习、数值测试和角色强度基准对照</li>
+        </ul>
+        <div class="ch-note">💡 高血量白板角色，不进入默认 AI 自战训练池</div>
+      </div>
+    </div>
+
+    <!-- 神偷奶爸 -->
+    <div class="char-card">
+      <div class="ch-head">
+        <img class="ch-avatar-img" src="image/神偷奶爸.png" alt="神偷奶爸">
+        <div class="ch-meta">
+          <div class="ch-name">神偷奶爸</div>
+          <span class="ch-tag tag-tank">坦克/半肉</span>
+          <div class="ch-hp">HP 320</div>
+        </div>
+      </div>
+      <div class="ch-body">
+        <ul>
+          <li>受到物伤时默认减免约一半，并把免疫伤害记录为 x</li>
+          <li>物理攻击追加 x 点伤害，并回复 x/2</li>
+          <li>开启转移后，可按双方手牌和把一部分物伤转给其他目标或空气</li>
+          <li>双手和为 7 的倍数且大于回复者时，可窃取回复或补给</li>
+          <li>回合结束时，手上每个数字 6 回复 10</li>
+        </ul>
+        <div class="ch-note">💡 先承伤积累 x，再寻找进攻和窃取窗口</div>
       </div>
     </div>
 
@@ -1004,7 +1046,7 @@
 
 </main>
 
-<footer>指尖博弈 · 新手指南 — 版本随游戏更新 · 已同步帮抗 / 熊猫 / 鸦眼 / 阴阳师 / 赵云更新</footer>
+<footer>指尖博弈 · 新手指南 — 2026-09-04 · 已同步全部 13 个角色</footer>
 
 </body>
 </html>

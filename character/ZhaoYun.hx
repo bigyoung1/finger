@@ -29,6 +29,7 @@ import model.HealType;
  *     健康的连续单手/0组合连击节奏（典型7回合 x≈60-65）完全不受上限影响，
  *     只有踩中 [9,9]/[6,6] 等极端组合时才会被卡住，避免后续输出跟着雪球式失控。
  */
+@:gameCharacter("zhaoyun", "赵云", "半肉", "🐉")
 class ZhaoYun extends Player {
 
     @:keep public var x:Int = 20; // 物伤加成

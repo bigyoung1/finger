@@ -32,6 +32,7 @@ import model.ShieldType;
  *
  * 每次行动前可切换一次模态（切换后本轮不能再切）。
  */
+@:gameCharacter("yinyangshi", "阴阳师", "半肉", "☯️")
 class YinYangShi extends Player {
 
     /** 当前模态："yin" | "yang" | "ren" */

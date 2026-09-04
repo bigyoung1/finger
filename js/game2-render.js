@@ -1,9 +1,6 @@
 
-// 角色图片映射（文件名和角色ID对应）
-var _AVATAR_MAP = {
-    '小乔': '小乔', '大乔': '大乔', '藏师': '藏师', '法师': '法师','杨大力':'杨大力', '功夫熊猫': '功夫熊猫', '神偷奶爸':'神偷奶爸' ,  '孙悟空': '孙悟空', '忍者': '忍者', '张飞': '张飞', '阴阳师': '阴阳师', '鸦眼': '鸦眼',
-    '赵云': '赵云', '功夫熊猫': '功夫熊猫'
-};
+// 角色立绘按统一约定自动加载：image/<角色中文名>.png。
+// 新角色不再需要维护前端映射表。
 var _avatarsInited = false;
 
 function _initAvatars() {
@@ -13,17 +10,18 @@ function _initAvatars() {
     for (var i = 0; i < players.length; i++) {
         var imgEl = document.getElementById('avatar_' + i);
         if (!imgEl) continue;
-        var fname = _AVATAR_MAP[players[i].name];
+        var fname = players[i].name;
         var ph = document.getElementById('avatar_ph_' + i);
-        if (fname) {
-            imgEl.src = 'image/' + encodeURIComponent(fname) + '.png';
-            imgEl.alt = players[i].name;
-            imgEl.onload = function(el, p) { return function() {
-                el.style.display = 'block';
-                if (p) p.style.display = 'none';
-            }; }(imgEl, ph);
-            imgEl.onerror = function() {}; // 图片不存在时保留placeholder
-        }
+        imgEl.src = 'image/' + encodeURIComponent(fname) + '.png';
+        imgEl.alt = players[i].name;
+        imgEl.onload = function(el, p) { return function() {
+            el.style.display = 'block';
+            if (p) p.style.display = 'none';
+        }; }(imgEl, ph);
+        imgEl.onerror = function(el, p) { return function() {
+            el.style.display = 'none';
+            if (p) p.style.display = '';
+        }; }(imgEl, ph);
     }
 }
 

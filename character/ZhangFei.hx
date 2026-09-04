@@ -19,6 +19,7 @@ import model.HealType;
  *     ≥24层可主动进入【狂暴】3回合，扣24怒气
  *     狂暴期间：0用3回合（含进入前已有的0）；(1)+10血翻倍；(2)免伤×2；物伤再×1.5（叠加模态①=2.25）
  */
+@:gameCharacter("zhangfei", "张飞", "坦克", "🐗")
 class ZhangFei extends Player {
 
     public var rage:Int = 0;            // 当前怒气

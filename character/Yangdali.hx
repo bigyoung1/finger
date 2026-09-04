@@ -16,6 +16,7 @@ import model.Camp;
  * 2. 后续如果要给杨大力补技能，不需要再改注册中心结构；
  * 3. 避免旧文件误写成 ZangShi 导致类名与文件名不一致。
  */
+@:gameCharacter("yangdali", "杨大力", "沙包", "💪", false)
 class Yangdali extends Player {
     public function new(id:String, name:String, camp:Camp) {
         super(id, name, 1000, camp);

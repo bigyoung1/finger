@@ -198,14 +198,9 @@ class Main {
         return character.CharacterRegistry.createCharacter(id, camp);
     }
 
-    /**
-     * 供2v2前端调用：返回所有角色选项 [{id, displayName}]
-     */
+    /** 供前端和 AI 使用：返回编译期自动发现的统一角色目录。 */
     public static function getCharacterOptions():Array<Dynamic> {
-        var opts = character.CharacterRegistry.getAllOptions();
-        var result:Array<Dynamic> = [];
-        for (o in opts) result.push({ id: o.id, displayName: o.displayName });
-        return result;
+        return character.CharacterRegistry.getAllOptions();
     }
 
     /**

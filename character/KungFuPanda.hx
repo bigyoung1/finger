@@ -17,6 +17,7 @@ import model.ShieldInstance;
  * - 对攻击者来说，经过普通护盾后落到本体/金刚罩的伤害都算“实际打中”，可触发小乔等“打多少补给多少”。
  * - 回血流：回血时所有金刚罩共同分配固定 60 点补给修复。
  */
+@:gameCharacter("gongfupanda", "功夫熊猫", "坦克/半肉", "🐼")
 class KungFuPanda extends Player {
     public var kingShields:Array<Int> = [];
     public var pandaMode:String = "heal"; // heal=回血流, shield=回盾流

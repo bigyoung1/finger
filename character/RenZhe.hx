@@ -26,6 +26,7 @@ import buffs.PoisonBuff;
  *         → 新增 GameEngine.notifyPoisonTick / notifyPoisonCleared 全局事件
  *   - (3) 重写 handleIncomingDamage，物法伤入口前先减伤
  */
+@:gameCharacter("renzhe", "忍者", "半肉", "🥷")
 class RenZhe extends Player {
 
     // 防止 (1) 追加法伤触发的钩子又触发 (1) 再追加

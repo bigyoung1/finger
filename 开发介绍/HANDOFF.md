@@ -2,13 +2,30 @@
 
 > 本文档记录截至当前的完整开发状态，新会话直接从这里接手。
 
+> 当前需求与开发规范分别见 `REQUIREMENTS.md`、`DEVELOPMENT.md`；本文件主要保留开发沿革和交接注意事项。
+
+---
+
+## 2026-09-04 接入更新（以实际运行代码为准）
+
+- 当前项目根目录：`D:\haxe\test`，主页面：`index2.html`，本地启动：`node server.js` 后访问 `http://localhost:3000/index2.html`。
+- Haxe 改动后必须运行 `haxe build.hxml`；`main.js` 是编译产物，不要手动改。
+- 当前共有 13 个角色。角色注册改为编译期自动发现：角色类声明 `@:gameCharacter(...)`，立绘使用 `image/角色中文名.png`，不再手改注册表或头像映射。
+- 2v2 目标限制在 `js/game2-state.js#getActualTarget()`；Haxe 被动技能目标通过 `Main.setTankResolver(fn)` 注入，不能从 JS 直接访问 `GameEngine` 静态变量。
+- `index2.html` 中 `startGame2` 被多层包装：基础建局、联机同步、AI 控制、阵容写入/坦克加成都在这里串起来。改开局流程时必须按加载顺序检查。
+- AI provider 已统一默认使用 `deepseek`：`AI_MODEL_CONFIG`、角色控制下拉默认模型、自战训练、复盘都走 DeepSeek。
+- AI key 统一走环境变量：在项目根目录 `.env` 中配置 `DEEPSEEK_API_KEY`。`.env` 不提交，提交 `.env.example` 作为模板。
+- `server.js` 已移除 MiniMax、千帆、DeepSeek 的硬编码旧 key。若切换到 MiniMax/千帆，必须分别设置 `MINIMAX_API_KEY` / `QIANFAN_API_KEY`，否则 `/api/ai` 会返回缺少环境变量。
+- 静态服务器已改为公开文件白名单，`.env`、Haxe 源码、日志、AI 资料和 `node_modules` 不再能通过 URL 直接下载。
+- 明文账号文件 `js/account.txt` 已删除并加入忽略规则；历史中出现过的凭据仍必须在对应平台轮换。
+
 ---
 
 ## 一、项目概述
 
 **指尖博弈**：基于手指游戏（Chopsticks）改造的 2v2 回合制策略对战游戏。
 - 每个玩家有左右两只手（数字 0-9），轮流用己方一只手碰对方一只手，两数相加取余10，凑出特定组合触发技能效果
-- 目前有 **9 个可选角色**（含鸦眼），2v2 联机/本地/vs AI 对战
+- 目前有 **13 个可选角色**，支持 2v2 联机、本地和 AI 对战
 - 本地运行：`node server.js` → `http://localhost:3000/index2.html`
 
 ---
@@ -44,16 +61,18 @@ test/
 │   ├── InvincibleBuff.hx / ThunderRageBuff.hx / FrozenBuff.hx
 │   ├── ExtraActionBuff.hx / CrowBuff.hx
 ├── character/
-│   ├── CharacterRegistry.hx
+│   ├── CharacterRegistry.hx / CharacterRegistryMacro.hx（编译期自动注册）
 │   ├── XiaoQiao.hx / ZangShi.hx / FaShi.hx / SunWuKong.hx
 │   ├── DaQiao.hx / RenZhe.hx / ZhangFei.hx / YinYangShi.hx
-│   └── YaYan.hx（鸦眼，最新角色）
+│   ├── YaYan.hx / ZhaoYun.hx / KungFuPanda.hx
+│   └── Yangdali.hx / ShenTouNaiBa.hx
 ├── ai/
 │   ├── knowledge.md       AI 经验知识库（每局复盘自动追加）
 │   ├── preTrain.js        离线学习脚本
 │   └── skills/            角色专属攻略（每个角色一个 md，含权重+攻略+复盘）
 │       ├── 小乔.md / 藏师.md / 法师.md / 孙悟空.md / 大乔.md
-│       ├── 忍者.md / 张飞.md / 阴阳师.md / 鸦眼.md
+│       ├── 忍者.md / 张飞.md / 阴阳师.md / 鸦眼.md / 赵云.md
+│       └── 功夫熊猫.md / 神偷奶爸.md
 └── log/                   历史对战日志（训练自动保存）
 ```
 
@@ -99,7 +118,7 @@ render2() → AI.checkAndAct()
   → AI.decide.activeSkills()    // 主动技能（鸦眼灼燃、张飞模态、阴阳师切模、藏师蛋糕）
   → AI.decide.tankPosition()    // 抗伤位决策（有盾优先、血少换人）
   → AI.enumerateLegalActions()  // 枚举合法动作
-  → AI.score.evaluate()         // 启发式打分（heuristic + lookahead），取 top-4
+  → AI.score.evaluate()         // 启发式打分（heuristic + lookahead），取 top-5
   → AI.loadSkill(actor.name)    // 加载角色 skill md（含权重）
   → AI.llm.ask(top4, skill)     // MiniMax 或 DeepSeek 决策（15%概率探索）
   → doAttack2()
@@ -159,7 +178,6 @@ else                                      → 切回人（拿护盾回血+获免
 
 | 端点 | 功能 |
 |------|------|
-| `GET/POST /api/weights` | 已废弃，权重改存在 skill md |
 | `GET /api/knowledge` | 读取 knowledge.md |
 | `POST /api/knowledge` | 追加 knowledge.md |
 | `GET /api/skill?name=小乔` | 读取角色 skill md |
@@ -176,7 +194,7 @@ else                                      → 切回人（拿护盾回血+获免
 ### 3.8 guide.html 新手指南
 
 - 完整规则介绍（基础/组合/0规则/伤害类型/状态系统）
-- 9个角色简介（含权重设计思路）
+- 13 个角色简介
 - 2v2规则说明
 - **互动示例**：阴阳师 vs 大乔的实际手牌，点击操作可实时演算取余结果
 
@@ -242,7 +260,7 @@ RECOVERY：可解毒、可被大乔抢、更新孙悟空y。SUPPLY 三者均不�
 
 ---
 
-## 六、鸦眼（最新角色）
+## 六、鸦眼
 
 HP: 140，高风险高回报输出角色。
 
@@ -321,7 +339,8 @@ node server.js
 
 **伤害类型**：物理（物理盾抵）/ 法术（法术盾抵）/ 真实（穿透一切）
 
-详细规则见：
-- `doc1_game_rules.md`：基础规则、组合触发、所有角色技能
-- `doc2_advanced_strategy.md`：各角色攻略、AI决策指南
-- `补给and回复.md`：回血机制详细说明（RECOVERY vs SUPPLY）
+本目录的当前文档入口为 `REQUIREMENTS.md`、`DEVELOPMENT.md` 和本交接记录。更细的实现细节以当前代码为准：
+- 规则/结算：`GameEngine.hx`、`TurnManager.hx`、`model/Player.hx`
+- 角色技能：`character/*.hx` 与 `character/CharacterRegistry.hx`
+- 2v2 前端：`index2.html`、`js/game2-state.js`、`js/game2-core.js`
+- AI 决策：`js/game2-ai.js`、`ai/skills/*.md`

@@ -6,35 +6,57 @@ const http      = require('http');
 const WebSocket = require('ws');
 const path      = require('path');
 const fs        = require('fs');
+require('dotenv').config({ quiet: true });
 
 const PORT = process.env.PORT || 3000;
-const WEIGHTS_FILE  = path.join(__dirname, 'ai', 'weights.json');
 const KNOWLEDGE_FILE = path.join(__dirname, 'ai', 'knowledge.md');
+const REQUIRED_PROVIDER_KEYS = {
+    minimax: 'MINIMAX_API_KEY',
+    qianfan: 'QIANFAN_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+};
+
+// 只允许浏览器访问真正的前端产物。禁止把 .env、源码、日志、训练资料、node_modules 等整个项目目录公开出去。
+const PUBLIC_ROOT_FILES = new Set(['/index2.html', '/guide.html', '/main.js', '/network.js']);
+const PUBLIC_DIR_EXTENSIONS = {
+    '/css/':   new Set(['.css']),
+    '/js/':    new Set(['.js']),
+    '/image/': new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']),
+    '/music1/': new Set(['.mp3', '.ogg', '.wav']),
+};
+
+function isPublicAsset(urlPath) {
+    if (PUBLIC_ROOT_FILES.has(urlPath)) return true;
+    const ext = path.extname(urlPath).toLowerCase();
+    return Object.entries(PUBLIC_DIR_EXTENSIONS).some(([prefix, extensions]) =>
+        urlPath.startsWith(prefix) && extensions.has(ext)
+    );
+}
+
+function resolveInside(baseDir, relativePath) {
+    const resolved = path.resolve(baseDir, relativePath);
+    const relative = path.relative(baseDir, resolved);
+    if (relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))) {
+        return resolved;
+    }
+    return null;
+}
+
+function isSafeCharacterName(name) {
+    return typeof name === 'string' && /^[\w\u3400-\u9fff-]{1,40}$/u.test(name);
+}
 
 // ── HTTP 服务器（同时托管静态游戏文件）──
 const server = http.createServer((req, res) => {
     const rawUrl = req.url.split('?')[0];
-    const url    = decodeURIComponent(rawUrl);
+    let url;
+    try { url = decodeURIComponent(rawUrl); }
+    catch { res.writeHead(400); res.end('Bad request'); return; }
     const query  = req.url.includes('?') ? Object.fromEntries(new URLSearchParams(req.url.split('?')[1])) : {};
 
-    const json  = (obj, code=200) => { res.writeHead(code,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify(obj)); };
-    const text  = (t, code=200)  => { res.writeHead(code,{'Content-Type':'text/plain;charset=utf-8','Access-Control-Allow-Origin':'*'}); res.end(t); };
+    const json  = (obj, code=200) => { res.writeHead(code,{'Content-Type':'application/json;charset=utf-8'}); res.end(JSON.stringify(obj)); };
+    const text  = (t, code=200)  => { res.writeHead(code,{'Content-Type':'text/plain;charset=utf-8'}); res.end(t); };
     const body  = () => new Promise(r => { let d=''; req.on('data',c=>d+=c); req.on('end',()=>r(d)); });
-
-    // ── /api/weights  GET 读 / POST 写 ──
-    if (url === '/api/weights') {
-        if (req.method === 'GET') {
-            fs.readFile(WEIGHTS_FILE, 'utf8', (err, data) => {
-                if (err) { json({}); return; }
-                try { json(JSON.parse(data)); } catch { json({}); }
-            });
-        } else if (req.method === 'POST') {
-            body().then(d => {
-                fs.writeFile(WEIGHTS_FILE, d, () => json({ ok: true }));
-            });
-        }
-        return;
-    }
 
     // ── /api/knowledge  GET 读 / POST 追加 ──
     if (url === '/api/knowledge') {
@@ -52,9 +74,10 @@ const server = http.createServer((req, res) => {
     // ── /api/skill?name=法师 ──
     if (url === '/api/skill') {
         const name     = query.name || '';
-        const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
-        const safe      = path.resolve(skillPath);
-        if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) { res.writeHead(403); res.end(); return; }
+        if (!isSafeCharacterName(name)) { res.writeHead(400); res.end(); return; }
+        const skillsDir = path.join(__dirname, 'ai', 'skills');
+        const safe = resolveInside(skillsDir, name + '.md');
+        if (!safe) { res.writeHead(403); res.end(); return; }
         fs.readFile(safe, 'utf8', (err, data) => text(err ? '' : data));
         return;
     }
@@ -63,17 +86,25 @@ const server = http.createServer((req, res) => {
     if (url === '/api/ai' && req.method === 'POST') {
         body().then(async d => {
             const payload  = JSON.parse(d);
-            const provider = payload.provider || 'minimax';
+            const provider = payload.provider || 'deepseek';
             let endpoint, headers, reqBody;
+            const keyName = REQUIRED_PROVIDER_KEYS[provider];
+            const apiKey = keyName ? process.env[keyName] : '';
+            if (!keyName) {
+                json({ error: `Unsupported AI provider: ${provider}` }, 400);
+                return;
+            }
+            if (!apiKey) {
+                json({ error: `Missing ${keyName}. Add it to .env or the process environment.` }, 500);
+                return;
+            }
 
             if (provider === 'minimax') {
-                const apiKey = process.env.MINIMAX_API_KEY || 'sk-cp-hQDhqdoZ37_BPo_Dr4U_wWlPtUU4onAprt5oMeg22BZ-Es0jwWqRlpIXQTMSqEbuzUGtjVm2vbh3AKd__7dOfaCdaLPY5OiDsWbJqkE1mJ3WkxV94w_6_TM';
                 endpoint = 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
                 headers  = { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey };
                 reqBody  = JSON.stringify({ model:'MiniMax-M1', messages: payload.messages, temperature: payload.temperature||0.35, max_tokens: payload.max_tokens||200 });
             } else if (provider === 'qianfan') {
                 // 千帆（讯飞）— 兼容 Anthropic Messages 格式
-                const apiKey = process.env.QIANFAN_API_KEY || '5bca12355e6416179ffb18af6aed4b32:OTNjNWFhNjNjNGYyNTAzNDQ4NDg0YjY2';
                 endpoint = 'https://maas-api.cn-huabei-1.xf-yun.com/anthropic/v1/messages';
                 headers  = { 'Content-Type':'application/json', 'x-api-key': apiKey, 'anthropic-version':'2023-06-01' };
                 const sysMsg = payload.messages.find(m => m.role === 'system');
@@ -87,7 +118,6 @@ const server = http.createServer((req, res) => {
                 if (sysMsg) bodyObj.system = sysMsg.content;
                 reqBody = JSON.stringify(bodyObj);
             } else {
-                const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-76c2685331c14d149be64c1d9036f84e';
                 endpoint = 'https://api.deepseek.com/chat/completions';
                 headers  = { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey };
                 reqBody  = JSON.stringify({ model:'deepseek-chat', messages: payload.messages, temperature: payload.temperature||0.35, max_tokens: payload.max_tokens||200 });
@@ -108,12 +138,12 @@ const server = http.createServer((req, res) => {
                                 // Anthropic格式: { content:[{type:'text',text:'...'}] }
                                 const text = parsed?.content?.[0]?.text || parsed?.error?.message || '';
                                 const normalized = JSON.stringify({ choices:[{ message:{ role:'assistant', content: text } }] });
-                                res.writeHead(200,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'});
+                                res.writeHead(200,{'Content-Type':'application/json;charset=utf-8'});
                                 res.end(normalized);
                                 return;
                             } catch(e) { /* fallthrough */ }
                         }
-                        res.writeHead(proxyRes.statusCode,{'Content-Type':'application/json;charset=utf-8','Access-Control-Allow-Origin':'*'});
+                        res.writeHead(proxyRes.statusCode,{'Content-Type':'application/json;charset=utf-8'});
                         res.end(buf);
                     });
                 });
@@ -129,14 +159,15 @@ const server = http.createServer((req, res) => {
     if (url === '/api/skill-weight' && req.method === 'POST') {
         body().then(d => {
             const { name, weights, append } = JSON.parse(d);
-            if (!name) { json({ ok: false, error: 'missing name' }, 400); return; }
-            const skillPath = path.join(__dirname, 'ai', 'skills', name + '.md');
-            const safe = path.resolve(skillPath);
-            if (!safe.startsWith(path.resolve(__dirname, 'ai', 'skills'))) {
+            if (!isSafeCharacterName(name)) { json({ ok: false, error: 'invalid name' }, 400); return; }
+            const skillsDir = path.join(__dirname, 'ai', 'skills');
+            const safe = resolveInside(skillsDir, name + '.md');
+            if (!safe) {
                 json({ ok: false, error: 'invalid name' }, 403); return;
             }
             fs.readFile(safe, 'utf8', (err, content) => {
-                if (err) { json({ ok: false, error: err.message }, 500); return; }
+                if (err && err.code !== 'ENOENT') { json({ ok: false, error: err.message }, 500); return; }
+                if (err) content = `# ${name}攻略\n\n## 权重\n\`\`\`json\n{}\n\`\`\`\n`;
                 // 更新 ## 权重 下的 JSON 块（匹配 ```json ... ``` 之间的一行 JSON）
                 if (weights && Object.keys(weights).length > 0) {
                     const weightJson = JSON.stringify(weights);
@@ -174,20 +205,19 @@ const server = http.createServer((req, res) => {
         fs.readdir(musicDir, (err, files) => {
             if (err) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify([])); return; }
             const mp3s = files.filter(f => f.toLowerCase().endsWith('.mp3'));
-            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(mp3s));
         });
         return;
     }
 
-    // 把 URL 映射到本地文件
-    let filePath = '.' + decodeURIComponent(url);
-    if (filePath === './') filePath = './index2.html';
-    const safePath = path.resolve(__dirname, filePath.slice(2));
-    if (!safePath.startsWith(path.resolve(__dirname))) {
-        res.writeHead(403); res.end('Forbidden'); return;
+    // 静态资源使用显式白名单；项目根目录不再是公开目录。
+    const publicUrl = url === '/' ? '/index2.html' : url;
+    if (!isPublicAsset(publicUrl)) {
+        res.writeHead(404); res.end('Not found'); return;
     }
-    filePath = safePath;
+    const filePath = resolveInside(__dirname, publicUrl.slice(1));
+    if (!filePath) { res.writeHead(403); res.end('Forbidden'); return; }
 
     const ext = path.extname(filePath);
     const mime = {

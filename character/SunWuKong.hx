@@ -14,6 +14,7 @@ import buffs.FrozenBuff;
  * (4) [0,2] 改为：70法伤 + 回70血 + 冻结对方1回合
  *     —— 同一次0增益最多3次，不消耗0使用次数（下回合跳过zeroTurns递减）
  */
+@:gameCharacter("sunwukong", "孙悟空", "半肉", "🐒")
 class SunWuKong extends Player {
 
     public var x:Int = 40; // 物伤增益

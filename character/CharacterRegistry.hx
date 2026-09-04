@@ -4,84 +4,50 @@ import model.Player;
 import model.Camp;
 
 /**
- * 角色注册中心 —— 所有英雄的"工厂 + 元数据"集中在此
- * 新增角色只需在 init() 里 register 一行
+ * 角色注册中心。
+ *
+ * 角色列表由 CharacterRegistryMacro 在编译期扫描 character/*.hx 自动生成。
+ * 新角色只需：
+ *   1. 在角色类上添加 @:gameCharacter("id", "中文名", "定位", "emoji")；
+ *   2. 在 image/ 下添加同名的「中文名.png」；
+ *   3. 运行 haxe build.hxml。
+ *
+ * 不再手工维护注册列表或前端头像映射。
  */
 typedef CharacterEntry = {
-    var id:String;          // 唯一ID，前端 select.value 用
-    var displayName:String; // 下拉选项里显示的名字（含emoji和HP）
-    var hp:Int;             // 标准HP
-    var factory:String->Camp->Player; // 工厂方法
+    var id:String;
+    var name:String;
+    var role:String;
+    var emoji:String;
+    var displayName:String;
+    var hp:Int;
+    var trainable:Bool;
+    var factory:String->Camp->Player;
 }
 
 class CharacterRegistry {
+    static var entries:Array<CharacterEntry> = CharacterRegistryMacro.buildEntries();
 
-    static var entries:Array<CharacterEntry> = [];
-    static var inited:Bool = false;
-
-    public static function init() {
-        if (inited) return;
-        inited = true;
-
-        register("xiaoqiao",  "🌸 小乔 (半肉 360HP)", 360,
-            (id, camp) -> new XiaoQiao(id, "小乔", camp));
-
-        register("zangshi",   "🛡️ 藏师 (坦克 660HP)", 660,
-            (id, camp) -> new ZangShi(id, "藏师", camp));
-
-        register("fashi",     "⚡ 法师 (攻击 160HP)", 160,
-            (id, camp) -> new FaShi(id, "法师", camp));
-
-        register("sunwukong", "🐒 孙悟空 (半肉 260HP)", 260,
-            (id, camp) -> new SunWuKong(id, "孙悟空", camp));
-
-        register("daqiao",    "🌸 大乔 (半肉 120HP)", 120,
-            (id, camp) -> new DaQiao(id, "大乔", camp));
-
-        register("renzhe",    "🥷 忍者 (半肉 300HP)", 300,
-            (id, camp) -> new RenZhe(id, "忍者", camp));
-
-        register("zhangfei",  "🐗 张飞 (坦克 560HP)", 560,
-            (id, camp) -> new ZhangFei(id, "张飞", camp));
-
-        register("yinyangshi", "☯️ 阴阳师 (半肉 240HP)", 240,
-            (id, camp) -> new YinYangShi(id, "阴阳师", camp));
-
-        register("yangdali",  "💪 杨大力 (沙包 1000HP)", 1000,
-            (id, camp) -> new Yangdali(id, "杨大力", camp));
-
-        register("yayan", "🦅 鸦眼 (输出 140HP)", 140,
-            (id, camp) -> new YaYan(id, "鸦眼", camp));
-
-        register("zhaoyun", "🐉 赵云 (半肉 200HP)", 200,
-            (id, camp) -> new ZhaoYun(id, "赵云", camp));
-
-        register("gongfupanda", "🐼 功夫熊猫 (坦克/半肉 230HP)", 230,
-            (id, camp) -> new KungFuPanda(id, "功夫熊猫", camp));
-
-        register("shentounainai", "🕵️ 神偷奶爸 (坦克/半肉 320HP)", 320,
-            (id, camp) -> new ShenTouNaiBa(id, "神偷奶爸", camp));
-
-        // 后续新角色只在这里 register 一行
-    }
-
-    static function register(id:String, displayName:String, hp:Int, factory:String->Camp->Player) {
-        entries.push({id: id, displayName: displayName, hp: hp, factory: factory});
-    }
+    public static function init():Void {}
 
     public static function createCharacter(id:String, camp:Camp):Player {
-        init();
-        for (e in entries) {
-            if (e.id == id) return e.factory(id, camp);
+        for (entry in entries) {
+            if (entry.id == id) return entry.factory(id, camp);
         }
         return new Player(id, "未知角色", 350, camp);
     }
 
-    /**
-     * 给前端select用：返回所有角色 [{id, displayName}]
-     */
-    public static function getAllOptions():Array<{id:String, displayName:String}> {
-        init();
-        return [for (e in entries) {id: e.id, displayName: e.displayName}];
+    /** 供前端和 AI 使用的统一角色目录。 */
+    public static function getAllOptions():Array<Dynamic> {
+        return [for (entry in entries) {
+            id: entry.id,
+            name: entry.name,
+            role: entry.role,
+            emoji: entry.emoji,
+            displayName: entry.displayName,
+            hp: entry.hp,
+            trainable: entry.trainable,
+            image: 'image/${entry.name}.png'
+        }];
     }
 }

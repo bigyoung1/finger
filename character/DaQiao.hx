@@ -17,6 +17,7 @@ import buffs.InvincibleBuff;
  * (4) 复活甲：死后获得InvincibleBuff 2回合，之后以50血复活（仅限一次）
  *     变神大乔后废弃
  */
+@:gameCharacter("daqiao", "大乔", "半肉", "🌸")
 class DaQiao extends Player {
 
     public var isGodForm:Bool = false;       // 是否已进化为神大乔

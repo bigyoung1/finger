@@ -18,13 +18,13 @@
 //  providers: 'minimax' | 'deepseek' | 'qianfan'
 // ──────────────────────────────────────────────────
 var AI_MODEL_CONFIG = {
-    p0: 'qianfan',   // HERO 角色0
-    p1: 'qianfan',   // REBEL 角色1
-    p2: 'qianfan',   // HERO 角色2
-    p3: 'qianfan',   // REBEL 角色3
-    train_main:    'qianfan',  // 自战训练主力
-    train_reflect: 'qianfan',  // 自战复盘
-    reflect:       'qianfan',  // 玩家对战复盘
+    p0: 'deepseek',   // HERO 角色0
+    p1: 'deepseek',   // REBEL 角色1
+    p2: 'deepseek',   // HERO 角色2
+    p3: 'deepseek',   // REBEL 角色3
+    train_main:    'deepseek',  // 自战训练主力
+    train_reflect: 'deepseek',  // 自战复盘
+    reflect:       'deepseek',  // 玩家对战复盘
 };
 
 // 所有可选 provider
@@ -36,7 +36,7 @@ var AI_PROVIDERS = {
 
 // 工具函数：给某个角色 idx 分配 provider（按 AI_MODEL_CONFIG）
 function getProviderForSlot(idx) {
-    return AI_MODEL_CONFIG['p' + idx] || 'qianfan';
+    return AI_MODEL_CONFIG['p' + idx] || 'deepseek';
 }
 
 var AI_BASE_WEIGHTS = {
@@ -278,6 +278,7 @@ AI.stop = function() { AI.enabled = false; AI.thinkingPromise = null; };
 // ──────────────────────────────────────────────────
 // 预加载所有角色 skill（权重同步解析）
 AI.preloadAllSkills = async function() {
+    refreshCharacterCatalog();
     const names = Object.values(CHAR_ID_MAP);
     await Promise.all(names.map(n => AI.loadSkill(n)));
     console.log('[AI] 所有角色 skill 和权重已加载', Object.keys(AI_CHAR_WEIGHTS));
@@ -504,7 +505,7 @@ AI.chooseLlmAction = async function(actorIdx, topActions, skillDoc) {
     }
 
     try {
-        const provider = AI.providerMap[actorIdx] || getProviderForSlot(actorIdx) || 'qianfan';
+        const provider = AI.providerMap[actorIdx] || getProviderForSlot(actorIdx) || 'deepseek';
         const result   = await AI.llm.ask(actorIdx, topActions, skillDoc, provider);
         if (result && typeof result.choice === 'number') {
             const idx = Math.max(0, Math.min(topActions.length - 1, result.choice));
@@ -1569,16 +1570,29 @@ AI.train = {
     onUpdate:   null,  // 外部注册回调，用于刷新训练面板 UI
 };
 
-// 角色ID → 名字映射（与 CharacterRegistry 对应）
-const CHAR_ID_MAP = {
-    'xiaoqiao':  '小乔',   'zangshi':   '藏师',
-    'fashi':     '法师',   'sunwukong': '孙悟空',
-    'daqiao':    '大乔',   'renzhe':    '忍者',
-    'zhangfei':  '张飞',   'yinyangshi':'阴阳师',
-    'yayan':     '鸦眼',   'zhaoyun':   '赵云',
-    'gongfupanda': '功夫熊猫',
-};
-const CHAR_NAME_MAP = Object.fromEntries(Object.entries(CHAR_ID_MAP).map(([k,v])=>[v,k]));
+// 角色目录来自 Haxe 编译期自动注册表，不再在 JS 重复维护名单/HP/坦克列表。
+const CHAR_ID_MAP = {};
+const CHAR_NAME_MAP = {};
+const AI_CHAR_HP = {};
+let TRAINABLE_CHARS = [];
+let TANK_IDS = [];
+
+function refreshCharacterCatalog() {
+    if (typeof Main === 'undefined' || typeof Main.getCharacterOptions !== 'function') return;
+    const options = Main.getCharacterOptions() || [];
+    Object.keys(CHAR_ID_MAP).forEach(k => delete CHAR_ID_MAP[k]);
+    Object.keys(CHAR_NAME_MAP).forEach(k => delete CHAR_NAME_MAP[k]);
+    Object.keys(AI_CHAR_HP).forEach(k => delete AI_CHAR_HP[k]);
+    TRAINABLE_CHARS = [];
+    TANK_IDS = [];
+    options.forEach(opt => {
+        CHAR_ID_MAP[opt.id] = opt.name;
+        CHAR_NAME_MAP[opt.name] = opt.id;
+        AI_CHAR_HP[opt.name] = Number(opt.hp) || 350;
+        if (opt.trainable !== false) TRAINABLE_CHARS.push(opt.id);
+        if (String(opt.role || '').includes('坦克')) TANK_IDS.push(opt.id);
+    });
+}
 
 // 角色职业映射（用于 AI 决策替代硬编码名字检查）
 const AI_CHAR_ROLE = {
@@ -1588,21 +1602,10 @@ const AI_CHAR_ROLE = {
 };
 function charRole(name) { return AI_CHAR_ROLE[name] || 'semi_tank'; }
 
-// 所有可训练角色 ID（排除杨大力）
-const TRAINABLE_CHARS = Object.keys(CHAR_ID_MAP);
-
-// 角色 HP 映射（用于选角配对检查）
-const AI_CHAR_HP = {
-    '小乔':360, '藏师':660, '法师':160, '孙悟空':260,
-    '大乔':120, '忍者':300, '张飞':560, '阴阳师':240,
-    '鸦眼':140, '赵云':200, '功夫熊猫':230,
-};
-
 // 脆皮判定：HP < 200 视为脆皮
 function isSquishy(name) { return (AI_CHAR_HP[name] || 350) < 200; }
 
-// 坦克角色
-const TANK_IDS = ['zangshi', 'zhangfei', 'gongfupanda'];
+refreshCharacterCatalog();
 
 // 按角色 ID 决定阵容类型
 function decideFormation(charIds) {
@@ -1755,7 +1758,7 @@ AI.train.reflect = async function(winnerCamp, charIds) {
     const names    = charIds.map(id => CHAR_ID_MAP[id] || id);
     const charInfo = `本局阵容 HERO:${names[0]},${names[2]} vs REBEL:${names[1]},${names[3]}`;
     const dateStr  = new Date().toLocaleString('zh-CN');
-    const resultStr = winnerCamp === 'HERO' ? `HERO胜(MiniMax ${names[0]},${names[2]})` :
+    const resultStr = winnerCamp === 'HERO' ? `HERO胜(DeepSeek ${names[0]},${names[2]})` :
                       winnerCamp === 'REBEL' ? `REBEL胜(DeepSeek ${names[1]},${names[3]})` : '平局';
 
     // ── 1. 保存完整日志到 log/ ──

@@ -133,7 +133,7 @@
     <div id="trainStatus" style="color:#555;margin-bottom:8px">点击开始训练</div>
     <div style="display:flex;gap:8px;margin-bottom:6px">
         <div style="flex:1;text-align:center;background:#e6f7ff;border-radius:6px;padding:8px">
-            <div id="trainLabelMM" style="font-size:11px;color:#888;margin-bottom:2px">🔵 MiniMax（HERO）</div>
+            <div id="trainLabelMM" style="font-size:11px;color:#888;margin-bottom:2px">🟢 DeepSeek（HERO）</div>
             <div id="trainStatMM" style="font-weight:700;color:#1890ff;font-size:15px">W0 L0</div>
             <div id="trainRateMM" style="font-size:10px;color:#aaa">胜率 -</div>
         </div>
@@ -592,7 +592,7 @@ function initCtrlSelects() {
 }
 
 // 每个角色的 AI 模型选择（本地存储，广播时一并发出）
-var AI_CHAR_MODEL = ['minimax', 'minimax', 'deepseek', 'deepseek']; // index = charIdx
+var AI_CHAR_MODEL = ['deepseek', 'deepseek', 'deepseek', 'deepseek']; // index = charIdx
 
 function initAiModelSels() {
     if (typeof AI_PROVIDERS === 'undefined') { setTimeout(initAiModelSels, 200); return; }
@@ -725,7 +725,7 @@ function collectLobbyConfig2() {
         charControl: getCurrentCharControl(),
         ownerControl: window.ONLINE && ONLINE.ownerControl ? ONLINE.ownerControl.slice() : getCurrentCharControl(),
         delegateFlags: window.ONLINE && ONLINE.delegateFlags ? ONLINE.delegateFlags.slice() : [false,false,false,false],
-        aiCharModel: (window.AI_CHAR_MODEL || ['minimax','minimax','deepseek','deepseek']).slice(),
+        aiCharModel: (window.AI_CHAR_MODEL || ['deepseek','deepseek','deepseek','deepseek']).slice(),
         formation: Object.assign({}, window._setupFormation || { hero: 'dual_half', rebel: 'dual_half' }),
         tankIdx: Object.assign({}, window._setupTankIdx || { hero: 0, rebel: 1 })
     };
@@ -1205,7 +1205,7 @@ function applyModelConfig() {
     var mmLabel = document.getElementById('trainLabelMM');
     var dsLabel = document.getElementById('trainLabelDS');
     if (mmLabel) {
-        var p = AI_PROVIDERS[AI_MODEL_CONFIG.train_main] || AI_PROVIDERS.minimax;
+        var p = AI_PROVIDERS[AI_MODEL_CONFIG.train_main] || AI_PROVIDERS.deepseek;
         mmLabel.textContent = p.label + '（HERO）';
     }
     if (dsLabel) {

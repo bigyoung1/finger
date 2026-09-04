@@ -16,6 +16,7 @@ import model.ShieldType;
  *     技能内产生的回血/获盾不计入（如毒伤反向、藏师自己补给）
  *     蛋糕无上限，藏师可在任意自己回合释放
  */
+@:gameCharacter("zangshi", "藏师", "坦克", "🛡️")
 class ZangShi extends Player {
 
     public var cakes:Int = 0;

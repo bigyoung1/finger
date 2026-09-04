@@ -7,6 +7,7 @@ import model.HealType;
 import buffs.ThunderRageBuff;
 
 
+@:gameCharacter("fashi", "法师", "攻击", "⚡")
 class FaShi extends Player {
 
     // 标记：当前是否处于"0组合伤害"的施法上下文，用于让 calculateOutputDamage 知道要翻倍
